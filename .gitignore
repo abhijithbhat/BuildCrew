@@ -1,3 +1,26 @@
+# Environment variables
 .env
-venv/
+*.env
+backend/.env
+frontend/.env
+
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+backend/venv/
+backend/__pycache__/
+backend/*/__pycache__/
+.pytest_cache/
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Node / Frontend / Flutter
+node_modules/
+dist/
+build/
+.dart_tool/
+.packages
