@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from core.logging import logger
+from routers.auth import router as auth_router
 from routers.health import router as health_router
 
 app = FastAPI(title="BuildCrew Backend API")
@@ -32,6 +33,7 @@ async def log_requests(request: Request, call_next):
 
 # Include routers
 app.include_router(health_router)
+app.include_router(auth_router)
 
 
 if __name__ == "__main__":

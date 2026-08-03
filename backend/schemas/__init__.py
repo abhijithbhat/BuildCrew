@@ -1,3 +1,4 @@
+from schemas.auth import LoginRequest, SignUpRequest
 from schemas.profile import ProfileCreate, ProfileResponse, ProfileUpdate
 from schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
 from schemas.project_member import (
@@ -27,7 +28,10 @@ from schemas.confirmation import (
 )
 
 __all__ = [
+    "SignUpRequest",
+    "LoginRequest",
     "ProfileCreate",
+
     "ProfileResponse",
     "ProfileUpdate",
     "ProjectCreate",
@@ -49,3 +53,4 @@ __all__ = [
     "ConfirmationResponse",
     "ConfirmationUpdate",
 ]
+
