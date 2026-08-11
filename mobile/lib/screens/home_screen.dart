@@ -1,61 +1,153 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import '../services/health_service.dart';
 
 class HomeScreen extends StatelessWidget {
   static const String routeName = '/home';
 
-  const HomeScreen({super.key});
+  final String? userName;
+
+  const HomeScreen({super.key, this.userName});
 
   @override
   Widget build(BuildContext context) {
+    final String rawInput = userName ??
+        (ModalRoute.of(context)?.settings.arguments as String?) ??
+        'User';
+
+    String formatDisplayName(String input) {
+      final trimmed = input.trim();
+      if (trimmed.isEmpty) return 'User';
+      if (trimmed.contains('@')) {
+        final namePart = trimmed.split('@')[0];
+        if (namePart.isEmpty) return 'User';
+        return namePart
+            .split(RegExp(r'[\._-]'))
+            .where((w) => w.isNotEmpty)
+            .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+            .join(' ');
+      }
+      return trimmed;
+    }
+
+    final String displayName = formatDisplayName(rawInput);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Home'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: () async {
+              await AuthService().logout();
+              if (context.mounted) {
+                Navigator.pushReplacementNamed(context, '/login');
+              }
+            },
+          ),
+        ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('Home Screen Placeholder'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () async {
-                try {
-                  final result = await HealthService().checkHealth();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        backgroundColor: Colors.green,
-                        content: Text('Backend Connected: ${result?["status"]}'),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircleAvatar(
+                  radius: 40,
+                  backgroundColor: Colors.blueAccent,
+                  child: Icon(
+                    Icons.person,
+                    size: 48,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Welcome, $displayName',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
                       ),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        backgroundColor: Colors.red,
-                        content: Text('Connection Failed: $e'),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'You are successfully logged in.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey[600],
                       ),
-                    );
-                  }
-                }
-              },
-              child: const Text('Check Backend Health'),
+                ),
+                const SizedBox(height: 40),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.favorite),
+                  label: const Text('Check Backend Health'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                  onPressed: () async {
+                    try {
+                      final result = await HealthService().checkHealth();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: Colors.green,
+                            content:
+                                Text('Backend Connected: ${result?["status"]}'),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: Colors.red,
+                            content: Text('Connection Failed: $e'),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('View Project Detail'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                  onPressed: () =>
+                      Navigator.pushNamed(context, '/project-detail'),
+                ),
+                const SizedBox(height: 24),
+                TextButton.icon(
+                  icon: const Icon(Icons.logout, color: Colors.red),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onPressed: () async {
+                    await AuthService().logout();
+                    if (context.mounted) {
+                      Navigator.pushReplacementNamed(context, '/login');
+                    }
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () => Navigator.pushNamed(context, '/project-detail'),
-              child: const Text('View Project Detail'),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
-              child: const Text('Logout'),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
+

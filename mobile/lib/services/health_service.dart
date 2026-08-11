@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 class HealthService {
   final Dio _dio;
 
-  static const String defaultBaseUrl = 'http://localhost:8000';
+  static String get defaultBaseUrl => 'http://127.0.0.1:8000';
 
   HealthService({Dio? dio, String? baseUrl})
       : _dio = dio ??
