@@ -1,14 +1,25 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from core.database import get_supabase_client
+from core.database import get_supabase_client, get_supabase_pub_client
 from core.dependencies import get_current_user
-from schemas.auth import LoginRequest, SignUpRequest
+from schemas.auth import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    ResetPasswordRequest,
+    SignUpRequest,
+    VerifyOTPRequest,
+)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
+# In-memory user store for Local Dev Mode when Supabase URL is unconfigured/offline
+DEV_USERS_DB: dict[str, str] = {}
+DEV_VERIFIED_USERS: set[str] = set()
+
+
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
 async def signup(credentials: SignUpRequest):
-    supabase = get_supabase_client()
+    supabase = get_supabase_pub_client()
     try:
         response = supabase.auth.sign_up(
             {
@@ -16,31 +27,153 @@ async def signup(credentials: SignUpRequest):
                 "password": credentials.password,
             }
         )
+
+        # Supabase returns a user with empty identities when the email is
+        # already registered and confirmed (anti-enumeration pattern).
+        # Detect this and tell the user to log in instead.
+        user_identities = getattr(response.user, "identities", None)
+        if response.user and (user_identities is not None and len(user_identities) == 0):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email already exists. Please log in.",
+            )
+
+        # For unconfirmed re-signups, Supabase automatically resends the OTP.
+        # We return success so the user is navigated to the OTP screen.
         return {
-            "message": "User registered successfully",
+            "message": "Verification code sent to your email.",
+            "requires_otp": True,
+            "email": credentials.email,
             "user": {
                 "id": response.user.id if response.user else None,
                 "email": response.user.email if response.user else None,
             },
             "session": response.session,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         err_msg = str(e)
         if "nodename nor servname provided" in err_msg or "gai_error" in err_msg or "Name or service not known" in err_msg:
+            # Store credentials in Local Dev DB
+            DEV_USERS_DB[credentials.email.lower()] = credentials.password
             return {
-                "message": "User registered successfully (Local Dev Mode)",
+                "message": "Verification code sent to your email (Local Dev OTP: 123456)",
+                "requires_otp": True,
+                "email": credentials.email,
                 "user": {
-                    "id": "dev-user-123",
+                    "id": f"dev-user-{hash(credentials.email) & 0xffff}",
                     "email": credentials.email,
                 },
-                "session": {
-                    "access_token": "mock-dev-access-token",
-                    "refresh_token": "mock-dev-refresh-token",
-                    "token_type": "bearer",
-                    "expires_in": 3600,
-                    "expires_at": 1700000000,
+            }
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=err_msg,
+        )
+
+
+@router.post("/verify-otp", status_code=status.HTTP_200_OK)
+async def verify_otp(req: VerifyOTPRequest):
+    supabase = get_supabase_pub_client()
+    try:
+        response = supabase.auth.verify_otp(
+            {
+                "email": req.email,
+                "token": req.token,
+                "type": req.type,
+            }
+        )
+        return {
+            "message": "OTP verified successfully",
+            "access_token": response.session.access_token if response.session else "mock-access-token",
+            "refresh_token": response.session.refresh_token if response.session else "mock-refresh-token",
+            "user": {
+                "id": response.user.id if response.user else None,
+                "email": response.user.email if response.user else req.email,
+            },
+        }
+    except Exception as e:
+        err_msg = str(e)
+        if "nodename nor servname provided" in err_msg or "gai_error" in err_msg or "Name or service not known" in err_msg:
+            # Accept "123456" as universal Dev Mode OTP
+            if req.token.strip() != "123456":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid verification code. Use dev OTP: 123456",
+                )
+            DEV_VERIFIED_USERS.add(req.email.lower())
+            return {
+                "message": "OTP verified successfully (Local Dev Mode)",
+                "access_token": f"mock-dev-access-token-{req.email}",
+                "refresh_token": f"mock-dev-refresh-token-{req.email}",
+                "user": {
+                    "id": f"dev-user-{hash(req.email) & 0xffff}",
+                    "email": req.email,
                 },
             }
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=err_msg,
+        )
+
+
+@router.post("/forgot-password", status_code=status.HTTP_200_OK)
+async def forgot_password(req: ForgotPasswordRequest):
+    supabase = get_supabase_pub_client()
+    try:
+        supabase.auth.reset_password_for_email(req.email)
+        return {
+            "message": f"Password reset OTP sent to {req.email}",
+            "email": req.email,
+        }
+    except Exception as e:
+        err_msg = str(e)
+        if "nodename nor servname provided" in err_msg or "gai_error" in err_msg or "Name or service not known" in err_msg:
+            email_key = req.email.lower()
+            if email_key not in DEV_USERS_DB:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No account found with this email address.",
+                )
+            return {
+                "message": f"Password reset code sent to {req.email} (Local Dev OTP: 123456)",
+                "email": req.email,
+            }
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=err_msg,
+        )
+
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+async def reset_password(req: ResetPasswordRequest):
+    supabase = get_supabase_pub_client()
+    try:
+        # Verify OTP code and update password
+        supabase.auth.verify_otp(
+            {
+                "email": req.email,
+                "token": req.token,
+                "type": "recovery",
+            }
+        )
+        return {"message": "Password reset successfully. Please log in with your new password."}
+    except Exception as e:
+        err_msg = str(e)
+        if "nodename nor servname provided" in err_msg or "gai_error" in err_msg or "Name or service not known" in err_msg:
+            if req.token.strip() != "123456":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid reset code. Use dev OTP: 123456",
+                )
+            email_key = req.email.lower()
+            if email_key not in DEV_USERS_DB:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No account found with this email address.",
+                )
+            DEV_USERS_DB[email_key] = req.new_password
+            return {"message": "Password reset successfully (Local Dev Mode). Please log in."}
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=err_msg,
@@ -80,20 +213,31 @@ async def login(credentials: LoginRequest):
     except Exception as e:
         err_msg = str(e)
         if "nodename nor servname provided" in err_msg or "gai_error" in err_msg or "Name or service not known" in err_msg:
+            email_key = credentials.email.lower()
+            if email_key not in DEV_USERS_DB:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User not registered. Please sign up first.",
+                )
+            if DEV_USERS_DB[email_key] != credentials.password:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid login credentials.",
+                )
             return {
                 "message": "Login successful (Local Dev Mode)",
-                "access_token": "mock-dev-access-token",
-                "refresh_token": "mock-dev-refresh-token",
+                "access_token": f"mock-dev-access-token-{credentials.email}",
+                "refresh_token": f"mock-dev-refresh-token-{credentials.email}",
                 "token_type": "bearer",
                 "expires_in": 3600,
                 "expires_at": 1700000000,
                 "user": {
-                    "id": "dev-user-123",
+                    "id": f"dev-user-{hash(credentials.email) & 0xffff}",
                     "email": credentials.email,
                 },
                 "session": {
-                    "access_token": "mock-dev-access-token",
-                    "refresh_token": "mock-dev-refresh-token",
+                    "access_token": f"mock-dev-access-token-{credentials.email}",
+                    "refresh_token": f"mock-dev-refresh-token-{credentials.email}",
                 },
             }
         raise HTTPException(

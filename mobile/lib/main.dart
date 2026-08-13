@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'screens/forgot_password_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/otp_screen.dart';
 import 'screens/project_detail_screen.dart';
 import 'screens/signup_screen.dart';
 
@@ -21,6 +23,8 @@ class MyApp extends StatelessWidget {
       routes: {
         LoginScreen.routeName: (context) => const LoginScreen(),
         SignupScreen.routeName: (context) => const SignupScreen(),
+        '/otp': (context) => const OtpScreen(),
+        '/forgot-password': (context) => const ForgotPasswordScreen(),
         HomeScreen.routeName: (context) => const HomeScreen(),
         ProjectDetailScreen.routeName: (context) => const ProjectDetailScreen(),
       },

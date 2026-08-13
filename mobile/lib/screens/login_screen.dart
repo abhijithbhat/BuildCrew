@@ -161,6 +161,17 @@ class _LoginScreenState extends State<LoginScreen> {
                       return null;
                     },
                   ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              Navigator.pushNamed(context, '/forgot-password');
+                            },
+                      child: const Text('Forgot Password?'),
+                    ),
+                  ),
                   if (_errorMessage != null)
                     Container(
                       margin: const EdgeInsets.only(top: 16),

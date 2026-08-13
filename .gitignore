@@ -13,10 +13,11 @@ backend/__pycache__/
 backend/*/__pycache__/
 .pytest_cache/
 
-# OS / IDE
+# OS / IDE / Local Configs
 .DS_Store
 .vscode/
 .idea/
+.agents/
 
 # Node / Frontend / Flutter
 node_modules/

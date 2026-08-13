@@ -8,24 +8,26 @@ client = TestClient(app)
 def test_signup_endpoint_success():
     mock_supabase = MagicMock()
     mock_response = MagicMock()
-    mock_response.user = MagicMock(id="user-123", email="test@example.com")
+    mock_user = MagicMock(id="user-123", email="test@example.com")
+    mock_user.identities = [MagicMock()]  # Non-empty = new signup (not duplicate)
+    mock_response.user = mock_user
     mock_response.session = None
     mock_supabase.auth.sign_up.return_value = mock_response
 
-    with patch("routers.auth.get_supabase_client", return_value=mock_supabase):
+    with patch("routers.auth.get_supabase_pub_client", return_value=mock_supabase):
         response = client.post(
             "/auth/signup",
             json={"email": "test@example.com", "password": "password123"},
         )
         assert response.status_code == 201
         data = response.json()
-        assert data["message"] == "User registered successfully"
+        assert "Verification code sent to your email" in data["message"]
         assert data["user"]["id"] == "user-123"
         assert data["user"]["email"] == "test@example.com"
 
 
 def test_signup_endpoint_failure():
-    with patch("routers.auth.get_supabase_client") as mock_get_client:
+    with patch("routers.auth.get_supabase_pub_client") as mock_get_client:
         mock_client = MagicMock()
         mock_client.auth.sign_up.side_effect = Exception("Invalid email format")
         mock_get_client.return_value = mock_client

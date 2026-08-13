@@ -34,14 +34,17 @@ class _SignupScreenState extends State<SignupScreen> {
         password: _passwordController.text,
       );
       if (mounted) {
+        final email = _emailController.text.trim();
         final displayName = _nameController.text.trim().isNotEmpty
             ? _nameController.text.trim()
-            : _emailController.text.trim();
-        Navigator.pushNamedAndRemoveUntil(
+            : email;
+        Navigator.pushNamed(
           context,
-          '/home',
-          (route) => false,
-          arguments: displayName,
+          '/otp',
+          arguments: {
+            'email': email,
+            'displayName': displayName,
+          },
         );
       }
     } catch (e) {
