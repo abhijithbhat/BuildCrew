@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 from pydantic import BaseModel, ConfigDict
 
 
@@ -19,6 +19,7 @@ class ProjectMemberUpdate(BaseModel):
 class ProjectMemberResponse(ProjectMemberBase):
     project_id: str
     user_id: str
-    joined_at: datetime
+    joined_at: Optional[Union[datetime, str]] = None
 
     model_config = ConfigDict(from_attributes=True)
+

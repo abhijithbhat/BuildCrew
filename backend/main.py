@@ -6,6 +6,7 @@ import uvicorn
 from core.logging import logger
 from routers.auth import router as auth_router
 from routers.health import router as health_router
+from routers.projects import router as projects_router
 
 app = FastAPI(title="BuildCrew Backend API")
 
@@ -34,6 +35,7 @@ async def log_requests(request: Request, call_next):
 # Include routers
 app.include_router(health_router)
 app.include_router(auth_router)
+app.include_router(projects_router)
 
 
 if __name__ == "__main__":
