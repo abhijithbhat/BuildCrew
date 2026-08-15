@@ -51,11 +51,12 @@ class HomeScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+
                 const CircleAvatar(
                   radius: 40,
                   backgroundColor: Colors.blueAccent,
@@ -116,9 +117,24 @@ class HomeScreen extends StatelessWidget {
                   },
                 ),
                 const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.folder_shared_outlined),
+                  label: const Text('My Projects'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                  onPressed: () =>
+                      Navigator.pushNamed(context, '/projects'),
+                ),
+                const SizedBox(height: 12),
                 OutlinedButton.icon(
-                  icon: const Icon(Icons.folder_open),
-                  label: const Text('View Project Detail'),
+                  icon: const Icon(Icons.group_add_outlined),
+                  label: const Text('Join Project with Code'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,
@@ -126,8 +142,24 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                   onPressed: () =>
-                      Navigator.pushNamed(context, '/project-detail'),
+                      Navigator.pushNamed(context, '/join-project'),
                 ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text('Create New Project'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                  onPressed: () =>
+                      Navigator.pushNamed(context, '/create-project'),
+                ),
+
+
+
                 const SizedBox(height: 24),
                 TextButton.icon(
                   icon: const Icon(Icons.logout, color: Colors.red),

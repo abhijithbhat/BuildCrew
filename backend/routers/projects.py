@@ -1,7 +1,10 @@
+import json
+import os
 import secrets
 import string
 import uuid
 from datetime import datetime, timedelta, timezone
+
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from core.database import get_supabase_client
@@ -19,13 +22,53 @@ from schemas.project_member import ProjectMemberResponse
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
-# In-memory storage for Local Dev Mode when Supabase is unconfigured/offline
+INVITES_CACHE_FILE = os.path.join(
+    os.path.dirname(__file__), "..", ".invites_cache.json"
+)
+
+
+def _load_invites() -> dict:
+    if os.path.exists(INVITES_CACHE_FILE):
+        try:
+            with open(INVITES_CACHE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_invites(invites: dict) -> None:
+    try:
+        with open(INVITES_CACHE_FILE, "w") as f:
+            json.dump(invites, f, indent=2)
+    except Exception:
+        pass
+
+
+# In-memory storage with file cache for server reloads
 DEV_PROJECTS_DB: dict[str, dict] = {}
 DEV_PROJECT_MEMBERS_DB: list[dict] = []
-DEV_PROJECT_INVITES_DB: dict[str, dict] = {}
+DEV_PROJECT_INVITES_DB: dict[str, dict] = _load_invites()
+
+
+
+def _is_dev_fallback_error(err_msg: str) -> bool:
+    return any(
+        s in err_msg
+        for s in (
+            "nodename nor servname provided",
+            "gai_error",
+            "Name or service not known",
+            "SUPABASE_URL",
+            "environment variables",
+            "Failed to connect",
+            "Client disconnected",
+        )
+    )
 
 
 def generate_invite_code(prefix: str = "BC") -> str:
+
     """Generate a 6-character clean alphanumeric invite code like BC-A7K29X."""
     alphabet = (
         string.ascii_uppercase
@@ -121,11 +164,7 @@ async def create_project(
         raise
     except Exception as e:
         err_msg = str(e)
-        if (
-            "nodename nor servname provided" in err_msg
-            or "gai_error" in err_msg
-            or "Name or service not known" in err_msg
-        ):
+        if _is_dev_fallback_error(err_msg):
             # Local Dev Mode fallback
             dev_project = {
                 "id": project_id,
@@ -211,11 +250,7 @@ async def list_projects(current_user: Any = Depends(get_current_user)):
         }
     except Exception as e:
         err_msg = str(e)
-        if (
-            "nodename nor servname provided" in err_msg
-            or "gai_error" in err_msg
-            or "Name or service not known" in err_msg
-        ):
+        if _is_dev_fallback_error(err_msg):
             # Local Dev Mode fallback: Filter in-memory projects by user membership
             member_project_roles = {
                 m["project_id"]: m.get("role", "member")
@@ -269,11 +304,7 @@ async def get_project_details(
         raise
     except Exception as e:
         err_msg = str(e)
-        if (
-            "nodename nor servname provided" in err_msg
-            or "gai_error" in err_msg
-            or "Name or service not known" in err_msg
-        ):
+        if _is_dev_fallback_error(err_msg):
             if project_id in DEV_PROJECTS_DB:
                 members = [
                     m
@@ -299,11 +330,37 @@ async def generate_project_invite(
     project_id: str,
     current_user: Any = Depends(get_current_user),
 ):
-    """Generate a shareable invite code for the specified project. Requires membership."""
+    """Generate or retrieve a shareable invite code for the specified project. Requires membership."""
     user_id = _get_user_id(current_user)
-    invite_code = generate_invite_code()
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=7)
+
+    # Check if a valid, unexpired invite already exists for this project in local cache
+    existing_invite = None
+    for code, info in list(DEV_PROJECT_INVITES_DB.items()):
+        if info.get("project_id") == project_id:
+            exp_str = info.get("expires_at")
+            if exp_str:
+                try:
+                    if datetime.fromisoformat(exp_str) > now:
+                        existing_invite = info
+                        break
+                except Exception:
+                    pass
+            else:
+                existing_invite = info
+                break
+
+    if existing_invite:
+        invite_code = existing_invite["invite_code"]
+        if existing_invite.get("expires_at"):
+            try:
+                expires_at = datetime.fromisoformat(existing_invite["expires_at"])
+            except Exception:
+                pass
+    else:
+        invite_code = generate_invite_code()
+
 
     try:
         supabase = get_supabase_client()
@@ -351,6 +408,7 @@ async def generate_project_invite(
             "message": "Invite code generated successfully",
         }
         DEV_PROJECT_INVITES_DB[invite_code] = invite_data
+        _save_invites(DEV_PROJECT_INVITES_DB)
 
         return invite_data
 
@@ -358,11 +416,7 @@ async def generate_project_invite(
         raise
     except Exception as e:
         err_msg = str(e)
-        if (
-            "nodename nor servname provided" in err_msg
-            or "gai_error" in err_msg
-            or "Name or service not known" in err_msg
-        ):
+        if _is_dev_fallback_error(err_msg):
             # Local Dev Mode fallback
             if project_id not in DEV_PROJECTS_DB:
                 raise HTTPException(
@@ -393,6 +447,7 @@ async def generate_project_invite(
                 "message": "Invite code generated successfully (Local Dev Mode)",
             }
             DEV_PROJECT_INVITES_DB[invite_code] = invite_data
+            _save_invites(DEV_PROJECT_INVITES_DB)
             return invite_data
 
         raise HTTPException(
@@ -417,13 +472,17 @@ async def join_project_by_invite(
 
     clean_code = payload.invite_code.strip().upper()
 
-    # Check in-memory invite store
+    # Refresh from persistent cache if not in memory
+    if clean_code not in DEV_PROJECT_INVITES_DB:
+        DEV_PROJECT_INVITES_DB.update(_load_invites())
+
     invite_info = DEV_PROJECT_INVITES_DB.get(clean_code)
     if not invite_info:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Invalid or expired invite code.",
         )
+
 
     # Check expiration
     expires_at_str = invite_info.get("expires_at")
@@ -503,11 +562,7 @@ async def join_project_by_invite(
         raise
     except Exception as e:
         err_msg = str(e)
-        if (
-            "nodename nor servname provided" in err_msg
-            or "gai_error" in err_msg
-            or "Name or service not known" in err_msg
-        ):
+        if _is_dev_fallback_error(err_msg):
             # Local Dev Mode fallback
             if project_id not in DEV_PROJECTS_DB:
                 raise HTTPException(

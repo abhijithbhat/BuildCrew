@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
 
 class OtpScreen extends StatefulWidget {
@@ -187,26 +188,35 @@ class _OtpScreenState extends State<OtpScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: List.generate(6, (index) {
                   return SizedBox(
-                    width: 44,
-                    height: 54,
+                    width: 46,
+                    height: 56,
                     child: TextField(
                       controller: _controllers[index],
                       focusNode: _focusNodes[index],
                       keyboardType: TextInputType.number,
                       textAlign: TextAlign.center,
-                      maxLength: 1,
+                      textAlignVertical: TextAlignVertical.center,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(1),
+                      ],
                       style: const TextStyle(
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
+                        color: Colors.black87,
                       ),
                       decoration: InputDecoration(
                         counterText: '',
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide(
                             color: Theme.of(context).primaryColor,
                             width: 2,
@@ -227,6 +237,7 @@ class _OtpScreenState extends State<OtpScreen> {
                   );
                 }),
               ),
+
               const SizedBox(height: 32),
 
               // Verify Button

@@ -1,4 +1,7 @@
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_ENV_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 
 class Settings(BaseSettings):
@@ -8,8 +11,11 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=(_ENV_FILE, ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
 
 
 settings = Settings()
+

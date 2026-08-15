@@ -25,3 +25,6 @@ dist/
 build/
 .dart_tool/
 .packages
+.invites_cache.json
+*.invites_cache.json
+
