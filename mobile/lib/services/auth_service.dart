@@ -78,6 +78,8 @@ class AuthService {
       final data = response.data as Map<String, dynamic>;
       final accessToken = data['access_token'] as String?;
       final refreshToken = data['refresh_token'] as String?;
+      final user = data['user'] as Map<String, dynamic>?;
+      final dName = (user?['display_name'] as String?) ?? (user?['name'] as String?);
 
       if (accessToken != null) {
         await _storageService.saveTokens(
@@ -85,6 +87,12 @@ class AuthService {
           refreshToken: refreshToken,
         );
       }
+
+      await _storageService.saveUserInfo(
+        userId: user?['id'] as String?,
+        email: (user?['email'] as String?) ?? email,
+        name: dName,
+      );
 
       return data;
     } on DioException catch (e) {
@@ -112,13 +120,14 @@ class AuthService {
     }
   }
 
-  /// Calls POST /auth/signup with email and password.
+  /// Calls POST /auth/signup with email, password, and optional name.
   /// Stores tokens if session is present in the response.
   /// Returns the full response map on success.
   /// Throws a user-friendly error string on failure.
   Future<Map<String, dynamic>> signup({
     required String email,
     required String password,
+    String? name,
   }) async {
     try {
       final response = await _postWithFallback(
@@ -126,12 +135,16 @@ class AuthService {
         {
           'email': email,
           'password': password,
+          if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
         },
       );
       debugPrint('SIGNUP SUCCESS: ${response.data}');
 
       final data = response.data as Map<String, dynamic>;
       final session = data['session'];
+      final user = data['user'] as Map<String, dynamic>?;
+      final dName = (user?['display_name'] as String?) ?? (user?['name'] as String?) ?? name;
+
       if (session != null && session is Map<String, dynamic>) {
         final accessToken = session['access_token'] as String?;
         final refreshToken = session['refresh_token'] as String?;
@@ -142,6 +155,12 @@ class AuthService {
           );
         }
       }
+
+      await _storageService.saveUserInfo(
+        userId: user?['id'] as String?,
+        email: (user?['email'] as String?) ?? email,
+        name: dName,
+      );
 
       return data;
     } on DioException catch (e) {
@@ -169,12 +188,13 @@ class AuthService {
     }
   }
 
-  /// Calls POST /auth/verify-otp with email, token, and optional type ('signup' or 'recovery').
+  /// Calls POST /auth/verify-otp with email, token, optional type, and optional displayName.
   /// Stores access and refresh tokens if present in response.
   Future<Map<String, dynamic>> verifyOtp({
     required String email,
     required String token,
     String type = 'signup',
+    String? displayName,
   }) async {
     try {
       final response = await _postWithFallback(
@@ -189,13 +209,25 @@ class AuthService {
       final data = response.data as Map<String, dynamic>;
       final accessToken = data['access_token'] as String?;
       final refreshToken = data['refresh_token'] as String?;
+      final user = data['user'] as Map<String, dynamic>?;
+      final dName = (user?['display_name'] as String?) ?? (user?['name'] as String?) ?? displayName;
+
       if (accessToken != null) {
         await _storageService.saveTokens(
           accessToken: accessToken,
           refreshToken: refreshToken,
         );
       }
+
+      await _storageService.saveUserInfo(
+        userId: user?['id'] as String?,
+        email: (user?['email'] as String?) ?? email,
+        name: dName,
+      );
+
       return data;
+
+
     } on DioException catch (e) {
       if (e.response?.data != null) {
         final data = e.response!.data;

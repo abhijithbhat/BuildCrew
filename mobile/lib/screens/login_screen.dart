@@ -28,17 +28,25 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await _authService.login(
+      final loginData = await _authService.login(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
       if (mounted) {
+        final user = loginData['user'] as Map<String, dynamic>?;
+        final dName = (user?['display_name'] as String?) ??
+            (user?['name'] as String?) ??
+            (user?['full_name'] as String?);
+        final arg = (dName != null && dName.trim().isNotEmpty)
+            ? dName.trim()
+            : _emailController.text.trim();
         Navigator.pushReplacementNamed(
           context,
           '/home',
-          arguments: _emailController.text.trim(),
+          arguments: arg,
         );
       }
+
     } catch (e) {
       if (mounted) {
         setState(() {

@@ -10,6 +10,9 @@ from schemas.role_agreement import (
     RoleAgreementCreate,
     RoleAgreementResponse,
     RoleAgreementUpdate,
+    RoleAgreementsListResponse,
+    RoleDeclarationResponse,
+    RoleDeclareRequest,
 )
 from schemas.github_installation import (
     GitHubInstallationCreate,
@@ -31,7 +34,6 @@ __all__ = [
     "SignUpRequest",
     "LoginRequest",
     "ProfileCreate",
-
     "ProfileResponse",
     "ProfileUpdate",
     "ProjectCreate",
@@ -43,6 +45,9 @@ __all__ = [
     "RoleAgreementCreate",
     "RoleAgreementResponse",
     "RoleAgreementUpdate",
+    "RoleDeclareRequest",
+    "RoleDeclarationResponse",
+    "RoleAgreementsListResponse",
     "GitHubInstallationCreate",
     "GitHubInstallationResponse",
     "GitHubInstallationUpdate",
@@ -53,4 +58,5 @@ __all__ = [
     "ConfirmationResponse",
     "ConfirmationUpdate",
 ]
+
 

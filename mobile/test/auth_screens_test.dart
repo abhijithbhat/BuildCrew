@@ -5,8 +5,27 @@ import 'package:mobile/screens/home_screen.dart';
 import 'package:mobile/screens/login_screen.dart';
 import 'package:mobile/screens/otp_screen.dart';
 import 'package:mobile/screens/signup_screen.dart';
+import 'package:mobile/services/storage_service.dart';
+
+class FakeStorageService extends StorageService {
+  String? userId;
+  String? userEmail;
+  String? userName;
+
+  FakeStorageService({this.userId, this.userEmail, this.userName});
+
+  @override
+  Future<String?> getUserId() async => userId;
+
+  @override
+  Future<String?> getUserEmail() async => userEmail;
+
+  @override
+  Future<String?> getUserName() async => userName;
+}
 
 void main() {
+
   group('LoginScreen Tests', () {
     testWidgets('renders all login elements, fields, and action buttons', (WidgetTester tester) async {
       await tester.pumpWidget(
@@ -172,5 +191,19 @@ void main() {
       expect(find.text('Create New Project'), findsOneWidget);
       expect(find.text('Logout'), findsOneWidget);
     });
+
+    testWidgets('renders greeting loaded from StorageService with registered name', (WidgetTester tester) async {
+      final fakeStorage = FakeStorageService(userName: 'Abhijith Hubli');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HomeScreen(storageService: fakeStorage),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Welcome, Abhijith Hubli'), findsOneWidget);
+    });
   });
 }
+

@@ -29,15 +29,15 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
+      final email = _emailController.text.trim();
+      final name = _nameController.text.trim();
       await _authService.signup(
-        email: _emailController.text.trim(),
+        email: email,
         password: _passwordController.text,
+        name: name.isNotEmpty ? name : null,
       );
       if (mounted) {
-        final email = _emailController.text.trim();
-        final displayName = _nameController.text.trim().isNotEmpty
-            ? _nameController.text.trim()
-            : email;
+        final displayName = name.isNotEmpty ? name : email;
         Navigator.pushNamed(
           context,
           '/otp',
@@ -47,6 +47,7 @@ class _SignupScreenState extends State<SignupScreen> {
           },
         );
       }
+
     } catch (e) {
       if (mounted) {
         setState(() {

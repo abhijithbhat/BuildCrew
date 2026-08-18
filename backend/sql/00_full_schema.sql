@@ -71,6 +71,11 @@ DROP POLICY IF EXISTS "Project creator can update project." ON public.projects;
 CREATE POLICY "Project creator can update project."
     ON public.projects FOR UPDATE USING (auth.uid() = created_by);
 
+DROP POLICY IF EXISTS "Project creator can delete project." ON public.projects;
+CREATE POLICY "Project creator can delete project."
+    ON public.projects FOR DELETE USING (auth.uid() = created_by);
+
+
 
 -- 3. PROJECT MEMBERS TABLE
 CREATE TABLE IF NOT EXISTS public.project_members (

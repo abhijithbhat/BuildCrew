@@ -13,8 +13,10 @@ class ProjectCard extends StatelessWidget {
     this.onInviteTap,
   });
 
-  bool get isOwner =>
-      (project.role ?? '').toLowerCase() == 'owner';
+  bool get isOwner {
+    final r = (project.role ?? '').toLowerCase();
+    return r == 'owner' || r == 'lead' || r == 'creator';
+  }
 
   String _formatDate(DateTime? date) {
     if (date == null) return '';
@@ -23,9 +25,10 @@ class ProjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final roleColor = isOwner ? Colors.deepPurple : Colors.blue.shade700;
-    final roleBgColor = isOwner ? Colors.deepPurple.shade50 : Colors.blue.shade50;
-    final roleLabel = isOwner ? 'Owner' : 'Member';
+    final roleColor = isOwner ? Colors.amber.shade900 : Colors.blue.shade700;
+    final roleBgColor = isOwner ? Colors.amber.shade50 : Colors.blue.shade50;
+    final roleLabel = isOwner ? 'Team Lead' : 'Member';
+
 
     return Card(
       elevation: 0,

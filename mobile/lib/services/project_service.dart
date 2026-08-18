@@ -191,6 +191,22 @@ class ProjectService {
     }
   }
 
+  /// Regenerate a fresh invite code (revoking the previous code) for a project (Team Lead only).
+  Future<Map<String, dynamic>> regenerateInviteCode(String projectId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _postWithFallback(
+        '/projects/$projectId/invite/regenerate',
+        {},
+        options: options,
+      );
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+
   /// Join a project using an invite code via POST /projects/join.
   Future<Map<String, dynamic>> joinProject(String inviteCode) async {
     try {
@@ -205,4 +221,154 @@ class ProjectService {
       throw _parseDioError(e);
     }
   }
+
+  /// Declare or update project role agreement via POST /projects/{projectId}/role.
+  Future<Map<String, dynamic>> declareRole({
+    required String projectId,
+    required String declaredRole,
+    String? responsibilities,
+    DateTime? deadline,
+  }) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _postWithFallback(
+        '/projects/$projectId/role',
+        {
+          'declared_role': declaredRole.trim(),
+          if (responsibilities != null && responsibilities.trim().isNotEmpty)
+            'responsibilities': responsibilities.trim(),
+          if (deadline != null) 'deadline': deadline.toIso8601String(),
+        },
+        options: options,
+      );
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// List declared roles for a project via GET /projects/{projectId}/roles.
+  Future<List<Map<String, dynamic>>> listProjectRoles(String projectId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _getWithFallback(
+        '/projects/$projectId/roles',
+        options: options,
+      );
+      final data = response.data as Map<String, dynamic>;
+      final list = data['roles'] as List<dynamic>? ??
+          data['role_agreements'] as List<dynamic>? ??
+          [];
+      final createdBy = data['created_by']?.toString() ?? data['lead_user_id']?.toString();
+      final totalMembers = data['total_members'] as int?;
+      final declaredCount = data['declared_count'] as int?;
+      return list.map((item) {
+        final map = Map<String, dynamic>.from(item as Map<String, dynamic>);
+        if (createdBy != null && !map.containsKey('project_created_by')) {
+          map['project_created_by'] = createdBy;
+        }
+        if (totalMembers != null) {
+          map['total_members'] = totalMembers;
+        }
+        if (declaredCount != null) {
+          map['declared_count'] = declaredCount;
+        }
+        return map;
+      }).toList();
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+
+  }
+
+  /// Get raw declared roles payload including metadata (created_by, project_id).
+  Future<Map<String, dynamic>> getProjectRolesData(String projectId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _getWithFallback(
+        '/projects/$projectId/roles',
+        options: options,
+      );
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Execute DELETE with multi-endpoint fallback.
+  Future<Response> _deleteWithFallback(
+    String path, {
+    Options? options,
+  }) async {
+    DioException? lastException;
+    for (final baseUrl in fallbackBaseUrls) {
+      try {
+        _dio.options.baseUrl = baseUrl;
+        debugPrint('ProjectService: Attempting DELETE to $baseUrl$path');
+        return await _dio.delete(path, options: options);
+      } on DioException catch (e) {
+        lastException = e;
+        final isConnError = e.type == DioExceptionType.connectionError ||
+            e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            (e.message != null &&
+                (e.message!.contains('Connection refused') ||
+                    e.message!.contains('No route to host') ||
+                    e.message!.contains('SocketException')));
+        if (isConnError) {
+          debugPrint('FAILED endpoint $baseUrl$path. Retrying next...');
+          continue;
+        }
+        rethrow;
+      }
+    }
+    throw lastException ?? 'Cannot connect to backend server.';
+  }
+
+  /// Permanently delete / dismantle a project (Team Lead only) via DELETE /projects/{projectId}.
+  Future<Map<String, dynamic>> deleteProject(String projectId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _deleteWithFallback(
+        '/projects/$projectId',
+        options: options,
+      );
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Leave a project (Teammate only) via POST /projects/{projectId}/leave.
+  Future<Map<String, dynamic>> leaveProject(String projectId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _postWithFallback(
+        '/projects/$projectId/leave',
+        {},
+        options: options,
+      );
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Remove a teammate from a project (Team Lead only) via DELETE /projects/{projectId}/members/{userId}.
+  Future<Map<String, dynamic>> removeMember(String projectId, String userId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _deleteWithFallback(
+        '/projects/$projectId/members/$userId',
+        options: options,
+      );
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
 }
+
+
+
+

@@ -4,6 +4,8 @@ from pydantic import BaseModel
 class SignUpRequest(BaseModel):
     email: str
     password: str
+    name: str | None = None
+
 
 
 class LoginRequest(BaseModel):

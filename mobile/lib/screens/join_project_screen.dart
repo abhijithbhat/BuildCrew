@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/project.dart';
 import '../services/project_service.dart';
+import 'project_detail_screen.dart';
 
 class JoinProjectScreen extends StatefulWidget {
   static const String routeName = '/join-project';
@@ -64,8 +65,17 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
         ),
       );
 
-      Navigator.pop(context, joinedProject);
+      if (joinedProject != null) {
+        Navigator.pushReplacementNamed(
+          context,
+          ProjectDetailScreen.routeName,
+          arguments: joinedProject,
+        );
+      } else {
+        Navigator.pop(context);
+      }
     } catch (e) {
+
       if (mounted) {
         setState(() {
           _errorMessage = e.toString();

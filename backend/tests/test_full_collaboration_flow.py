@@ -7,6 +7,7 @@ from routers.projects import (
     DEV_PROJECTS_DB,
     DEV_PROJECT_INVITES_DB,
     DEV_PROJECT_MEMBERS_DB,
+    DEV_ROLE_AGREEMENTS_DB,
 )
 
 client = TestClient(app)
@@ -17,11 +18,14 @@ def clean_database():
     DEV_PROJECTS_DB.clear()
     DEV_PROJECT_MEMBERS_DB.clear()
     DEV_PROJECT_INVITES_DB.clear()
+    DEV_ROLE_AGREEMENTS_DB.clear()
     yield
     app.dependency_overrides.clear()
     DEV_PROJECTS_DB.clear()
     DEV_PROJECT_MEMBERS_DB.clear()
     DEV_PROJECT_INVITES_DB.clear()
+    DEV_ROLE_AGREEMENTS_DB.clear()
+
 
 def test_complete_end_to_end_mobile_collaboration_lifecycle():
     """
@@ -236,4 +240,86 @@ def test_complete_end_to_end_mobile_collaboration_lifecycle():
         })
         assert reset_ok.status_code == 200
         assert "Password reset successfully" in reset_ok.json()["message"]
+
+    # -------------------------------------------------------------
+    # STEP 8: Phase 7 Role Agreement Collaboration Lifecycle
+    # -------------------------------------------------------------
+    # 8a: User A (Owner) declares role
+    app.dependency_overrides[get_current_user] = lambda: user_a
+    role_a_resp = client.post(
+        f"/projects/{project_id}/role",
+        json={
+            "declared_role": "Lead Systems Architect",
+            "responsibilities": "Oversee system architecture, database schema, and backend APIs.",
+            "deadline": "2026-12-01T00:00:00Z"
+        },
+        headers={"Authorization": "Bearer token-a-jwt"}
+    )
+    assert role_a_resp.status_code == 200
+    assert role_a_resp.json()["role_agreement"]["declared_role"] == "Lead Systems Architect"
+    assert role_a_resp.json()["role_agreement"]["user_id"] == "user-owner-001"
+
+    # 8b: User B (Teammate) declares role
+    app.dependency_overrides[get_current_user] = lambda: user_b
+    role_b_resp = client.post(
+        f"/projects/{project_id}/role",
+        json={
+            "declared_role": "Lead Flutter Engineer",
+            "responsibilities": "Build and test cross-platform mobile client components and screens.",
+            "deadline": "2026-11-25T00:00:00Z"
+        },
+        headers={"Authorization": "Bearer token-b-jwt"}
+    )
+    assert role_b_resp.status_code == 200
+    assert role_b_resp.json()["role_agreement"]["declared_role"] == "Lead Flutter Engineer"
+    assert role_b_resp.json()["role_agreement"]["user_id"] == "user-member-002"
+
+    # 8c: User B lists all roles for project -> sees both User A and User B roles
+    roles_list_b = client.get(
+        f"/projects/{project_id}/roles",
+        headers={"Authorization": "Bearer token-b-jwt"}
+    )
+    assert roles_list_b.status_code == 200
+    roles = roles_list_b.json()["roles"]
+    assert len(roles) == 2
+    role_titles = {r["declared_role"] for r in roles}
+    assert "Lead Systems Architect" in role_titles
+    assert "Lead Flutter Engineer" in role_titles
+
+    # 8d: User A updates existing role
+    app.dependency_overrides[get_current_user] = lambda: user_a
+    role_a_update = client.post(
+        f"/projects/{project_id}/role",
+        json={
+            "declared_role": "Principal Systems Architect",
+            "responsibilities": "Lead cloud deployments and backend microservices."
+        },
+        headers={"Authorization": "Bearer token-a-jwt"}
+    )
+    assert role_a_update.status_code == 200
+    assert role_a_update.json()["role_agreement"]["declared_role"] == "Principal Systems Architect"
+
+    # Verify total count is still 2 (upserted, not duplicated)
+    roles_list_a = client.get(
+        f"/projects/{project_id}/roles",
+        headers={"Authorization": "Bearer token-a-jwt"}
+    )
+    assert roles_list_a.status_code == 200
+    assert len(roles_list_a.json()["roles"]) == 2
+
+    # 8e: Outsider C tries to declare/list roles -> 403 Forbidden
+    app.dependency_overrides[get_current_user] = lambda: user_c
+    role_c_forbidden = client.post(
+        f"/projects/{project_id}/role",
+        json={"declared_role": "Hacker"},
+        headers={"Authorization": "Bearer token-c-jwt"}
+    )
+    assert role_c_forbidden.status_code == 403
+
+    roles_c_forbidden = client.get(
+        f"/projects/{project_id}/roles",
+        headers={"Authorization": "Bearer token-c-jwt"}
+    )
+    assert roles_c_forbidden.status_code == 403
+
 

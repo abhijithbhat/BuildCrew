@@ -15,18 +15,28 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 # In-memory user store for Local Dev Mode when Supabase URL is unconfigured/offline
 DEV_USERS_DB: dict[str, str] = {}
 DEV_VERIFIED_USERS: set[str] = set()
+DEV_USER_NAMES_DB: dict[str, str] = {}
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
 async def signup(credentials: SignUpRequest):
     supabase = get_supabase_pub_client()
     try:
-        response = supabase.auth.sign_up(
-            {
-                "email": credentials.email,
-                "password": credentials.password,
+        signup_payload = {
+            "email": credentials.email,
+            "password": credentials.password,
+        }
+        if credentials.name and credentials.name.strip():
+            signup_payload["options"] = {
+                "data": {
+                    "display_name": credentials.name.strip(),
+                    "full_name": credentials.name.strip(),
+                    "name": credentials.name.strip(),
+                }
             }
-        )
+            DEV_USER_NAMES_DB[credentials.email.lower()] = credentials.name.strip()
+
+        response = supabase.auth.sign_up(signup_payload)
 
         # Supabase returns a user with empty identities when the email is
         # already registered and confirmed (anti-enumeration pattern).
@@ -38,6 +48,9 @@ async def signup(credentials: SignUpRequest):
                 detail="An account with this email already exists. Please log in.",
             )
 
+        user_meta = getattr(response.user, "user_metadata", {}) or {} if response.user else {}
+        display_name = user_meta.get("display_name") or user_meta.get("name") or credentials.name
+
         # For unconfirmed re-signups, Supabase automatically resends the OTP.
         # We return success so the user is navigated to the OTP screen.
         return {
@@ -47,6 +60,7 @@ async def signup(credentials: SignUpRequest):
             "user": {
                 "id": response.user.id if response.user else None,
                 "email": response.user.email if response.user else None,
+                "display_name": display_name,
             },
             "session": response.session,
         }
@@ -57,6 +71,8 @@ async def signup(credentials: SignUpRequest):
         if "nodename nor servname provided" in err_msg or "gai_error" in err_msg or "Name or service not known" in err_msg:
             # Store credentials in Local Dev DB
             DEV_USERS_DB[credentials.email.lower()] = credentials.password
+            if credentials.name and credentials.name.strip():
+                DEV_USER_NAMES_DB[credentials.email.lower()] = credentials.name.strip()
             return {
                 "message": "Verification code sent to your email (Local Dev OTP: 123456)",
                 "requires_otp": True,
@@ -64,6 +80,7 @@ async def signup(credentials: SignUpRequest):
                 "user": {
                     "id": f"dev-user-{hash(credentials.email) & 0xffff}",
                     "email": credentials.email,
+                    "display_name": credentials.name,
                 },
             }
         raise HTTPException(
@@ -83,6 +100,16 @@ async def verify_otp(req: VerifyOTPRequest):
                 "type": req.type,
             }
         )
+        user_meta = getattr(response.user, "user_metadata", {}) or {} if response.user else {}
+        display_name = user_meta.get("display_name") or user_meta.get("name") or user_meta.get("full_name") or DEV_USER_NAMES_DB.get(req.email.lower())
+        if not display_name and response.user:
+            try:
+                prof = supabase.table("profiles").select("display_name, full_name").eq("id", response.user.id).single().execute()
+                if prof.data:
+                    display_name = prof.data.get("display_name") or prof.data.get("full_name")
+            except Exception:
+                pass
+
         return {
             "message": "OTP verified successfully",
             "access_token": response.session.access_token if response.session else "mock-access-token",
@@ -90,8 +117,10 @@ async def verify_otp(req: VerifyOTPRequest):
             "user": {
                 "id": response.user.id if response.user else None,
                 "email": response.user.email if response.user else req.email,
+                "display_name": display_name,
             },
         }
+
     except Exception as e:
         err_msg = str(e)
         if "nodename nor servname provided" in err_msg or "gai_error" in err_msg or "Name or service not known" in err_msg:
@@ -109,10 +138,12 @@ async def verify_otp(req: VerifyOTPRequest):
                 "user": {
                     "id": f"dev-user-{hash(req.email) & 0xffff}",
                     "email": req.email,
+                    "display_name": DEV_USER_NAMES_DB.get(req.email.lower()),
                 },
             }
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+
             detail=err_msg,
         )
 
@@ -195,6 +226,17 @@ async def login(credentials: LoginRequest):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials or email not confirmed.",
             )
+        user_meta = getattr(response.user, "user_metadata", {}) or {} if response.user else {}
+        display_name = user_meta.get("display_name") or user_meta.get("name") or user_meta.get("full_name") or DEV_USER_NAMES_DB.get(credentials.email.lower())
+        if not display_name and response.user:
+            try:
+                prof = supabase.table("profiles").select("display_name, full_name").eq("id", response.user.id).single().execute()
+                if prof.data:
+                    display_name = prof.data.get("display_name") or prof.data.get("full_name")
+            except Exception:
+                pass
+
+
         return {
             "message": "Login successful",
             "access_token": response.session.access_token,
@@ -205,6 +247,7 @@ async def login(credentials: LoginRequest):
             "user": {
                 "id": response.user.id if response.user else None,
                 "email": response.user.email if response.user else None,
+                "display_name": display_name,
             },
             "session": response.session,
         }
@@ -234,8 +277,10 @@ async def login(credentials: LoginRequest):
                 "user": {
                     "id": f"dev-user-{hash(credentials.email) & 0xffff}",
                     "email": credentials.email,
+                    "display_name": DEV_USER_NAMES_DB.get(email_key),
                 },
                 "session": {
+
                     "access_token": f"mock-dev-access-token-{credentials.email}",
                     "refresh_token": f"mock-dev-refresh-token-{credentials.email}",
                 },

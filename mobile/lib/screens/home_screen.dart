@@ -1,36 +1,60 @@
 import 'package:flutter/material.dart';
+import '../models/role_agreement.dart';
 import '../services/auth_service.dart';
 import '../services/health_service.dart';
+import '../services/storage_service.dart';
 
-class HomeScreen extends StatelessWidget {
+
+class HomeScreen extends StatefulWidget {
   static const String routeName = '/home';
 
   final String? userName;
+  final StorageService? storageService;
 
-  const HomeScreen({super.key, this.userName});
+  const HomeScreen({
+    super.key,
+    this.userName,
+    this.storageService,
+  });
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late final StorageService _storageService;
+  String? _storedUserName;
+
+  @override
+  void initState() {
+    super.initState();
+    _storageService = widget.storageService ?? StorageService();
+    _loadStoredUserName();
+  }
+
+  Future<void> _loadStoredUserName() async {
+    final name = await _storageService.getUserName();
+    if (name != null && name.trim().isNotEmpty && mounted) {
+      setState(() {
+        _storedUserName = name.trim();
+      });
+    }
+  }
+
+  String _formatDisplayName(String input) {
+    return RoleAgreement.formatEmailToHumanName(input);
+  }
+
 
   @override
   Widget build(BuildContext context) {
-    final String rawInput = userName ??
-        (ModalRoute.of(context)?.settings.arguments as String?) ??
+    final routeArg = ModalRoute.of(context)?.settings.arguments as String?;
+    final String rawInput = widget.userName ??
+        _storedUserName ??
+        routeArg ??
         'User';
 
-    String formatDisplayName(String input) {
-      final trimmed = input.trim();
-      if (trimmed.isEmpty) return 'User';
-      if (trimmed.contains('@')) {
-        final namePart = trimmed.split('@')[0];
-        if (namePart.isEmpty) return 'User';
-        return namePart
-            .split(RegExp(r'[\._-]'))
-            .where((w) => w.isNotEmpty)
-            .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
-            .join(' ');
-      }
-      return trimmed;
-    }
-
-    final String displayName = formatDisplayName(rawInput);
+    final String displayName = _formatDisplayName(rawInput);
 
     return Scaffold(
       appBar: AppBar(
@@ -41,7 +65,7 @@ class HomeScreen extends StatelessWidget {
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
             onPressed: () async {
-              await AuthService().logout();
+              await AuthService(storageService: _storageService).logout();
               if (context.mounted) {
                 Navigator.pushReplacementNamed(context, '/login');
               }
@@ -56,7 +80,6 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-
                 const CircleAvatar(
                   radius: 40,
                   backgroundColor: Colors.blueAccent,
@@ -157,9 +180,6 @@ class HomeScreen extends StatelessWidget {
                   onPressed: () =>
                       Navigator.pushNamed(context, '/create-project'),
                 ),
-
-
-
                 const SizedBox(height: 24),
                 TextButton.icon(
                   icon: const Icon(Icons.logout, color: Colors.red),
@@ -168,7 +188,7 @@ class HomeScreen extends StatelessWidget {
                     style: TextStyle(color: Colors.red),
                   ),
                   onPressed: () async {
-                    await AuthService().logout();
+                    await AuthService(storageService: _storageService).logout();
                     if (context.mounted) {
                       Navigator.pushReplacementNamed(context, '/login');
                     }
@@ -182,4 +202,3 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
-

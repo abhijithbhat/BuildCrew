@@ -68,7 +68,11 @@ class _OtpScreenState extends State<OtpScreen> {
     });
 
     try {
-      await _authService.verifyOtp(email: email, token: code);
+      await _authService.verifyOtp(
+        email: email,
+        token: code,
+        displayName: displayName,
+      );
       if (mounted) {
         Navigator.pushNamedAndRemoveUntil(
           context,
@@ -77,6 +81,7 @@ class _OtpScreenState extends State<OtpScreen> {
           arguments: displayName,
         );
       }
+
     } catch (e) {
       if (mounted) {
         setState(() {
