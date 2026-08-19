@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/project.dart';
 import '../services/project_service.dart';
+import 'repo_status_screen.dart';
 import 'team_roles_screen.dart';
+
 
 
 class ProjectDetailScreen extends StatefulWidget {
@@ -573,6 +575,40 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             ),
             const SizedBox(height: 12),
 
+            // GitHub Repository Status & Activity Button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    RepoStatusScreen.routeName,
+                    arguments: {
+                      'projectId': project.id,
+                      'projectName': project.name,
+                      'isOwner': isOwner,
+                    },
+                  );
+                },
+                icon: const Icon(Icons.code_rounded, color: Color(0xFF2563EB)),
+                label: const Text(
+                  'GitHub Integration & Status',
+                  style: TextStyle(
+                    color: Color(0xFF2563EB),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: Color(0xFF2563EB)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
             // Share Invite Button
             SizedBox(
               width: double.infinity,
@@ -590,6 +626,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 ),
               ),
             ),
+
             if (isOwner) ...[
               const SizedBox(height: 12),
               SizedBox(

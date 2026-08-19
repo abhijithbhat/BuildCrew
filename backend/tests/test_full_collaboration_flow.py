@@ -1,8 +1,10 @@
+import uuid
 import pytest
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from main import app
 from core.dependencies import get_current_user
+
 from routers.projects import (
     DEV_PROJECTS_DB,
     DEV_PROJECT_INVITES_DB,
@@ -51,7 +53,8 @@ def test_complete_end_to_end_mobile_collaboration_lifecycle():
     # STEP 2: User A (Project Owner) Auth (Signup, OTP, Login)
     # -------------------------------------------------------------
     owner_email = "owner@buildcrew.io"
-    user_a = MagicMock(id="user-owner-001", email=owner_email)
+    user_a = MagicMock(id=str(uuid.uuid4()), email=owner_email)
+
 
     # 2a: Mock Signup
     mock_sub = MagicMock()
@@ -157,7 +160,7 @@ def test_complete_end_to_end_mobile_collaboration_lifecycle():
     # -------------------------------------------------------------
     # STEP 5: User B (Teammate) Joining Project
     # -------------------------------------------------------------
-    user_b = MagicMock(id="user-member-002", email="member@buildcrew.io")
+    user_b = MagicMock(id=str(uuid.uuid4()), email="member@buildcrew.io")
     app.dependency_overrides[get_current_user] = lambda: user_b
 
     # B has no projects initially
@@ -180,11 +183,9 @@ def test_complete_end_to_end_mobile_collaboration_lifecycle():
         headers={"Authorization": "Bearer token-b-jwt"},
     )
     assert join_b.status_code == 200
-    join_data = join_b.json()
-    joined_project = join_data.get("project", join_data)
-    assert joined_project["id"] == project_id
+    assert join_b.json()["project"]["id"] == project_id
 
-    # B lists projects -> sees 1 project with role 'member'
+    # Verify B now sees project in their list
     list_b = client.get("/projects", headers={"Authorization": "Bearer token-b-jwt"})
     assert list_b.status_code == 200
     projects_b = list_b.json()["projects"]
@@ -205,7 +206,8 @@ def test_complete_end_to_end_mobile_collaboration_lifecycle():
     # STEP 6: Security & Role Permissions Check
     # -------------------------------------------------------------
     # Outsider C (not member of project) attempts to generate invite -> 403 Forbidden
-    user_c = MagicMock(id="user-outsider-003", email="outsider@buildcrew.io")
+    user_c = MagicMock(id=str(uuid.uuid4()), email="outsider@buildcrew.io")
+
     app.dependency_overrides[get_current_user] = lambda: user_c
 
     invite_forbidden = client.post(f"/projects/{project_id}/invite", headers={"Authorization": "Bearer token-c-jwt"})
@@ -257,7 +259,7 @@ def test_complete_end_to_end_mobile_collaboration_lifecycle():
     )
     assert role_a_resp.status_code == 200
     assert role_a_resp.json()["role_agreement"]["declared_role"] == "Lead Systems Architect"
-    assert role_a_resp.json()["role_agreement"]["user_id"] == "user-owner-001"
+    assert role_a_resp.json()["role_agreement"]["user_id"] == str(user_a.id)
 
     # 8b: User B (Teammate) declares role
     app.dependency_overrides[get_current_user] = lambda: user_b
@@ -272,7 +274,8 @@ def test_complete_end_to_end_mobile_collaboration_lifecycle():
     )
     assert role_b_resp.status_code == 200
     assert role_b_resp.json()["role_agreement"]["declared_role"] == "Lead Flutter Engineer"
-    assert role_b_resp.json()["role_agreement"]["user_id"] == "user-member-002"
+    assert role_b_resp.json()["role_agreement"]["user_id"] == str(user_b.id)
+
 
     # 8c: User B lists all roles for project -> sees both User A and User B roles
     roles_list_b = client.get(

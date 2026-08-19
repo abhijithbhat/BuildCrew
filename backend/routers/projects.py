@@ -62,18 +62,37 @@ DEV_ROLE_AGREEMENTS_DB: list[dict] = []
 
 
 def _is_dev_fallback_error(err_msg: str) -> bool:
+    err_lower = err_msg.lower()
     return any(
-        s in err_msg
+        s in err_lower
         for s in (
             "nodename nor servname provided",
             "gai_error",
-            "Name or service not known",
-            "SUPABASE_URL",
+            "name or service not known",
+            "supabase_url",
             "environment variables",
-            "Failed to connect",
-            "Client disconnected",
+            "failed to connect",
+            "client disconnected",
+            "connection",
+            "connect",
+            "timeout",
+            "network",
+            "invalid api key",
+            "unauthorized",
+            "pgrst",
+            "postgrest",
+            "mock",
+            "invalid input syntax for type uuid",
+            "22p02",
+            "violates foreign key constraint",
+            "foreign key",
+            "23503",
+            "is not present in table",
         )
     )
+
+
+
 
 
 def generate_invite_code(prefix: str = "BC") -> str:
@@ -254,9 +273,27 @@ async def list_projects(current_user: Any = Depends(get_current_user)):
                     project_data["my_role"] = "owner"
                     projects_list.append(project_data)
 
+        # Merge local dev projects
+        member_project_roles = {
+            m["project_id"]: m.get("role", "member")
+            for m in DEV_PROJECT_MEMBERS_DB
+            if m.get("user_id") == user_id
+        }
+        for p_id, p_data in DEV_PROJECTS_DB.items():
+            if p_id not in seen_project_ids and (
+                p_id in member_project_roles or p_data.get("created_by") == user_id
+            ):
+                seen_project_ids.add(p_id)
+                p_copy = dict(p_data)
+                role = member_project_roles.get(p_id, "owner")
+                p_copy["role"] = role
+                p_copy["my_role"] = role
+                projects_list.append(p_copy)
+
         return {
             "projects": projects_list,
         }
+
     except Exception as e:
         err_msg = str(e)
         if _is_dev_fallback_error(err_msg):

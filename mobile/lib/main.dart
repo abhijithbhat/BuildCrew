@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'screens/connect_repository_screen.dart';
 import 'screens/create_project_screen.dart';
 import 'screens/declare_role_screen.dart';
 import 'screens/forgot_password_screen.dart';
@@ -10,6 +11,7 @@ import 'screens/login_screen.dart';
 import 'screens/my_projects_screen.dart';
 import 'screens/otp_screen.dart';
 import 'screens/project_detail_screen.dart';
+import 'screens/repo_status_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/team_roles_screen.dart';
 
@@ -39,10 +41,14 @@ class MyApp extends StatelessWidget {
         ProjectDetailScreen.routeName: (context) => const ProjectDetailScreen(),
         DeclareRoleScreen.routeName: (context) => const DeclareRoleScreen(),
         TeamRolesScreen.routeName: (context) => const TeamRolesScreen(),
+        ConnectRepositoryScreen.routeName: (context) => const ConnectRepositoryScreen(),
+        RepoStatusScreen.routeName: (context) => const RepoStatusScreen(),
       },
     );
   }
 }
+
+
 
 
 

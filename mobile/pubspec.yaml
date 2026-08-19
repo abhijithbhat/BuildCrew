@@ -38,8 +38,10 @@ dependencies:
   dio: ^5.11.0
   flutter_riverpod: ^3.4.2
   flutter_secure_storage: ^9.2.4
+  url_launcher: ^6.3.1
 
 dev_dependencies:
+
   flutter_test:
     sdk: flutter
 

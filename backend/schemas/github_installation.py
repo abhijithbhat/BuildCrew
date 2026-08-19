@@ -8,8 +8,11 @@ class GitHubInstallationBase(BaseModel):
     repo_full_name: str
 
 
-class GitHubInstallationCreate(GitHubInstallationBase):
-    project_id: str
+class GitHubInstallationCreate(BaseModel):
+    installation_id: str
+    repo_full_name: Optional[str] = None
+    project_id: Optional[str] = None
+
 
 
 class GitHubInstallationUpdate(BaseModel):

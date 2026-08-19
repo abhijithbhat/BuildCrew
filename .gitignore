@@ -1,8 +1,11 @@
-# Environment variables
+# Environment variables & Secrets
 .env
 *.env
 backend/.env
 frontend/.env
+*.pem
+github_private_key.pem
+
 
 # Python
 __pycache__/
