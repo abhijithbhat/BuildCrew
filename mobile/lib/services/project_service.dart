@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import '../models/contribution.dart';
 import '../models/project.dart';
 import 'storage_service.dart';
 
@@ -349,6 +350,56 @@ class ProjectService {
         options: options,
       );
       return response.data as Map<String, dynamic>;
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Generate contribution drafts from GitHub via POST /projects/{projectId}/generate-draft.
+  Future<DraftGenerationResult> generateDraft(String projectId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _postWithFallback(
+        '/projects/$projectId/generate-draft',
+        {},
+        options: options,
+      );
+      final data = response.data as Map<String, dynamic>;
+      return DraftGenerationResult.fromJson(data);
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// List all contributions for a project via GET /projects/{projectId}/contributions.
+  Future<List<Contribution>> listContributions(
+    String projectId, {
+    String? status,
+    String? contributor,
+    String? category,
+  }) async {
+    try {
+      final options = await _getAuthOptions();
+      final queryParams = <String, dynamic>{
+        if (status != null && status.trim().isNotEmpty) 'status': status.trim(),
+        if (contributor != null && contributor.trim().isNotEmpty) 'contributor': contributor.trim(),
+        if (category != null && category.trim().isNotEmpty) 'category': category.trim(),
+      };
+      
+      String queryString = '';
+      if (queryParams.isNotEmpty) {
+        queryString = '?${queryParams.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value.toString())}').join('&')}';
+      }
+
+      final response = await _getWithFallback(
+        '/projects/$projectId/contributions$queryString',
+        options: options,
+      );
+      final data = response.data as Map<String, dynamic>;
+      final list = data['contributions'] as List<dynamic>? ?? [];
+      return list
+          .map((item) => Contribution.fromJson(item as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       throw _parseDioError(e);
     }

@@ -150,6 +150,19 @@ async def get_installation_repositories(installation_id: str) -> List[Dict[str, 
         return []
 
 
+LATEST_SELECTED_REPOS_CACHE: Dict[str, str] = {}
+
+
+def set_latest_selected_repo(installation_id: str, repo_full_name: str) -> None:
+    """Record the most recent repository selected on GitHub for an installation."""
+    LATEST_SELECTED_REPOS_CACHE[str(installation_id)] = repo_full_name
+
+
+def get_latest_selected_repo(installation_id: str) -> Optional[str]:
+    """Retrieve the most recent repository selected on GitHub for an installation."""
+    return LATEST_SELECTED_REPOS_CACHE.get(str(installation_id))
+
+
 def store_installation(
     project_id: str,
     installation_id: str,
@@ -204,6 +217,29 @@ def store_installation(
     return record
 
 
+def get_any_active_installation_id() -> Optional[str]:
+    """Find any active installation ID from existing project links or DB."""
+    try:
+        supabase = get_supabase_client()
+        res = (
+            supabase.table("github_installations")
+            .select("installation_id")
+            .order("connected_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if res.data and res.data[0].get("installation_id"):
+            return str(res.data[0]["installation_id"])
+    except Exception:
+        pass
+
+    for inst in DEV_GITHUB_INSTALLATIONS_DB.values():
+        if inst.get("installation_id"):
+            return str(inst["installation_id"])
+
+    return None
+
+
 def get_project_installation(project_id: str) -> Optional[Dict[str, Any]]:
     """Fetch the active GitHub installation for a project."""
     try:
@@ -250,8 +286,9 @@ async def fetch_repository_commits(
     installation_id: str,
     per_page: int = 20,
     branch: Optional[str] = None,
+    since: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Fetch recent commits from GitHub repository with optional branch/ref filtering."""
+    """Fetch recent commits from GitHub repository with optional branch/ref and since filtering."""
     token = await get_installation_access_token(installation_id)
     if not token:
         # Return structured mock data for local testing
@@ -263,6 +300,9 @@ async def fetch_repository_commits(
                 "author_avatar": "https://avatars.githubusercontent.com/u/9919?v=4",
                 "date": datetime.now(timezone.utc).isoformat(),
                 "url": f"https://github.com/{repo_full_name}/commit/7f8b9a1",
+                "author_email": "dev@buildcrew.io",
+                "author_login": "buildcrew-dev",
+                "author_name": "BuildCrew Developer",
             },
             {
                 "sha": "3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b",
@@ -271,6 +311,9 @@ async def fetch_repository_commits(
                 "author_avatar": "https://avatars.githubusercontent.com/u/9919?v=4",
                 "date": datetime.now(timezone.utc).isoformat(),
                 "url": f"https://github.com/{repo_full_name}/commit/3a2b1c0",
+                "author_email": "team@buildcrew.io",
+                "author_login": "buildcrew-team",
+                "author_name": "BuildCrew Team",
             },
         ]
 
@@ -283,6 +326,8 @@ async def fetch_repository_commits(
     url = f"https://api.github.com/repos/{repo_full_name}/commits?per_page={per_page}"
     if branch and branch.strip():
         url += f"&sha={branch.strip()}"
+    if since and since.strip():
+        url += f"&since={since.strip()}"
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -293,13 +338,18 @@ async def fetch_repository_commits(
                 for c in raw_commits:
                     commit_obj = c.get("commit", {})
                     author_obj = c.get("author") or {}
+                    committer_obj = commit_obj.get("committer") or {}
+                    commit_author = commit_obj.get("author") or {}
                     commits.append({
                         "sha": c.get("sha", ""),
                         "message": commit_obj.get("message", "").split("\n")[0],
-                        "author": author_obj.get("login") or commit_obj.get("author", {}).get("name", "Unknown"),
+                        "author": author_obj.get("login") or commit_author.get("name", "Unknown"),
                         "author_avatar": author_obj.get("avatar_url") or "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
-                        "date": commit_obj.get("author", {}).get("date") or datetime.now(timezone.utc).isoformat(),
+                        "date": commit_author.get("date") or committer_obj.get("date") or datetime.now(timezone.utc).isoformat(),
                         "url": c.get("html_url", ""),
+                        "author_email": commit_author.get("email"),
+                        "author_login": author_obj.get("login"),
+                        "author_name": commit_author.get("name"),
                     })
                 return commits
             elif resp.status_code == 409:

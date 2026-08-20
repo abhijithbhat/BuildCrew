@@ -29,11 +29,19 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
   final TextEditingController _instIdController = TextEditingController();
 
 
+  List<Map<String, dynamic>> _availableRepos = [];
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _gitHubService = widget.gitHubService ?? GitHubService();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final projectId = _getEffectiveProjectId();
+      if (projectId.isNotEmpty) {
+        _fetchAvailableRepos(projectId);
+      }
+    });
   }
 
   @override
@@ -50,6 +58,61 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
       final projectId = _getEffectiveProjectId();
       if (projectId.isNotEmpty) {
         _checkIfAlreadyConnected(projectId, silent: true);
+        _fetchAvailableRepos(projectId);
+      }
+    }
+  }
+
+  Future<void> _fetchAvailableRepos(String projectId) async {
+    if (projectId.isEmpty) return;
+    try {
+      final res = await _gitHubService.getInstallationRepositories(projectId);
+      final rawList = res['repositories'] as List<dynamic>? ?? [];
+      if (mounted) {
+        setState(() {
+          _availableRepos = rawList.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _selectRepoDirectly(String projectId, String repoFullName) async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await _gitHubService.selectRepository(projectId, repoFullName);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text('Linked "$repoFullName" to project!'),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to connect repository: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -117,9 +180,9 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
     final repoName = _repoNameController.text.trim();
     final instId = _instIdController.text.trim();
 
-    if (repoName.isEmpty || instId.isEmpty) {
+    if (repoName.isEmpty) {
       setState(() {
-        _errorMessage = 'Please enter both Repository Name and Installation ID.';
+        _errorMessage = 'Please enter a Repository Name (e.g. your-username/your-repo).';
       });
       return;
     }
@@ -132,7 +195,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
     try {
       await _gitHubService.linkInstallation(
         projectId,
-        instId,
+        instId.isNotEmpty ? instId : 'auto',
         repoFullName: repoName,
       );
       if (mounted) {
@@ -309,7 +372,12 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                 ),
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+
+              // Available / Detected GitHub Repositories (1-Tap Direct Connect)
+              _buildAvailableRepositoriesSection(effectiveProjectId),
+
+              const SizedBox(height: 8),
 
               // Feature Highlights Card
               Container(
@@ -615,6 +683,121 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAvailableRepositoriesSection(String projectId) {
+    if (_availableRepos.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151C2C),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF2563EB).withValues(alpha: 0.4),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFF60A5FA),
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Your GitHub Repositories',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Tap to connect directly to this project:',
+                      style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ..._availableRepos.map((r) {
+            final fullName = r['full_name'] as String? ?? '';
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0B0F19),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF1E293B)),
+              ),
+              child: ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                leading: const Icon(
+                  Icons.code_rounded,
+                  color: Color(0xFF60A5FA),
+                  size: 20,
+                ),
+                title: Text(
+                  fullName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                trailing: ElevatedButton(
+                  onPressed: _isLoading ? null : () => _selectRepoDirectly(projectId, fullName),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Connect',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 }

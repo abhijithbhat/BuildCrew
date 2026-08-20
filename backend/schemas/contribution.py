@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, List, Optional, Union
 from pydantic import BaseModel, ConfigDict
 
 
@@ -38,7 +38,25 @@ class ContributionResponse(ContributionBase):
     id: str
     contributor: str
     project: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: Union[datetime, str]
+    updated_at: Union[datetime, str]
+    contributor_name: Optional[str] = None
+    contributor_profile: Optional[dict] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DraftGenerationResponse(BaseModel):
+    message: str
+    project_id: str
+    generated_count: int
+    contributions: List[ContributionResponse]
+    last_generated_at: str
+
+
+class ContributionsListResponse(BaseModel):
+    project_id: str
+    total_count: int
+    draft_count: int
+    confirmed_count: int
+    contributions: List[ContributionResponse]

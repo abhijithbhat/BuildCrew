@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from main import app
 from core.dependencies import get_current_user
 from routers.projects import (
+    DEV_CONTRIBUTIONS_DB,
     DEV_PROJECTS_DB,
     DEV_PROJECT_INVITES_DB,
     DEV_PROJECT_MEMBERS_DB,
@@ -20,12 +21,14 @@ def cleanup_state():
     DEV_PROJECT_MEMBERS_DB.clear()
     DEV_PROJECT_INVITES_DB.clear()
     DEV_ROLE_AGREEMENTS_DB.clear()
+    DEV_CONTRIBUTIONS_DB.clear()
     yield
     app.dependency_overrides.clear()
     DEV_PROJECTS_DB.clear()
     DEV_PROJECT_MEMBERS_DB.clear()
     DEV_PROJECT_INVITES_DB.clear()
     DEV_ROLE_AGREEMENTS_DB.clear()
+    DEV_CONTRIBUTIONS_DB.clear()
 
 
 

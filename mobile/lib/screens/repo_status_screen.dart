@@ -201,6 +201,176 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
     }
   }
 
+  Future<void> _showRepositorySelectorDialog(String projectId) async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF151C2C),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return FutureBuilder<Map<String, dynamic>>(
+          future: _gitHubService.getInstallationRepositories(projectId),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Center(
+                  child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+                ),
+              );
+            }
+
+            if (snapshot.hasError || !snapshot.hasData) {
+              return Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 36),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Failed to fetch repositories: ${snapshot.error ?? "No data"}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final data = snapshot.data!;
+            final currentRepo = data['current_repo'] as String? ?? '';
+            final rawRepos = data['repositories'] as List<dynamic>? ?? [];
+            final repos = rawRepos.map((r) => Map<String, dynamic>.from(r as Map)).toList();
+
+            if (repos.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(24.0),
+                child: Text(
+                  'No repositories found under this installation.',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2563EB).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.swap_horiz_rounded, color: Color(0xFF60A5FA), size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Select Repository',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Choose which repository to link to this project from your GitHub App installation:',
+                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: repos.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final r = repos[index];
+                        final fullRepoName = r['full_name'] as String? ?? '';
+                        final isSelected = fullRepoName == currentRepo;
+
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFF2563EB).withValues(alpha: 0.15)
+                                : const Color(0xFF0B0F19),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF2563EB)
+                                  : const Color(0xFF1E293B),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: ListTile(
+                            leading: Icon(
+                              Icons.code_rounded,
+                              color: isSelected ? const Color(0xFF60A5FA) : const Color(0xFF94A3B8),
+                            ),
+                            title: Text(
+                              fullRepoName,
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : const Color(0xFFE2E8F0),
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                fontSize: 14,
+                              ),
+                            ),
+                            trailing: isSelected
+                                ? const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981))
+                                : null,
+                            onTap: () async {
+                              Navigator.pop(ctx);
+                              await _switchRepository(projectId, fullRepoName);
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _switchRepository(String projectId, String newRepoFullName) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _gitHubService.selectRepository(projectId, newRepoFullName);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Switched to "$newRepoFullName" successfully!'),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _loadInstallationStatus();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to switch repository: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final projectName = _getEffectiveProjectName();
@@ -618,8 +788,34 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
 
         const SizedBox(height: 24),
 
-        // Team Lead Unlink Action
+        // Team Lead Repository Actions
         if (isOwner) ...[
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isLoading ? null : () => _showRepositorySelectorDialog(projectId),
+              icon: const Icon(Icons.swap_horiz_rounded, color: Colors.white, size: 20),
+              label: const Text(
+                'Switch / Change Repository',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(

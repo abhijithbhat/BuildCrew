@@ -239,5 +239,26 @@ class GitHubService {
       }
     }
   }
+
+  /// List all repositories granted to this installation.
+  Future<Map<String, dynamic>> getInstallationRepositories(String projectId) async {
+    return await _executeWithFallback<Map<String, dynamic>>(
+      (baseUrl, options) => _dio.get(
+        '$baseUrl/projects/$projectId/github/repositories',
+        options: options,
+      ),
+    );
+  }
+
+  /// Switch the active linked repository for this project.
+  Future<Map<String, dynamic>> selectRepository(String projectId, String repoFullName) async {
+    return await _executeWithFallback<Map<String, dynamic>>(
+      (baseUrl, options) => _dio.post(
+        '$baseUrl/projects/$projectId/github/select-repository',
+        data: {'repo_full_name': repoFullName},
+        options: options,
+      ),
+    );
+  }
 }
 

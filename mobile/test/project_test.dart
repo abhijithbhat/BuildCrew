@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile/models/contribution.dart';
 import 'package:mobile/models/project.dart';
 import 'package:mobile/models/role_agreement.dart';
 import 'package:mobile/screens/create_project_screen.dart';
@@ -37,6 +38,7 @@ class FakeSuccessProjectService extends ProjectService {
   String? lastProjectId;
   String? lastDeclaredRole;
   List<Map<String, dynamic>> mockRolesList = [];
+  List<Contribution> mockContributionsList = [];
 
   @override
   Future<Map<String, dynamic>> declareRole({
@@ -64,6 +66,16 @@ class FakeSuccessProjectService extends ProjectService {
   Future<List<Map<String, dynamic>>> listProjectRoles(String projectId) async {
     return mockRolesList;
   }
+
+  @override
+  Future<List<Contribution>> listContributions(
+    String projectId, {
+    String? status,
+    String? contributor,
+    String? category,
+  }) async {
+    return mockContributionsList;
+  }
 }
 
 class FakeErrorProjectService extends ProjectService {
@@ -75,6 +87,16 @@ class FakeErrorProjectService extends ProjectService {
     DateTime? deadline,
   }) async {
     throw 'Project not found or user is not a member.';
+  }
+
+  @override
+  Future<List<Contribution>> listContributions(
+    String projectId, {
+    String? status,
+    String? contributor,
+    String? category,
+  }) async {
+    return [];
   }
 
   @override
@@ -275,7 +297,7 @@ void main() {
                     child: const Text('Open Details'),
                   ),
                 ),
-            ProjectDetailScreen.routeName: (context) => const ProjectDetailScreen(),
+            ProjectDetailScreen.routeName: (context) => ProjectDetailScreen(projectService: FakeSuccessProjectService()),
           },
         ),
       );
@@ -813,7 +835,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           routes: {
-            ProjectDetailScreen.routeName: (context) => const ProjectDetailScreen(),
+            ProjectDetailScreen.routeName: (context) => ProjectDetailScreen(projectService: FakeSuccessProjectService()),
           },
           home: Builder(
             builder: (context) => ElevatedButton(
@@ -836,7 +858,14 @@ void main() {
       expect(find.text('👑 Team Lead (Owner)'), findsOneWidget);
 
       expect(find.text('View Team Roles & Responsibilities'), findsOneWidget);
+      expect(find.text('GitHub Integration & Status'), findsOneWidget);
+      expect(find.text('Generate Contribution Draft'), findsOneWidget);
       expect(find.text('Generate Team Invite Code'), findsOneWidget);
+      expect(find.text('Contribution Stream'), findsOneWidget);
+
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pumpAndSettle();
+
       expect(find.text('Remind Teammates to Declare Roles'), findsOneWidget);
       expect(find.text('Dismantle / Delete Project'), findsOneWidget);
     });
@@ -852,7 +881,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           routes: {
-            ProjectDetailScreen.routeName: (context) => const ProjectDetailScreen(),
+            ProjectDetailScreen.routeName: (context) => ProjectDetailScreen(projectService: FakeSuccessProjectService()),
           },
           home: Builder(
             builder: (context) => ElevatedButton(
@@ -872,6 +901,10 @@ void main() {
 
       expect(find.text('Beta Project'), findsNWidgets(2));
       expect(find.text('Member'), findsOneWidget);
+
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pumpAndSettle();
+
       expect(find.text('Leave Project'), findsOneWidget);
       expect(find.text('Dismantle / Delete Project'), findsNothing);
     });

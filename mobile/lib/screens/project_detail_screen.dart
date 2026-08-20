@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../models/contribution.dart';
 import '../models/project.dart';
 import '../services/project_service.dart';
+import '../widgets/contribution_card.dart';
 import 'repo_status_screen.dart';
 import 'team_roles_screen.dart';
 
@@ -10,15 +12,29 @@ import 'team_roles_screen.dart';
 class ProjectDetailScreen extends StatefulWidget {
   static const String routeName = '/project-detail';
 
-  const ProjectDetailScreen({super.key});
+  final ProjectService? projectService;
+
+  const ProjectDetailScreen({super.key, this.projectService});
 
   @override
   State<ProjectDetailScreen> createState() => _ProjectDetailScreenState();
 }
 
 class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
-  final ProjectService _projectService = ProjectService();
+  late final ProjectService _projectService;
   bool _isGeneratingInvite = false;
+  bool _isGeneratingDraft = false;
+  List<Contribution> _contributions = [];
+  bool _isLoadingContributions = false;
+  String? _contributionsError;
+  String _selectedFilter = 'all';
+  bool _hasInitialLoadedContributions = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _projectService = widget.projectService ?? ProjectService();
+  }
 
   Future<void> _shareInvite(Project project, {bool isOwner = false}) async {
     setState(() {
@@ -392,6 +408,216 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     }
   }
 
+  Future<void> _generateContributionDraft(Project project) async {
+    setState(() {
+      _isGeneratingDraft = true;
+    });
+
+    try {
+      final result = await _projectService.generateDraft(project.id);
+      if (!mounted) return;
+
+      setState(() {
+        _isGeneratingDraft = false;
+      });
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFF2563EB),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Drafts Generated',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                result.generatedCount > 0
+                    ? 'Successfully imported ${result.generatedCount} contribution draft(s) from GitHub with status "source-verified".'
+                    : 'GitHub activity is already up to date. No new unimported commits or PRs found.',
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              ),
+              if (result.generatedCount > 0) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.verified_outlined, color: Colors.green.shade700, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${result.generatedCount} record(s) marked as source-verified',
+                          style: TextStyle(
+                            color: Colors.green.shade800,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _loadContributions(project.id);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+
+        // Refresh contributions list immediately
+        _loadContributions(project.id);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isGeneratingDraft = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Failed to generate draft: $e',
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red.shade800,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+  }
+
+  Future<void> _loadContributions(String projectId) async {
+    setState(() {
+      _isLoadingContributions = true;
+      _contributionsError = null;
+    });
+
+    try {
+      final list = await _projectService.listContributions(projectId);
+      if (!mounted) return;
+      setState(() {
+        _contributions = list;
+        _isLoadingContributions = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _contributionsError = e.toString();
+        _isLoadingContributions = false;
+      });
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasInitialLoadedContributions) {
+      final project = ModalRoute.of(context)?.settings.arguments as Project?;
+      if (project != null) {
+        _hasInitialLoadedContributions = true;
+        _loadContributions(project.id);
+      }
+    }
+  }
+
+  Widget _buildFilterChip(String filterKey, String label) {
+    final isSelected = _selectedFilter == filterKey;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedFilter = filterKey;
+        });
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF2563EB) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF2563EB) : Colors.grey.shade300,
+            width: 1.2,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? Colors.white : Colors.grey.shade700,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final project = ModalRoute.of(context)?.settings.arguments as Project?;
@@ -408,6 +634,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     final isOwner = (project.role ?? '').toLowerCase() == 'owner' ||
         (project.role ?? '').toLowerCase() == 'lead' ||
         (project.role ?? '').toLowerCase() == 'creator';
+
+    final filteredContributions = _contributions.where((c) {
+      if (_selectedFilter == 'source-verified') return c.isSourceVerified;
+      if (_selectedFilter == 'confirmed') return c.isConfirmed;
+      return true;
+    }).toList();
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -609,17 +841,55 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Share Invite Button
+            // Generate Contribution Draft Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _isGeneratingInvite ? null : () => _shareInvite(project, isOwner: isOwner),
-                icon: const Icon(Icons.person_add_alt_1_outlined),
-                label: const Text('Generate Team Invite Code'),
+                onPressed: _isGeneratingDraft ? null : () => _generateContributionDraft(project),
+                icon: _isGeneratingDraft
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.auto_awesome_rounded, color: Colors.white),
+                label: Text(
+                  _isGeneratingDraft ? 'Syncing GitHub Activity...' : 'Generate Contribution Draft',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Colors.white,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
+                  backgroundColor: const Color(0xFF2563EB),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Share Invite Button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isGeneratingInvite ? null : () => _shareInvite(project, isOwner: isOwner),
+                icon: const Icon(Icons.person_add_alt_1_outlined, color: Colors.blueAccent),
+                label: const Text(
+                  'Generate Team Invite Code',
+                  style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: Colors.blueAccent),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -662,6 +932,171 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 ),
               ),
             ],
+
+            const SizedBox(height: 24),
+
+            // Contribution Stream Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.history_edu_rounded, color: Color(0xFF2563EB), size: 22),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Contribution Stream',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${_contributions.length}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2563EB),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded, size: 20, color: Colors.blueAccent),
+                  tooltip: 'Refresh Contributions',
+                  onPressed: _isLoadingContributions ? null : () => _loadContributions(project.id),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Filter Chips Row
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildFilterChip('all', 'All (${_contributions.length})'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(
+                    'source-verified',
+                    'Verified (${_contributions.where((c) => c.isSourceVerified).length})',
+                  ),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(
+                    'confirmed',
+                    'Confirmed (${_contributions.where((c) => c.isConfirmed).length})',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Contribution Stream List Body
+            if (_isLoadingContributions)
+              Container(
+                padding: const EdgeInsets.all(32),
+                alignment: Alignment.center,
+                child: const Column(
+                  children: [
+                    CircularProgressIndicator(strokeWidth: 2.5),
+                    SizedBox(height: 12),
+                    Text(
+                      'Loading contributions stream...',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ],
+                ),
+              )
+            else if (_contributionsError != null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline_rounded, color: Colors.red.shade700),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Failed to load stream',
+                            style: TextStyle(
+                              color: Colors.red.shade900,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          Text(
+                            _contributionsError!,
+                            style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.replay_rounded, color: Colors.red),
+                      onPressed: () => _loadContributions(project.id),
+                    ),
+                  ],
+                ),
+              )
+            else if (filteredContributions.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.auto_awesome_motion_outlined, color: Colors.grey.shade400, size: 40),
+                    const SizedBox(height: 10),
+                    Text(
+                      _selectedFilter == 'all'
+                          ? 'No contributions imported yet'
+                          : 'No ${_selectedFilter.replaceAll('-', ' ')} contributions found',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Tap "Generate Contribution Draft" above to automatically pull and match GitHub activity.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...filteredContributions.map(
+                (c) => ContributionCard(
+                  contribution: c,
+                  onTap: () {
+                    // Item tap interaction
+                  },
+                ),
+              ),
 
             const SizedBox(height: 24),
             const Divider(),

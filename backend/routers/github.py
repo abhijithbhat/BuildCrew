@@ -199,7 +199,73 @@ async def github_app_callback(
         project_id = state.strip()
         repos = await github_service.get_installation_repositories(installation_id)
         if repos:
-            repo_linked = repos[0].get("full_name", "")
+            # 1. Fetch project name
+            proj_name = ""
+            try:
+                supabase = get_supabase_client()
+                p_res = supabase.table("projects").select("name").eq("id", project_id).single().execute()
+                if p_res.data:
+                    proj_name = p_res.data.get("name", "").strip().lower()
+            except Exception:
+                pass
+            if not proj_name:
+                from routers.projects import DEV_PROJECTS_DB
+                p_dev = DEV_PROJECTS_DB.get(project_id)
+                if p_dev:
+                    proj_name = p_dev.get("name", "").strip().lower()
+
+            # 2. Get list of repos already linked to other projects
+            used_repos = set()
+            try:
+                supabase = get_supabase_client()
+                all_inst = supabase.table("github_installations").select("project_id, repo_full_name").execute()
+                for inst in (all_inst.data or []):
+                    if inst.get("project_id") != project_id and inst.get("repo_full_name"):
+                        used_repos.add(inst["repo_full_name"].strip().lower())
+            except Exception:
+                pass
+            from services.github_service import DEV_GITHUB_INSTALLATIONS_DB
+            for p_id, inst in DEV_GITHUB_INSTALLATIONS_DB.items():
+                if p_id != project_id and inst.get("repo_full_name"):
+                    used_repos.add(inst["repo_full_name"].strip().lower())
+
+            chosen_repo = None
+
+            # Priority 0: Most recently added/selected repository from webhook
+            latest_webhook_repo = github_service.get_latest_selected_repo(installation_id)
+            if latest_webhook_repo:
+                for r in repos:
+                    if r.get("full_name", "").lower() == latest_webhook_repo.lower():
+                        chosen_repo = r
+                        break
+
+            # Priority 1: Match repository name to project name
+            if not chosen_repo and proj_name:
+                clean_proj = proj_name.replace("-", "").replace("_", "").replace(" ", "")
+                for r in repos:
+                    full_name = r.get("full_name", "").lower()
+                    repo_name = full_name.split("/")[-1].replace("-", "").replace("_", "")
+                    if clean_proj in repo_name or repo_name in clean_proj:
+                        chosen_repo = r
+                        break
+
+            # Priority 2: Pick a repository that is NOT already assigned to another project
+            if not chosen_repo:
+                for r in repos:
+                    if r.get("full_name", "").lower() not in used_repos:
+                        chosen_repo = r
+                        break
+
+            # Priority 3: Fallback to the latest pushed/updated repository or first repo
+            if not chosen_repo:
+                sorted_repos = sorted(
+                    repos,
+                    key=lambda x: x.get("pushed_at") or x.get("updated_at") or "",
+                    reverse=True,
+                )
+                chosen_repo = sorted_repos[0]
+
+            repo_linked = chosen_repo.get("full_name", "")
             github_service.store_installation(
                 project_id=project_id,
                 installation_id=installation_id,
@@ -338,9 +404,17 @@ async def link_github_installation(
     """Explicitly link a GitHub installation ID and repo to a project."""
     _check_user_project_access(project_id, current_user.id, lead_only=True)
 
+    installation_id = str(payload.installation_id).strip() if payload.installation_id else ""
+    if not installation_id or installation_id in ("", "auto", "0"):
+        found_id = github_service.get_any_active_installation_id()
+        if found_id:
+            installation_id = found_id
+        else:
+            installation_id = "4635635"
+
     repo_full_name = payload.repo_full_name
     if not repo_full_name or not repo_full_name.strip():
-        repos = await github_service.get_installation_repositories(payload.installation_id)
+        repos = await github_service.get_installation_repositories(installation_id)
         if repos:
             repo_full_name = repos[0].get("full_name", "")
         else:
@@ -348,8 +422,8 @@ async def link_github_installation(
 
     record = github_service.store_installation(
         project_id=project_id,
-        installation_id=payload.installation_id,
-        repo_full_name=repo_full_name,
+        installation_id=installation_id,
+        repo_full_name=repo_full_name.strip(),
     )
     return record
 
@@ -382,6 +456,69 @@ async def unlink_project_github_installation(
     return {
         "success": success,
         "message": "GitHub repository successfully unlinked from project.",
+    }
+
+
+@router.get("/projects/{project_id}/github/repositories")
+async def get_project_github_repositories(
+    project_id: str,
+    current_user: Any = Depends(get_current_user),
+):
+    """List all GitHub repositories available under the active installation, allowing the lead to choose/switch repository."""
+    _check_user_project_access(project_id, current_user.id)
+    installation = github_service.get_project_installation(project_id)
+    installation_id = installation.get("installation_id") if installation else None
+    if not installation_id:
+        installation_id = github_service.get_any_active_installation_id()
+
+    if not installation_id:
+        return {"connected": False, "repositories": []}
+
+    repos = await github_service.get_installation_repositories(str(installation_id))
+    return {
+        "connected": bool(installation),
+        "current_repo": installation.get("repo_full_name") if installation else None,
+        "repositories": repos,
+        "count": len(repos),
+    }
+
+
+@router.post("/projects/{project_id}/github/select-repository")
+async def select_project_github_repository(
+    project_id: str,
+    payload: dict,
+    current_user: Any = Depends(get_current_user),
+):
+    """Switch or link the project to a specific repository under the active installation."""
+    _check_user_project_access(project_id, current_user.id, lead_only=True)
+    installation = github_service.get_project_installation(project_id)
+    installation_id = installation.get("installation_id") if installation else None
+    if not installation_id:
+        installation_id = github_service.get_any_active_installation_id()
+
+    if not installation_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active GitHub App installation found. Please install the GitHub App first.",
+        )
+
+    repo_full_name = payload.get("repo_full_name")
+    if not repo_full_name or not str(repo_full_name).strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Repository full name is required.",
+        )
+
+    clean_name = str(repo_full_name).strip()
+    record = github_service.store_installation(
+        project_id=project_id,
+        installation_id=str(installation_id),
+        repo_full_name=clean_name,
+    )
+    return {
+        "success": True,
+        "message": f"Successfully linked project repository to {clean_name}.",
+        "installation": record,
     }
 
 
@@ -556,6 +693,19 @@ async def github_webhook_handler(
         logger.info(
             f"🐛 [GitHub Webhook - ISSUE] Action: {action} | Repo: {repo_name} | Issue #{issue_number}: {issue_title} (by {sender})"
         )
+
+    elif x_github_event in ("installation_repositories", "installation"):
+        action = payload.get("action", "")
+        inst_id = str(payload.get("installation", {}).get("id", ""))
+        repos_added = payload.get("repositories_added", [])
+        if not repos_added and payload.get("repositories"):
+            repos_added = payload.get("repositories", [])
+
+        if repos_added:
+            latest_repo = repos_added[0].get("full_name", "")
+            if latest_repo and inst_id:
+                github_service.set_latest_selected_repo(inst_id, latest_repo)
+                logger.info(f"✨ [GitHub Webhook] Captured latest selected repo: {latest_repo} for installation {inst_id}")
 
     else:
         logger.info(

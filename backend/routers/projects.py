@@ -25,6 +25,12 @@ from schemas.role_agreement import (
     RoleDeclarationResponse,
     RoleDeclareRequest,
 )
+from schemas.contribution import (
+    ContributionResponse,
+    ContributionsListResponse,
+    DraftGenerationResponse,
+)
+from services import github_service
 
 
 
@@ -58,6 +64,7 @@ DEV_PROJECTS_DB: dict[str, dict] = {}
 DEV_PROJECT_MEMBERS_DB: list[dict] = []
 DEV_PROJECT_INVITES_DB: dict[str, dict] = _load_invites()
 DEV_ROLE_AGREEMENTS_DB: list[dict] = []
+DEV_CONTRIBUTIONS_DB: list[dict] = []
 
 
 
@@ -1379,6 +1386,792 @@ async def list_project_roles(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to fetch declared roles: {err_msg}",
         )
+
+
+def _extract_username_from_noreply(email: Optional[str]) -> Optional[str]:
+    """Extract GitHub username from noreply email formats like 12345+username@users.noreply.github.com or username@users.noreply.github.com."""
+    if not email:
+        return None
+    email_clean = email.lower().strip()
+    if "@users.noreply.github.com" in email_clean:
+        local_part = email_clean.split("@")[0]
+        if "+" in local_part:
+            return local_part.split("+", 1)[1]
+        return local_part
+    return None
+
+
+def _match_author_to_member(
+    author_login: Optional[str],
+    author_email: Optional[str],
+    author_name: Optional[str],
+    members: list[dict],
+    fallback_user_id: str,
+) -> str:
+    """Match a GitHub commit, PR, or issue author to an app project member.
+    
+    Priority matching order:
+    1. Exact GitHub username match (case-insensitive)
+    2. GitHub Noreply email parsed username match against member's github_username, email, or display_name
+    3. Exact email match (case-insensitive)
+    4. Exact full name / display_name match (case-insensitive)
+    5. Clean email username (local-part before @) matching member's github_username or email local-part
+    6. Sanitized alphanumeric name/login match
+    7. Fallback to fallback_user_id (current acting user or project owner)
+    """
+    norm_login = (author_login or "").strip().lower()
+    norm_email = (author_email or "").strip().lower()
+    norm_name = (author_name or "").strip().lower()
+    noreply_user = _extract_username_from_noreply(norm_email)
+
+    # 1. Exact match by GitHub username
+    if norm_login:
+        for m in members:
+            gh_user = (m.get("github_username") or "").strip().lower()
+            if gh_user and gh_user == norm_login:
+                return m["user_id"]
+
+    # 2. Match GitHub Noreply email parsed username
+    if noreply_user:
+        for m in members:
+            gh_user = (m.get("github_username") or "").strip().lower()
+            mem_email = (m.get("email") or "").strip().lower()
+            mem_name = (m.get("display_name") or "").strip().lower()
+            if gh_user and gh_user == noreply_user:
+                return m["user_id"]
+            if mem_email and mem_email.split("@")[0] == noreply_user:
+                return m["user_id"]
+            if mem_name and mem_name == noreply_user:
+                return m["user_id"]
+
+    # 3. Exact match by Email
+    if norm_email:
+        for m in members:
+            mem_email = (m.get("email") or "").strip().lower()
+            if mem_email and mem_email == norm_email:
+                return m["user_id"]
+
+    # 4. Exact match by Name / Display Name
+    if norm_name:
+        for m in members:
+            mem_name = (m.get("display_name") or "").strip().lower()
+            if mem_name and (mem_name == norm_name or norm_name in mem_name):
+                return m["user_id"]
+
+    # 5. Clean email username (local-part before @) matching
+    if norm_email and "@" in norm_email:
+        email_prefix = norm_email.split("@")[0]
+        if email_prefix:
+            for m in members:
+                gh_user = (m.get("github_username") or "").strip().lower()
+                mem_email = (m.get("email") or "").strip().lower()
+                mem_prefix = mem_email.split("@")[0] if "@" in mem_email else ""
+                if gh_user and gh_user == email_prefix:
+                    return m["user_id"]
+                if mem_prefix and mem_prefix == email_prefix:
+                    return m["user_id"]
+
+    # 6. Sanitized alphanumeric match
+    if norm_login or norm_name:
+        clean_author = "".join(c for c in (norm_login or norm_name) if c.isalnum())
+        if clean_author:
+            for m in members:
+                clean_gh = "".join(c for c in (m.get("github_username") or "").lower() if c.isalnum())
+                clean_mem = "".join(c for c in (m.get("display_name") or "").lower() if c.isalnum())
+                if clean_gh and clean_gh == clean_author:
+                    return m["user_id"]
+                if clean_mem and clean_mem == clean_author:
+                    return m["user_id"]
+
+    # 7. Fallback to current acting user / lead
+    return fallback_user_id
+
+
+@router.post(
+    "/{project_id}/generate-draft",
+    response_model=DraftGenerationResponse,
+    status_code=status.HTTP_200_OK,
+)
+@router.post(
+    "/{project_id}/generate-draft/",
+    response_model=DraftGenerationResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+async def generate_draft_contributions(
+    project_id: str,
+    current_user: Any = Depends(get_current_user),
+):
+    """Pull GitHub activity since the last milestone/sync and generate draft contribution records with status 'source-verified'."""
+    user_id = _get_user_id(current_user)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    try:
+        supabase = get_supabase_client()
+
+        # 1. Fetch project to ensure it exists
+        proj_res = (
+            supabase.table("projects")
+            .select("*")
+            .eq("id", project_id)
+            .single()
+            .execute()
+        )
+        if not proj_res.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found.",
+            )
+        project_data = proj_res.data
+
+        # 2. Check project membership
+        is_lead = project_data.get("created_by") == user_id
+        member_res = (
+            supabase.table("project_members")
+            .select("*")
+            .eq("project_id", project_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if not is_lead and not (member_res.data and len(member_res.data) > 0):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You must be a member of this project to generate contribution drafts.",
+            )
+
+        # 3. Check GitHub installation
+        installation = github_service.get_project_installation(project_id)
+        if not installation or not installation.get("repo_full_name"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Project is not connected to a GitHub repository. Please link a repository first.",
+            )
+
+        repo_full_name = installation["repo_full_name"]
+        installation_id = str(installation.get("installation_id", ""))
+        last_generated_at = installation.get("last_generated_at") or installation.get("connected_at")
+
+        # 4. Fetch all project members and profiles for Author Matching Engine
+        members_res = (
+            supabase.table("project_members")
+            .select("user_id, profiles(*)")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        members_raw = members_res.data or []
+        seen_user_ids = set()
+        members_lookup = []
+
+        for m in members_raw:
+            uid = m.get("user_id")
+            if not uid or uid in seen_user_ids:
+                continue
+            seen_user_ids.add(uid)
+            prof = m.get("profiles") or {}
+            members_lookup.append({
+                "user_id": uid,
+                "email": prof.get("email") or "",
+                "display_name": prof.get("display_name") or "",
+                "github_username": prof.get("github_username") or "",
+                "avatar_url": prof.get("avatar_url") or "",
+            })
+
+        # Ensure project creator is in lookup
+        creator_id = project_data.get("created_by")
+        if creator_id and creator_id not in seen_user_ids:
+            creator_prof_res = supabase.table("profiles").select("*").eq("id", creator_id).execute()
+            c_prof = creator_prof_res.data[0] if creator_prof_res.data else {}
+            members_lookup.insert(0, {
+                "user_id": creator_id,
+                "email": c_prof.get("email") or "",
+                "display_name": c_prof.get("display_name") or "",
+                "github_username": c_prof.get("github_username") or "",
+                "avatar_url": c_prof.get("avatar_url") or "",
+            })
+
+        # 5. Fetch existing contributions to avoid duplicate draft creation
+        c_res = (
+            supabase.table("contributions")
+            .select("evidence_link, title")
+            .eq("project", project_id)
+            .execute()
+        )
+        existing_evidence = {
+            c.get("evidence_link") for c in (c_res.data or []) if c.get("evidence_link")
+        }
+
+        # 6. Fetch live GitHub activity
+        commits = await github_service.fetch_repository_commits(
+            repo_full_name=repo_full_name,
+            installation_id=installation_id,
+            per_page=50,
+            since=last_generated_at,
+        )
+        pulls = await github_service.fetch_repository_pulls(
+            repo_full_name=repo_full_name,
+            installation_id=installation_id,
+            state="all",
+            per_page=30,
+        )
+        issues = await github_service.fetch_repository_issues(
+            repo_full_name=repo_full_name,
+            installation_id=installation_id,
+            state="all",
+            per_page=30,
+        )
+
+        new_drafts = []
+
+        # Process Commits
+        for commit in commits:
+            commit_url = commit.get("url")
+            if commit_url and commit_url in existing_evidence:
+                continue
+
+            matched_uid = _match_author_to_member(
+                author_login=commit.get("author_login") or commit.get("author"),
+                author_email=commit.get("author_email"),
+                author_name=commit.get("author_name") or commit.get("author"),
+                members=members_lookup,
+                fallback_user_id=user_id,
+            )
+
+            draft_item = {
+                "id": str(uuid.uuid4()),
+                "contributor": matched_uid,
+                "project": project_id,
+                "title": commit.get("message") or f"Commit {commit.get('sha', '')[:7]}",
+                "category": "code",
+                "description": f"Git commit {commit.get('sha', '')[:7]} by {commit.get('author', 'Unknown')}",
+                "date_range": commit.get("date"),
+                "source_type": "github_commit",
+                "evidence_link": commit_url,
+                "verification_status": "source-verified",
+                "confirmed_by": None,
+                "visibility": "public",
+                "dispute_state": "none",
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            }
+            new_drafts.append(draft_item)
+            if commit_url:
+                existing_evidence.add(commit_url)
+
+        # Process Pull Requests
+        for pr in pulls:
+            pr_url = pr.get("url")
+            if pr_url and pr_url in existing_evidence:
+                continue
+
+            matched_uid = _match_author_to_member(
+                author_login=pr.get("user"),
+                author_email=None,
+                author_name=None,
+                members=members_lookup,
+                fallback_user_id=user_id,
+            )
+
+            draft_item = {
+                "id": str(uuid.uuid4()),
+                "contributor": matched_uid,
+                "project": project_id,
+                "title": pr.get("title") or f"Pull Request #{pr.get('number')}",
+                "category": "pull_request",
+                "description": f"Pull Request #{pr.get('number')} ({pr.get('state')}) on branch {pr.get('head_branch', 'main')}",
+                "date_range": pr.get("created_at"),
+                "source_type": "github_pr",
+                "evidence_link": pr_url,
+                "verification_status": "source-verified",
+                "confirmed_by": None,
+                "visibility": "public",
+                "dispute_state": "none",
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            }
+            new_drafts.append(draft_item)
+            if pr_url:
+                existing_evidence.add(pr_url)
+
+        # Process Issues
+        for issue in issues:
+            issue_url = issue.get("url")
+            if issue_url and issue_url in existing_evidence:
+                continue
+
+            matched_uid = _match_author_to_member(
+                author_login=issue.get("user"),
+                author_email=None,
+                author_name=None,
+                members=members_lookup,
+                fallback_user_id=user_id,
+            )
+
+            draft_item = {
+                "id": str(uuid.uuid4()),
+                "contributor": matched_uid,
+                "project": project_id,
+                "title": issue.get("title") or f"Issue #{issue.get('number')}",
+                "category": "issue",
+                "description": f"GitHub Issue #{issue.get('number')} ({issue.get('state')})",
+                "date_range": issue.get("created_at"),
+                "source_type": "github_issue",
+                "evidence_link": issue_url,
+                "verification_status": "source-verified",
+                "confirmed_by": None,
+                "visibility": "public",
+                "dispute_state": "none",
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            }
+            new_drafts.append(draft_item)
+            if issue_url:
+                existing_evidence.add(issue_url)
+
+        # 7. Persist to Supabase if any new drafts
+        saved_drafts = []
+        if new_drafts:
+            ins_res = supabase.table("contributions").insert(new_drafts).execute()
+            saved_drafts = ins_res.data if ins_res.data else new_drafts
+        else:
+            # Fetch existing drafts for display
+            all_c = (
+                supabase.table("contributions")
+                .select("*")
+                .eq("project", project_id)
+                .execute()
+            )
+            saved_drafts = all_c.data or []
+
+        # Update last_generated_at in installation
+        try:
+            supabase.table("github_installations").update({
+                "last_generated_at": now_iso
+            }).eq("project_id", project_id).execute()
+        except Exception:
+            pass
+
+        # Build profile lookup dictionary for response enrichment
+        prof_dict = {m["user_id"]: m for m in members_lookup}
+        for d in saved_drafts:
+            cid = d.get("contributor")
+            if cid in prof_dict:
+                d["contributor_name"] = prof_dict[cid].get("display_name") or prof_dict[cid].get("email")
+                d["contributor_profile"] = prof_dict[cid]
+
+        return {
+            "message": f"Successfully generated {len(new_drafts)} draft contribution(s) from GitHub.",
+            "project_id": project_id,
+            "generated_count": len(new_drafts),
+            "contributions": saved_drafts,
+            "last_generated_at": now_iso,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        err_msg = str(e)
+        if _is_dev_fallback_error(err_msg):
+            # Local Dev Mode Fallback
+            if project_id not in DEV_PROJECTS_DB:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Project not found.",
+                )
+            project_data = DEV_PROJECTS_DB[project_id]
+
+            is_lead = project_data.get("created_by") == user_id
+            is_member = is_lead or any(
+                m.get("project_id") == project_id and m.get("user_id") == user_id
+                for m in DEV_PROJECT_MEMBERS_DB
+            )
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You must be a member of this project to generate contribution drafts.",
+                )
+
+            installation = github_service.get_project_installation(project_id)
+            if not installation or not installation.get("repo_full_name"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Project is not connected to a GitHub repository. Please link a repository first.",
+                )
+
+            repo_full_name = installation["repo_full_name"]
+            installation_id = str(installation.get("installation_id", ""))
+            last_generated_at = installation.get("last_generated_at") or installation.get("connected_at")
+
+            # Build dev members lookup
+            dev_members_lookup = []
+            dev_seen_ids = set()
+
+            if project_data.get("created_by"):
+                cid = project_data.get("created_by")
+                dev_seen_ids.add(cid)
+                dev_members_lookup.append({
+                    "user_id": cid,
+                    "email": f"{cid}@buildcrew.io",
+                    "display_name": f"Lead {cid}",
+                    "github_username": "buildcrew-dev",
+                })
+
+            for m in DEV_PROJECT_MEMBERS_DB:
+                uid = m.get("user_id")
+                if uid and uid not in dev_seen_ids:
+                    dev_seen_ids.add(uid)
+                    dev_members_lookup.append({
+                        "user_id": uid,
+                        "email": f"{uid}@buildcrew.io",
+                        "display_name": f"Member {uid}",
+                        "github_username": "buildcrew-team",
+                    })
+
+            # Check existing dev contributions
+            existing_evidence = {
+                c.get("evidence_link")
+                for c in DEV_CONTRIBUTIONS_DB
+                if c.get("project") == project_id and c.get("evidence_link")
+            }
+
+            commits = await github_service.fetch_repository_commits(
+                repo_full_name=repo_full_name,
+                installation_id=installation_id,
+                per_page=50,
+                since=last_generated_at,
+            )
+            pulls = await github_service.fetch_repository_pulls(
+                repo_full_name=repo_full_name,
+                installation_id=installation_id,
+                state="all",
+                per_page=30,
+            )
+            issues = await github_service.fetch_repository_issues(
+                repo_full_name=repo_full_name,
+                installation_id=installation_id,
+                state="all",
+                per_page=30,
+            )
+
+            new_dev_drafts = []
+
+            for commit in commits:
+                curl = commit.get("url")
+                if curl and curl in existing_evidence:
+                    continue
+
+                matched_uid = _match_author_to_member(
+                    author_login=commit.get("author_login") or commit.get("author"),
+                    author_email=commit.get("author_email"),
+                    author_name=commit.get("author_name") or commit.get("author"),
+                    members=dev_members_lookup,
+                    fallback_user_id=user_id,
+                )
+
+                draft_item = {
+                    "id": str(uuid.uuid4()),
+                    "contributor": matched_uid,
+                    "project": project_id,
+                    "title": commit.get("message") or f"Commit {commit.get('sha', '')[:7]}",
+                    "category": "code",
+                    "description": f"Git commit {commit.get('sha', '')[:7]} by {commit.get('author', 'Unknown')}",
+                    "date_range": commit.get("date"),
+                    "source_type": "github_commit",
+                    "evidence_link": curl,
+                    "verification_status": "source-verified",
+                    "confirmed_by": None,
+                    "visibility": "public",
+                    "dispute_state": "none",
+                    "created_at": now_iso,
+                    "updated_at": now_iso,
+                }
+                new_dev_drafts.append(draft_item)
+                if curl:
+                    existing_evidence.add(curl)
+
+            for pr in pulls:
+                purl = pr.get("url")
+                if purl and purl in existing_evidence:
+                    continue
+
+                matched_uid = _match_author_to_member(
+                    author_login=pr.get("user"),
+                    author_email=None,
+                    author_name=None,
+                    members=dev_members_lookup,
+                    fallback_user_id=user_id,
+                )
+
+                draft_item = {
+                    "id": str(uuid.uuid4()),
+                    "contributor": matched_uid,
+                    "project": project_id,
+                    "title": pr.get("title") or f"Pull Request #{pr.get('number')}",
+                    "category": "pull_request",
+                    "description": f"Pull Request #{pr.get('number')} ({pr.get('state')}) on branch {pr.get('head_branch', 'main')}",
+                    "date_range": pr.get("created_at"),
+                    "source_type": "github_pr",
+                    "evidence_link": purl,
+                    "verification_status": "source-verified",
+                    "confirmed_by": None,
+                    "visibility": "public",
+                    "dispute_state": "none",
+                    "created_at": now_iso,
+                    "updated_at": now_iso,
+                }
+                new_dev_drafts.append(draft_item)
+                if purl:
+                    existing_evidence.add(purl)
+
+            for issue in issues:
+                iurl = issue.get("url")
+                if iurl and iurl in existing_evidence:
+                    continue
+
+                matched_uid = _match_author_to_member(
+                    author_login=issue.get("user"),
+                    author_email=None,
+                    author_name=None,
+                    members=dev_members_lookup,
+                    fallback_user_id=user_id,
+                )
+
+                draft_item = {
+                    "id": str(uuid.uuid4()),
+                    "contributor": matched_uid,
+                    "project": project_id,
+                    "title": issue.get("title") or f"Issue #{issue.get('number')}",
+                    "category": "issue",
+                    "description": f"GitHub Issue #{issue.get('number')} ({issue.get('state')})",
+                    "date_range": issue.get("created_at"),
+                    "source_type": "github_issue",
+                    "evidence_link": iurl,
+                    "verification_status": "source-verified",
+                    "confirmed_by": None,
+                    "visibility": "public",
+                    "dispute_state": "none",
+                    "created_at": now_iso,
+                    "updated_at": now_iso,
+                }
+                new_dev_drafts.append(draft_item)
+                if iurl:
+                    existing_evidence.add(iurl)
+
+            DEV_CONTRIBUTIONS_DB.extend(new_dev_drafts)
+            if installation:
+                installation["last_generated_at"] = now_iso
+
+            all_dev_project_contribs = [
+                c for c in DEV_CONTRIBUTIONS_DB if c.get("project") == project_id
+            ]
+
+            dev_prof_dict = {m["user_id"]: m for m in dev_members_lookup}
+            for d in all_dev_project_contribs:
+                cid = d.get("contributor")
+                if cid in dev_prof_dict:
+                    d["contributor_name"] = dev_prof_dict[cid].get("display_name") or dev_prof_dict[cid].get("email")
+                    d["contributor_profile"] = dev_prof_dict[cid]
+
+            return {
+                "message": f"Successfully generated {len(new_dev_drafts)} draft contribution(s) from GitHub (Local Dev Mode).",
+                "project_id": project_id,
+                "generated_count": len(new_dev_drafts),
+                "contributions": all_dev_project_contribs,
+                "last_generated_at": now_iso,
+            }
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to generate draft contributions: {err_msg}",
+        )
+
+
+@router.get(
+    "/{project_id}/contributions",
+    response_model=ContributionsListResponse,
+    status_code=status.HTTP_200_OK,
+)
+@router.get(
+    "/{project_id}/contributions/",
+    response_model=ContributionsListResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+async def list_project_contributions(
+    project_id: str,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    contributor_filter: Optional[str] = Query(None, alias="contributor"),
+    category_filter: Optional[str] = Query(None, alias="category"),
+    current_user: Any = Depends(get_current_user),
+):
+    """List all contribution records (drafts and confirmed) for a project with optional status, contributor, and category filtering."""
+    user_id = _get_user_id(current_user)
+
+    try:
+        supabase = get_supabase_client()
+
+        # 1. Verify project exists
+        proj_res = (
+            supabase.table("projects")
+            .select("*")
+            .eq("id", project_id)
+            .single()
+            .execute()
+        )
+        if not proj_res.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found.",
+            )
+        project_data = proj_res.data
+
+        # 2. Verify membership
+        is_lead = project_data.get("created_by") == user_id
+        member_res = (
+            supabase.table("project_members")
+            .select("*")
+            .eq("project_id", project_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if not is_lead and not (member_res.data and len(member_res.data) > 0):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You must be a member of this project to view contributions.",
+            )
+
+        # 3. Fetch contributions
+        query = (
+            supabase.table("contributions")
+            .select("*")
+            .eq("project", project_id)
+        )
+        if status_filter and status_filter.strip():
+            query = query.eq("verification_status", status_filter.strip().lower())
+        if contributor_filter and contributor_filter.strip():
+            query = query.eq("contributor", contributor_filter.strip())
+        if category_filter and category_filter.strip():
+            query = query.eq("category", category_filter.strip().lower())
+
+        c_res = query.order("created_at", desc=True).execute()
+        contribs = c_res.data or []
+
+        # Fetch profile metadata for all contributors
+        contributor_ids = list({c.get("contributor") for c in contribs if c.get("contributor")})
+        profiles_map = {}
+        if contributor_ids:
+            try:
+                p_res = supabase.table("profiles").select("*").in_("id", contributor_ids).execute()
+                for p in (p_res.data or []):
+                    profiles_map[p.get("id")] = p
+            except Exception:
+                pass
+
+        # Count drafts vs confirmed across all project contributions
+        all_c_res = (
+            supabase.table("contributions")
+            .select("verification_status")
+            .eq("project", project_id)
+            .execute()
+        )
+        all_items = all_c_res.data or []
+        draft_count = sum(1 for c in all_items if c.get("verification_status") in ("source-verified", "pending", "draft"))
+        confirmed_count = sum(1 for c in all_items if c.get("verification_status") == "confirmed")
+
+        for c in contribs:
+            cid = c.get("contributor")
+            prof = profiles_map.get(cid) or c.get("profiles") or {}
+            c["contributor_name"] = prof.get("display_name") or prof.get("email") or c.get("contributor_name") or (f"User {cid[:8]}" if cid else "Contributor")
+            c["contributor_profile"] = prof or None
+
+        return {
+            "project_id": project_id,
+            "total_count": len(contribs),
+            "draft_count": draft_count,
+            "confirmed_count": confirmed_count,
+            "contributions": contribs,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        err_msg = str(e)
+        if _is_dev_fallback_error(err_msg):
+            # Local Dev Mode Fallback
+            if project_id in DEV_PROJECTS_DB:
+                project_data = DEV_PROJECTS_DB[project_id]
+
+                is_lead = project_data.get("created_by") == user_id
+                is_member = is_lead or any(
+                    m.get("project_id") == project_id and m.get("user_id") == user_id
+                    for m in DEV_PROJECT_MEMBERS_DB
+                )
+                if not is_member:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="You must be a member of this project to view contributions.",
+                    )
+            elif any(c.get("project") == project_id for c in DEV_CONTRIBUTIONS_DB):
+                pass
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Project not found.",
+                )
+            project_data = DEV_PROJECTS_DB[project_id]
+
+            is_lead = project_data.get("created_by") == user_id
+            is_member = is_lead or any(
+                m.get("project_id") == project_id and m.get("user_id") == user_id
+                for m in DEV_PROJECT_MEMBERS_DB
+            )
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You must be a member of this project to view contributions.",
+                )
+
+            dev_contribs = [
+                c for c in DEV_CONTRIBUTIONS_DB if c.get("project") == project_id
+            ]
+
+            draft_count = sum(1 for c in dev_contribs if c.get("verification_status") in ("source-verified", "pending", "draft"))
+            confirmed_count = sum(1 for c in dev_contribs if c.get("verification_status") == "confirmed")
+
+            # Apply filters if provided
+            filtered_contribs = dev_contribs
+            if status_filter and status_filter.strip():
+                sf = status_filter.strip().lower()
+                filtered_contribs = [c for c in filtered_contribs if c.get("verification_status", "").lower() == sf]
+            if contributor_filter and contributor_filter.strip():
+                cf = contributor_filter.strip()
+                filtered_contribs = [c for c in filtered_contribs if c.get("contributor") == cf]
+            if category_filter and category_filter.strip():
+                cat_f = category_filter.strip().lower()
+                filtered_contribs = [c for c in filtered_contribs if c.get("category", "").lower() == cat_f]
+
+            for c in filtered_contribs:
+                cid = c.get("contributor")
+                if cid and not c.get("contributor_profile"):
+                    c["contributor_name"] = c.get("contributor_name") or f"Member {cid}"
+                    c["contributor_profile"] = {
+                        "user_id": cid,
+                        "display_name": c["contributor_name"],
+                        "email": f"{cid}@buildcrew.io",
+                    }
+
+            return {
+                "project_id": project_id,
+                "total_count": len(filtered_contribs),
+                "draft_count": draft_count,
+                "confirmed_count": confirmed_count,
+                "contributions": filtered_contribs,
+            }
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to list contributions: {err_msg}",
+        )
+
 
 
 
