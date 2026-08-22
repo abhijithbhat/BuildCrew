@@ -1,9 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>
+    
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
+
     <application
-        android:label="mobile"
+        android:label="BuildCrew"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:largeHeap="true"
+        android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
@@ -33,7 +43,7 @@
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
-    <!-- Required by url_launcher for package visibility on Android 11+ (API 30+) -->
+    <!-- Required by url_launcher & image_picker for package visibility on Android 11+ (API 30+) -->
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />
@@ -46,6 +56,17 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.PICK" />
+            <data android:mimeType="image/*" />
         </intent>
     </queries>
 </manifest>

@@ -621,12 +621,18 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                 ],
               ),
             ),
-            Text(
-              projectName,
-              style: const TextStyle(
-                color: Color(0xFF94A3B8),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                projectName,
+                textAlign: TextAlign.end,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: const TextStyle(
+                  color: Color(0xFF94A3B8),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ],
@@ -692,9 +698,11 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                         const SizedBox(height: 2),
                         Text(
                           repoFullName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 18,
+                            fontSize: 17,
                             fontWeight: FontWeight.w800,
                             letterSpacing: -0.3,
                           ),
@@ -713,15 +721,19 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'View on GitHub ($repoFullName)',
-                        style: const TextStyle(
-                          color: Color(0xFF60A5FA),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Text(
+                          'View on GitHub ($repoFullName)',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF60A5FA),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 6),
                       const Icon(
                         Icons.open_in_new_rounded,
                         color: Color(0xFF60A5FA),
@@ -876,13 +888,18 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
             fontSize: 13,
           ),
         ),
-        const Spacer(),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],

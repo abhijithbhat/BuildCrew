@@ -281,3 +281,33 @@ CREATE POLICY "Users can update their own confirmation."
 DROP POLICY IF EXISTS "Users can delete their own confirmation." ON public.confirmations;
 CREATE POLICY "Users can delete their own confirmation."
     ON public.confirmations FOR DELETE USING (auth.uid() = confirmed_by_user_id);
+
+
+-- 8. STORAGE BUCKETS (EVIDENCE UPLOADS)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('evidence', 'evidence', true)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "Authenticated users can upload evidence files." ON storage.objects;
+CREATE POLICY "Authenticated users can upload evidence files."
+    ON storage.objects FOR INSERT
+    TO authenticated
+    WITH CHECK (bucket_id = 'evidence');
+
+DROP POLICY IF EXISTS "Anyone can view evidence files." ON storage.objects;
+CREATE POLICY "Anyone can view evidence files."
+    ON storage.objects FOR SELECT
+    USING (bucket_id = 'evidence');
+
+DROP POLICY IF EXISTS "Users can update their own evidence files." ON storage.objects;
+CREATE POLICY "Users can update their own evidence files."
+    ON storage.objects FOR UPDATE
+    TO authenticated
+    USING (bucket_id = 'evidence' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+DROP POLICY IF EXISTS "Users can delete their own evidence files." ON storage.objects;
+CREATE POLICY "Users can delete their own evidence files."
+    ON storage.objects FOR DELETE
+    TO authenticated
+    USING (bucket_id = 'evidence' AND auth.uid()::text = (storage.foldername(name))[1]);
+

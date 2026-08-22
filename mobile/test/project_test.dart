@@ -3,10 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/models/contribution.dart';
 import 'package:mobile/models/project.dart';
 import 'package:mobile/models/role_agreement.dart';
+import 'package:mobile/screens/add_contribution_screen.dart';
 import 'package:mobile/screens/create_project_screen.dart';
 import 'package:mobile/screens/declare_role_screen.dart';
 import 'package:mobile/screens/invite_teammate_screen.dart';
 import 'package:mobile/screens/join_project_screen.dart';
+import 'package:mobile/screens/my_contributions_screen.dart';
 import 'package:mobile/screens/my_projects_screen.dart';
 import 'package:mobile/screens/project_detail_screen.dart';
 import 'package:mobile/screens/team_roles_screen.dart';
@@ -75,6 +77,12 @@ class FakeSuccessProjectService extends ProjectService {
     String? category,
   }) async {
     return mockContributionsList;
+  }
+
+  @override
+  Future<bool> deleteContribution(String contributionId, {String? projectId}) async {
+    mockContributionsList.removeWhere((c) => c.id == contributionId);
+    return true;
   }
 }
 
@@ -861,9 +869,13 @@ void main() {
       expect(find.text('GitHub Integration & Status'), findsOneWidget);
       expect(find.text('Generate Contribution Draft'), findsOneWidget);
       expect(find.text('Generate Team Invite Code'), findsOneWidget);
+
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pumpAndSettle();
+
       expect(find.text('Contribution Stream'), findsOneWidget);
 
-      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
       await tester.pumpAndSettle();
 
       expect(find.text('Remind Teammates to Declare Roles'), findsOneWidget);
@@ -907,6 +919,158 @@ void main() {
 
       expect(find.text('Leave Project'), findsOneWidget);
       expect(find.text('Dismantle / Delete Project'), findsNothing);
+    });
+
+    testWidgets('tapping Add Impact in ProjectDetailScreen navigates to AddContributionScreen', (WidgetTester tester) async {
+      final project = Project(
+        id: 'proj-impact-101',
+        name: 'Impact Logging Proj',
+        description: 'Test manual contribution navigation',
+        role: 'owner',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          routes: {
+            ProjectDetailScreen.routeName: (context) => ProjectDetailScreen(projectService: FakeSuccessProjectService()),
+            AddContributionScreen.routeName: (context) => const Scaffold(body: Text('Add Contribution Screen Target')),
+          },
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => Navigator.pushNamed(
+                context,
+                ProjectDetailScreen.routeName,
+                arguments: project,
+              ),
+              child: const Text('Open Project Detail'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Project Detail'));
+      await tester.pumpAndSettle();
+
+      // Scroll to contribution stream section
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('project_detail_add_contribution_btn')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('project_detail_add_contribution_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add Contribution Screen Target'), findsOneWidget);
+    });
+
+    testWidgets('tapping My Contributions in ProjectDetailScreen navigates to MyContributionsScreen', (WidgetTester tester) async {
+      final project = Project(
+        id: 'proj-impact-102',
+        name: 'My Contributions Proj',
+        description: 'Test personal feed navigation',
+        role: 'owner',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          routes: {
+            ProjectDetailScreen.routeName: (context) => ProjectDetailScreen(projectService: FakeSuccessProjectService()),
+            MyContributionsScreen.routeName: (context) => const Scaffold(body: Text('My Contributions Screen Target')),
+          },
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => Navigator.pushNamed(
+                context,
+                ProjectDetailScreen.routeName,
+                arguments: project,
+              ),
+              child: const Text('Open Project Detail'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Project Detail'));
+      await tester.pumpAndSettle();
+
+      // Ensure My Contributions button is visible and tap
+      expect(find.byKey(const Key('project_detail_my_contributions_btn')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('project_detail_my_contributions_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('My Contributions Screen Target'), findsOneWidget);
+    });
+
+    testWidgets('non-author teammate cannot delete another teammate contribution in ProjectDetailScreen', (WidgetTester tester) async {
+      final fakeProjectService = FakeSuccessProjectService();
+      final fakeStorageService = FakeStorageService(
+        userId: 'current-user-teammate',
+        userEmail: 'teammate@buildcrew.io',
+      );
+
+      final project = Project(
+        id: 'proj-collab-1',
+        name: 'BuildCrew Collaboration',
+        description: 'Multi-member project',
+        role: 'member',
+      );
+
+      final otherMemberContribution = Contribution(
+        id: 'contrib-other-user',
+        project: 'proj-collab-1',
+        contributor: 'another-user-id',
+        title: 'Another Teammate Figma Wireframe',
+        category: 'design',
+        verificationStatus: 'self-declared',
+      );
+
+      fakeProjectService.mockContributionsList = [otherMemberContribution];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          routes: {
+            ProjectDetailScreen.routeName: (context) => ProjectDetailScreen(
+              projectService: fakeProjectService,
+              storageService: fakeStorageService,
+            ),
+          },
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => Navigator.pushNamed(
+                context,
+                ProjectDetailScreen.routeName,
+                arguments: project,
+              ),
+              child: const Text('Open Project Detail'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Project Detail'));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('Another Teammate Figma Wireframe'),
+        500.0,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Another Teammate Figma Wireframe'), findsOneWidget);
+
+      // Long press on another member's card
+      await tester.longPress(find.text('Another Teammate Figma Wireframe'));
+      await tester.pumpAndSettle();
+
+      // Verify Action Restricted dialog appears
+      expect(find.text('Action Restricted'), findsOneWidget);
+      expect(find.text('You can only delete impact entries that you created. Other members\' contributions can only be managed by them or the Team Lead.'), findsOneWidget);
+
+      // Dismiss dialog
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+
+      // Ensure contribution was not deleted
+      expect(find.text('Another Teammate Figma Wireframe'), findsOneWidget);
     });
   });
 }

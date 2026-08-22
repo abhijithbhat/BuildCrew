@@ -113,8 +113,84 @@ class StorageService {
       await _storage.delete(key: _keyUserId);
       await _storage.delete(key: _keyUserEmail);
       await _storage.delete(key: _keyUserName);
+      await clearContributionDraft();
     } catch (_) {
       _inMemoryFallback.clear();
+    }
+  }
+
+  static const String _keyDraftProjectId = 'draft_project_id';
+  static const String _keyDraftTitle = 'draft_title';
+  static const String _keyDraftCategory = 'draft_category';
+  static const String _keyDraftDesc = 'draft_desc';
+  static const String _keyDraftLink = 'draft_link';
+
+  /// Save active contribution draft state (e.g. before camera intent).
+  Future<void> saveContributionDraft({
+    required String projectId,
+    String? title,
+    String? category,
+    String? description,
+    String? link,
+  }) async {
+    try {
+      await _storage.write(key: _keyDraftProjectId, value: projectId);
+      if (title != null) await _storage.write(key: _keyDraftTitle, value: title);
+      if (category != null) await _storage.write(key: _keyDraftCategory, value: category);
+      if (description != null) await _storage.write(key: _keyDraftDesc, value: description);
+      if (link != null) await _storage.write(key: _keyDraftLink, value: link);
+    } catch (_) {
+      _inMemoryFallback[_keyDraftProjectId] = projectId;
+      if (title != null) _inMemoryFallback[_keyDraftTitle] = title;
+      if (category != null) _inMemoryFallback[_keyDraftCategory] = category;
+      if (description != null) _inMemoryFallback[_keyDraftDesc] = description;
+      if (link != null) _inMemoryFallback[_keyDraftLink] = link;
+    }
+  }
+
+  /// Retrieve active contribution draft state.
+  Future<Map<String, String?>> getContributionDraft() async {
+    try {
+      final pid = await _storage.read(key: _keyDraftProjectId);
+      if (pid == null || pid.isEmpty) return {};
+      final title = await _storage.read(key: _keyDraftTitle);
+      final category = await _storage.read(key: _keyDraftCategory);
+      final desc = await _storage.read(key: _keyDraftDesc);
+      final link = await _storage.read(key: _keyDraftLink);
+      return {
+        'projectId': pid,
+        'title': title,
+        'category': category,
+        'description': desc,
+        'link': link,
+      };
+    } catch (_) {
+      final pid = _inMemoryFallback[_keyDraftProjectId];
+      if (pid == null || pid.isEmpty) return {};
+      return {
+        'projectId': pid,
+        'title': _inMemoryFallback[_keyDraftTitle],
+        'category': _inMemoryFallback[_keyDraftCategory],
+        'description': _inMemoryFallback[_keyDraftDesc],
+        'link': _inMemoryFallback[_keyDraftLink],
+      };
+    }
+  }
+
+  /// Clear active contribution draft state.
+  Future<void> clearContributionDraft() async {
+    try {
+      await _storage.delete(key: _keyDraftProjectId);
+      await _storage.delete(key: _keyDraftTitle);
+      await _storage.delete(key: _keyDraftCategory);
+      await _storage.delete(key: _keyDraftDesc);
+      await _storage.delete(key: _keyDraftLink);
+    } catch (_) {
+      _inMemoryFallback.remove(_keyDraftProjectId);
+      _inMemoryFallback.remove(_keyDraftTitle);
+      _inMemoryFallback.remove(_keyDraftCategory);
+      _inMemoryFallback.remove(_keyDraftDesc);
+      _inMemoryFallback.remove(_keyDraftLink);
     }
   }
 }

@@ -249,5 +249,42 @@ void main() {
 
       expect(mockService.unlinkCalled, isTrue);
     });
+
+    testWidgets('renders long repository names cleanly without overflow',
+        (WidgetTester tester) async {
+      final longRepoMock = MockGitHubService(
+        isConnected: true,
+        customInstallation: {
+          'id': 'inst-long-1',
+          'project_id': 'proj-123',
+          'installation_id': '9876543',
+          'repo_full_name':
+              'Very-Long-Enterprise-Org-Name/extremely-long-custom-buildcrew-mobile-app-repository',
+          'connected_at': '2026-08-22T10:00:00Z',
+        },
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RepoStatusScreen(
+            projectId: 'proj-123',
+            projectName: 'Enterprise BuildCrew Project Long Title',
+            isOwner: true,
+            gitHubService: longRepoMock,
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Connected & Active'), findsOneWidget);
+      expect(
+        find.text(
+          'Very-Long-Enterprise-Org-Name/extremely-long-custom-buildcrew-mobile-app-repository',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Integration Details'), findsOneWidget);
+    });
   });
 }

@@ -25,6 +25,8 @@ from schemas.contribution import (
     ContributionUpdate,
     ContributionsListResponse,
     DraftGenerationResponse,
+    EvidenceUploadResponse,
+    ManualContributionCreate,
 )
 from schemas.confirmation import (
     ConfirmationCreate,
@@ -54,6 +56,8 @@ __all__ = [
     "GitHubInstallationResponse",
     "GitHubInstallationUpdate",
     "ContributionCreate",
+    "ManualContributionCreate",
+    "EvidenceUploadResponse",
     "ContributionResponse",
     "ContributionUpdate",
     "DraftGenerationResponse",

@@ -45,6 +45,19 @@ class ProjectService {
     );
   }
 
+  /// Retrieve the authentication headers configured for multipart/form-data uploads.
+  Future<Options> _getMultipartAuthOptions() async {
+    final token = await _storageService.getAccessToken();
+    if (token == null || token.isEmpty) {
+      throw 'User is not authenticated. Please log in first.';
+    }
+    return Options(
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+  }
+
   /// Extracts exact error details from response or exception.
   String _parseDioError(dynamic error) {
     if (error is DioException) {
@@ -79,7 +92,7 @@ class ProjectService {
   /// Execute POST with multi-endpoint fallback across ADB USB, Wi-Fi, and Emulator.
   Future<Response> _postWithFallback(
     String path,
-    Map<String, dynamic> data, {
+    dynamic data, {
     Options? options,
   }) async {
     DioException? lastException;
@@ -418,7 +431,93 @@ class ProjectService {
       throw _parseDioError(e);
     }
   }
+
+  /// Upload evidence file (screenshot, PDF, image, document) to backend via POST /contributions/upload-evidence.
+  Future<Map<String, dynamic>> uploadEvidenceFile({
+    required List<int> fileBytes,
+    required String fileName,
+    String? projectId,
+  }) async {
+    try {
+      final options = await _getMultipartAuthOptions();
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(fileBytes, filename: fileName),
+        if (projectId != null && projectId.trim().isNotEmpty)
+          'project_id': projectId.trim(),
+      });
+
+      final response = await _postWithFallback(
+        '/contributions/upload-evidence',
+        formData,
+        options: options,
+      );
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Create a manual non-code contribution via POST /contributions.
+  Future<Contribution> addContribution({
+    required String projectId,
+    required String title,
+    String? category,
+    String? description,
+    String? evidenceLink,
+    String? dateRange,
+    String? sourceType,
+    String? visibility,
+  }) async {
+    try {
+      final options = await _getAuthOptions();
+      final payload = <String, dynamic>{
+        'project_id': projectId,
+        'title': title.trim(),
+        'category': (category ?? 'other').trim().toLowerCase(),
+        if (description != null && description.trim().isNotEmpty)
+          'description': description.trim(),
+        if (evidenceLink != null && evidenceLink.trim().isNotEmpty)
+          'evidence_link': evidenceLink.trim(),
+        if (dateRange != null && dateRange.trim().isNotEmpty)
+          'date_range': dateRange.trim(),
+        'source_type': sourceType ?? 'manual',
+        'visibility': visibility ?? 'public',
+      };
+
+      final response = await _postWithFallback(
+        '/contributions',
+        payload,
+        options: options,
+      );
+      final data = response.data as Map<String, dynamic>;
+      return Contribution.fromJson(data);
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Delete a logged contribution via DELETE /contributions/{contributionId}.
+  Future<bool> deleteContribution(String contributionId, {String? projectId}) async {
+    try {
+      final options = await _getAuthOptions();
+      final endpoint = projectId != null && projectId.isNotEmpty
+          ? '/projects/$projectId/contributions/$contributionId'
+          : '/contributions/$contributionId';
+      final response = await _deleteWithFallback(
+        endpoint,
+        options: options,
+      );
+      final data = response.data;
+      if (data is Map && data['success'] == true) {
+        return true;
+      }
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
 }
+
 
 
 

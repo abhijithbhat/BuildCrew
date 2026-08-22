@@ -30,4 +30,7 @@ build/
 .packages
 .invites_cache.json
 *.invites_cache.json
+uploads/
+backend/uploads/
+
 

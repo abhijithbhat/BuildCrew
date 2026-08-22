@@ -3,9 +3,13 @@ import 'package:flutter/services.dart';
 import '../models/contribution.dart';
 import '../models/project.dart';
 import '../services/project_service.dart';
+import '../services/storage_service.dart';
 import '../widgets/contribution_card.dart';
+import 'add_contribution_screen.dart';
+import 'my_contributions_screen.dart';
 import 'repo_status_screen.dart';
 import 'team_roles_screen.dart';
+
 
 
 
@@ -13,8 +17,13 @@ class ProjectDetailScreen extends StatefulWidget {
   static const String routeName = '/project-detail';
 
   final ProjectService? projectService;
+  final StorageService? storageService;
 
-  const ProjectDetailScreen({super.key, this.projectService});
+  const ProjectDetailScreen({
+    super.key,
+    this.projectService,
+    this.storageService,
+  });
 
   @override
   State<ProjectDetailScreen> createState() => _ProjectDetailScreenState();
@@ -22,6 +31,8 @@ class ProjectDetailScreen extends StatefulWidget {
 
 class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   late final ProjectService _projectService;
+  late final StorageService _storageService;
+  String? _currentUserId;
   bool _isGeneratingInvite = false;
   bool _isGeneratingDraft = false;
   List<Contribution> _contributions = [];
@@ -29,11 +40,64 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   String? _contributionsError;
   String _selectedFilter = 'all';
   bool _hasInitialLoadedContributions = false;
+  Project? _resolvedProject;
+  bool _isLoadingProject = false;
 
   @override
   void initState() {
     super.initState();
     _projectService = widget.projectService ?? ProjectService();
+    _storageService = widget.storageService ?? StorageService();
+    _loadCurrentUser();
+  }
+
+  Future<void> _loadProjectById(String projectId) async {
+    setState(() {
+      _isLoadingProject = true;
+    });
+    try {
+      final list = await _projectService.listProjects();
+      final match = list.firstWhere(
+        (p) => p.id == projectId,
+        orElse: () => Project(
+          id: projectId,
+          name: 'Project',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+      if (mounted) {
+        setState(() {
+          _resolvedProject = match;
+          _isLoadingProject = false;
+          _hasInitialLoadedContributions = true;
+        });
+        _loadContributions(projectId);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _resolvedProject = Project(
+            id: projectId,
+            name: 'Project',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+          _isLoadingProject = false;
+          _hasInitialLoadedContributions = true;
+        });
+        _loadContributions(projectId);
+      }
+    }
+  }
+
+  Future<void> _loadCurrentUser() async {
+    final uid = await _storageService.getUserId();
+    if (mounted) {
+      setState(() {
+        _currentUserId = uid;
+      });
+    }
   }
 
   Future<void> _shareInvite(Project project, {bool isOwner = false}) async {
@@ -566,14 +630,154 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     }
   }
 
+  Future<void> _confirmAndDeleteContribution(Contribution c, Project project) async {
+    final isOwner = (project.role ?? '').toLowerCase() == 'owner' ||
+        (project.role ?? '').toLowerCase() == 'lead';
+    final isAuthor = _currentUserId != null &&
+        c.contributor == _currentUserId;
+
+    // 1. If not the author and not team lead
+    if (!isAuthor && !isOwner) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.shield_outlined, color: Colors.amber, size: 22),
+              SizedBox(width: 8),
+              Text('Action Restricted', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text(
+            'You can only delete impact entries that you created. Other members\' contributions can only be managed by them or the Team Lead.',
+            style: TextStyle(fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (c.sourceType == 'github_commit' || c.sourceType == 'github_pr') {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.info_outline_rounded, color: Color(0xFF2563EB), size: 22),
+              SizedBox(width: 8),
+              Text('GitHub Contribution', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text(
+            'This contribution was automatically synced from GitHub. To modify or remove it, please update your repository commits on GitHub.',
+            style: TextStyle(fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever_rounded, color: Colors.redAccent, size: 24),
+            SizedBox(width: 8),
+            Text('Delete Impact Log?', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete "${c.title}"?\n\nThis will remove the logged deliverable and its attached evidence from the contribution stream.',
+          style: const TextStyle(fontSize: 13, height: 1.4, color: Colors.black87),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Delete Log'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await _projectService.deleteContribution(c.id, projectId: project.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                  SizedBox(width: 10),
+                  Text('Impact log deleted successfully.'),
+                ],
+              ),
+              backgroundColor: Color(0xFF10B981),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          _loadContributions(project.id);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete contribution: $e'),
+              backgroundColor: Colors.red.shade700,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_hasInitialLoadedContributions) {
-      final project = ModalRoute.of(context)?.settings.arguments as Project?;
-      if (project != null) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Project) {
+        _resolvedProject = args;
         _hasInitialLoadedContributions = true;
-        _loadContributions(project.id);
+        _loadContributions(args.id);
+      } else if (args is Map<String, dynamic>) {
+        if (args['project'] is Project) {
+          _resolvedProject = args['project'] as Project;
+          _hasInitialLoadedContributions = true;
+          _loadContributions(_resolvedProject!.id);
+        } else if (args['projectId'] != null) {
+          _hasInitialLoadedContributions = true;
+          _loadProjectById(args['projectId'].toString());
+        }
+      } else if (args is String && args.isNotEmpty) {
+        _hasInitialLoadedContributions = true;
+        _loadProjectById(args);
       }
     }
   }
@@ -620,7 +824,23 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final project = ModalRoute.of(context)?.settings.arguments as Project?;
+    final project = _resolvedProject ??
+        (ModalRoute.of(context)?.settings.arguments as Project?);
+
+    if (_isLoadingProject) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0B0F19),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF0B0F19),
+          title: const Text('Loading Project...'),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+          ),
+        ),
+      );
+    }
 
     if (project == null) {
       return Scaffold(
@@ -877,6 +1097,37 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             ),
             const SizedBox(height: 12),
 
+            // View My Contributions Button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                key: const Key('project_detail_my_contributions_btn'),
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    MyContributionsScreen.routeName,
+                    arguments: {'projectId': project.id, 'project': project},
+                  );
+                },
+                icon: const Icon(Icons.person_pin_outlined, color: Color(0xFF10B981)),
+                label: const Text(
+                  'My Contributions & Impact Log',
+                  style: TextStyle(
+                    color: Color(0xFF10B981),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: Color(0xFF10B981)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
             // Share Invite Button
             SizedBox(
               width: double.infinity,
@@ -938,8 +1189,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             // Contribution Stream Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.history_edu_rounded, color: Color(0xFF2563EB), size: 22),
                     const SizedBox(width: 8),
@@ -976,13 +1229,62 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
-            // Filter Chips Row
+            // Action & Filter Chips Row
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
+                  // Add Impact Action Button
+                  InkWell(
+                    key: const Key('project_detail_add_contribution_btn'),
+                    onTap: () async {
+                      final result = await Navigator.pushNamed(
+                        context,
+                        AddContributionScreen.routeName,
+                        arguments: {'projectId': project.id},
+                      );
+                      if (result != null) {
+                        _loadContributions(project.id);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.add_circle_outline_rounded,
+                            size: 15,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Add Impact',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   _buildFilterChip('all', 'All (${_contributions.length})'),
                   const SizedBox(width: 8),
                   _buildFilterChip(
@@ -1090,12 +1392,19 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               )
             else
               ...filteredContributions.map(
-                (c) => ContributionCard(
-                  contribution: c,
-                  onTap: () {
-                    // Item tap interaction
-                  },
-                ),
+                (c) {
+                  final canDelete = isOwner ||
+                      (_currentUserId != null &&
+                          c.contributor == _currentUserId);
+                  return ContributionCard(
+                    contribution: c,
+                    onTap: () {
+                      // Item tap interaction
+                    },
+                    onLongPress: () => _confirmAndDeleteContribution(c, project),
+                    onDelete: canDelete ? () => _confirmAndDeleteContribution(c, project) : null,
+                  );
+                },
               ),
 
             const SizedBox(height: 24),

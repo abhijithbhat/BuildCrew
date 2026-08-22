@@ -21,6 +21,19 @@ class ContributionCreate(ContributionBase):
     project: str
 
 
+class ManualContributionCreate(BaseModel):
+    project_id: Optional[str] = None
+    project: Optional[str] = None
+    title: str
+    category: Optional[str] = "other"
+    description: Optional[str] = None
+    date_range: Optional[str] = None
+    source_type: Optional[str] = "manual"
+    evidence_link: Optional[str] = None
+    visibility: Optional[str] = "public"
+
+
+
 class ContributionUpdate(BaseModel):
     title: Optional[str] = None
     category: Optional[str] = None
@@ -60,3 +73,12 @@ class ContributionsListResponse(BaseModel):
     draft_count: int
     confirmed_count: int
     contributions: List[ContributionResponse]
+
+
+class EvidenceUploadResponse(BaseModel):
+    url: str
+    filename: str
+    file_type: str
+    size_bytes: int
+    storage_path: Optional[str] = None
+

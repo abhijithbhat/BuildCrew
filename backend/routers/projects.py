@@ -29,6 +29,7 @@ from schemas.contribution import (
     ContributionResponse,
     ContributionsListResponse,
     DraftGenerationResponse,
+    ManualContributionCreate,
 )
 from services import github_service
 
@@ -2171,6 +2172,56 @@ async def list_project_contributions(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to list contributions: {err_msg}",
         )
+
+
+@router.post(
+    "/{project_id}/contributions",
+    response_model=ContributionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+@router.post(
+    "/{project_id}/contributions/",
+    response_model=ContributionResponse,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
+)
+async def create_project_contribution(
+    project_id: str,
+    payload: ManualContributionCreate,
+    current_user: Any = Depends(get_current_user),
+):
+    """Manually log a non-code contribution for the specified project."""
+    payload_dict = payload.model_dump()
+    payload_dict["project_id"] = project_id
+    from routers.contributions import create_manual_contribution
+
+    return await create_manual_contribution(
+        ManualContributionCreate(**payload_dict), current_user=current_user
+    )
+
+
+@router.delete(
+    "/{project_id}/contributions/{contribution_id}",
+    status_code=status.HTTP_200_OK,
+)
+@router.delete(
+    "/{project_id}/contributions/{contribution_id}/",
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+async def delete_project_contribution(
+    project_id: str,
+    contribution_id: str,
+    current_user: Any = Depends(get_current_user),
+):
+    """Delete a logged contribution within a project."""
+    from routers.contributions import delete_contribution
+
+    return await delete_contribution(
+        contribution_id=contribution_id, current_user=current_user
+    )
+
+
 
 
 

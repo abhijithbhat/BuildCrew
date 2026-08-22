@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/storage_service.dart';
 
 class LoginScreen extends StatefulWidget {
   static const String routeName = '/login';
 
-  const LoginScreen({super.key});
+  final AuthService? authService;
+  final StorageService? storageService;
+
+  const LoginScreen({
+    super.key,
+    this.authService,
+    this.storageService,
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -12,12 +20,21 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final AuthService _authService = AuthService();
+  late final TextEditingController _emailController;
+  late final TextEditingController _passwordController;
+  late final AuthService _authService;
+
   bool _isPasswordVisible = false;
   bool _isLoading = false;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _authService = widget.authService ?? AuthService();
+    _emailController = TextEditingController();
+    _passwordController = TextEditingController();
+  }
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
