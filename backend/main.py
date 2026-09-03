@@ -12,14 +12,25 @@ from routers.projects import router as projects_router
 
 app = FastAPI(title="BuildCrew Backend API")
 
-# Configure CORS Middleware for Flutter & Local Development
+# Configure CORS Middleware for Flutter Web, Desktop & Mobile
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins during local development
+    allow_origin_regex=r"^https?://.*$",  # Compliant with allow_credentials=True across all local/web origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def startup_check():
+    from core.config import settings
+    supabase_url = getattr(settings, "SUPABASE_URL", "")
+    if not supabase_url or "placeholder" in supabase_url.lower() or "example" in supabase_url.lower():
+        logger.warning(
+            "⚠️ [LOCAL DEV FALLBACK MODE] Supabase URL is not configured. "
+            "Backend will automatically run using local dev memory & file storage."
+        )
 
 
 # Request Logging Middleware

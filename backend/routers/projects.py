@@ -8,8 +8,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from core.database import get_supabase_client
-
 from core.dependencies import get_current_user
+from core.logging import logger
 from schemas.project import (
     ProjectCreate,
     ProjectInviteResponse,
@@ -60,18 +60,54 @@ def _save_invites(invites: dict) -> None:
         pass
 
 
-# In-memory storage with file cache for server reloads
-DEV_PROJECTS_DB: dict[str, dict] = {}
-DEV_PROJECT_MEMBERS_DB: list[dict] = []
-DEV_PROJECT_INVITES_DB: dict[str, dict] = _load_invites()
-DEV_ROLE_AGREEMENTS_DB: list[dict] = []
-DEV_CONTRIBUTIONS_DB: list[dict] = []
+DEV_DATA_CACHE_FILE = os.path.join(
+    os.path.dirname(__file__), "..", ".dev_data_cache.json"
+)
 
+
+def _load_dev_data() -> dict:
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return {}
+    if os.path.exists(DEV_DATA_CACHE_FILE):
+        try:
+            with open(DEV_DATA_CACHE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_dev_data() -> None:
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return
+    try:
+        with open(DEV_DATA_CACHE_FILE, "w") as f:
+            json.dump(
+                {
+                    "projects": DEV_PROJECTS_DB,
+                    "members": DEV_PROJECT_MEMBERS_DB,
+                    "roles": DEV_ROLE_AGREEMENTS_DB,
+                    "contributions": DEV_CONTRIBUTIONS_DB,
+                },
+                f,
+                indent=2,
+            )
+    except Exception:
+        pass
+
+
+# In-memory storage with file cache for server reloads
+_dev_cache = _load_dev_data()
+DEV_PROJECTS_DB: dict[str, dict] = _dev_cache.get("projects", {})
+DEV_PROJECT_MEMBERS_DB: list[dict] = _dev_cache.get("members", [])
+DEV_PROJECT_INVITES_DB: dict[str, dict] = _load_invites()
+DEV_ROLE_AGREEMENTS_DB: list[dict] = _dev_cache.get("roles", [])
+DEV_CONTRIBUTIONS_DB: list[dict] = _dev_cache.get("contributions", [])
 
 
 def _is_dev_fallback_error(err_msg: str) -> bool:
     err_lower = err_msg.lower()
-    return any(
+    matched = any(
         s in err_lower
         for s in (
             "nodename nor servname provided",
@@ -98,6 +134,12 @@ def _is_dev_fallback_error(err_msg: str) -> bool:
             "is not present in table",
         )
     )
+    if matched:
+        logger.warning(
+            f"⚠️ [LOCAL DEV FALLBACK] Supabase unavailable ({err_msg[:80]}). "
+            "Data is being read/written to Local Dev Store."
+        )
+    return matched
 
 
 
@@ -219,6 +261,7 @@ async def create_project(
                 "joined_at": now_iso,
             }
             DEV_PROJECT_MEMBERS_DB.append(dev_member)
+            _save_dev_data()
 
             return {
                 "message": "Project created successfully (Local Dev Mode)",
@@ -972,6 +1015,7 @@ async def join_project_by_invite(
                 "joined_at": now_iso,
             }
             DEV_PROJECT_MEMBERS_DB.append(dev_member)
+            _save_dev_data()
 
             return {
                 "message": "Successfully joined project (Local Dev Mode)",
@@ -1157,6 +1201,7 @@ async def declare_or_update_project_role(
                 }
                 DEV_ROLE_AGREEMENTS_DB.append(saved_role)
                 msg = "Role declared successfully (Local Dev Mode)"
+            _save_dev_data()
 
             return {
                 "message": msg,
@@ -2075,7 +2120,7 @@ async def list_project_contributions(
             .execute()
         )
         all_items = all_c_res.data or []
-        draft_count = sum(1 for c in all_items if c.get("verification_status") in ("source-verified", "pending", "draft"))
+        draft_count = sum(1 for c in all_items if c.get("verification_status") in ("source-verified", "pending", "draft", "self-declared"))
         confirmed_count = sum(1 for c in all_items if c.get("verification_status") == "confirmed")
 
         for c in contribs:
@@ -2135,7 +2180,7 @@ async def list_project_contributions(
                 c for c in DEV_CONTRIBUTIONS_DB if c.get("project") == project_id
             ]
 
-            draft_count = sum(1 for c in dev_contribs if c.get("verification_status") in ("source-verified", "pending", "draft"))
+            draft_count = sum(1 for c in dev_contribs if c.get("verification_status") in ("source-verified", "pending", "draft", "self-declared"))
             confirmed_count = sum(1 for c in dev_contribs if c.get("verification_status") == "confirmed")
 
             # Apply filters if provided

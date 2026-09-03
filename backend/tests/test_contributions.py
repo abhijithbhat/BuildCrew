@@ -1025,5 +1025,56 @@ def test_delete_contribution_success_by_team_lead():
     assert not any(c["id"] == "c-member-entry" for c in DEV_CONTRIBUTIONS_DB)
 
 
+def test_list_project_contributions_includes_self_declared_in_draft_count():
+    """Verify that manually logged 'self-declared' contributions are counted in draft_count."""
+    mock_user = MagicMock(id="user-member-charlie", email="charlie@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    DEV_PROJECTS_DB["proj-draft-count-test"] = {
+        "id": "proj-draft-count-test",
+        "name": "Draft Counting Test Project",
+        "created_by": "user-member-charlie",
+    }
+    DEV_PROJECT_MEMBERS_DB.append({
+        "project_id": "proj-draft-count-test",
+        "user_id": "user-member-charlie",
+    })
+
+    # Add a manually logged self-declared contribution
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-manual-deck",
+        "project": "proj-draft-count-test",
+        "contributor": "user-member-charlie",
+        "title": "Investor Pitch Deck",
+        "category": "presentation",
+        "verification_status": "self-declared",
+        "visibility": "public",
+        "created_at": "2026-08-20T10:00:00Z",
+        "updated_at": "2026-08-20T10:00:00Z",
+    })
+
+    response = client.get("/projects/proj-draft-count-test/contributions")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_count"] == 1
+    # Must be counted in draft_count!
+    assert data["draft_count"] == 1
+    assert data["confirmed_count"] == 0
+
+
+def test_stable_dev_user_id_deterministic():
+    """Verify that stable_dev_user_id produces identical deterministic IDs across runs and case variations."""
+    from core.dependencies import stable_dev_user_id
+
+    id1 = stable_dev_user_id("alice@buildcrew.io")
+    id2 = stable_dev_user_id("Alice@BuildCrew.IO ")
+    id3 = stable_dev_user_id("bob@buildcrew.io")
+
+    assert id1 == id2
+    assert id1.startswith("dev-user-")
+    assert id1 != id3
+
+
+
 
 

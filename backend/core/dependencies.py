@@ -1,8 +1,16 @@
+import hashlib
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from core.database import get_supabase_pub_client
 
 security = HTTPBearer()
+
+
+def stable_dev_user_id(email: str) -> str:
+    """Generate a deterministic, stable dev-mode user ID for an email across process restarts."""
+    cleaned = (email or "").lower().strip()
+    short_hash = hashlib.md5(cleaned.encode("utf-8")).hexdigest()[:8]
+    return f"dev-user-{short_hash}"
 
 
 async def get_current_user(
@@ -12,7 +20,7 @@ async def get_current_user(
     token = credentials.credentials
     if token.startswith("mock-dev-access-token-"):
         email = token.replace("mock-dev-access-token-", "")
-        user_id = f"dev-user-{hash(email) & 0xffff}"
+        user_id = stable_dev_user_id(email)
 
         class DevUser:
             id = user_id

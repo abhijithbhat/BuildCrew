@@ -16,6 +16,7 @@ from routers.projects import (
     DEV_PROJECT_MEMBERS_DB,
     _get_user_id,
     _is_dev_fallback_error,
+    _save_dev_data,
 )
 from schemas.contribution import (
     ContributionResponse,
@@ -304,6 +305,7 @@ async def create_manual_contribution(
                 "email": user_email or f"{user_id}@buildcrew.io",
             }
             DEV_CONTRIBUTIONS_DB.insert(0, dev_record)
+            _save_dev_data()
             return dev_record
 
         raise HTTPException(
@@ -405,6 +407,7 @@ async def delete_contribution(
                 )
 
             DEV_CONTRIBUTIONS_DB.remove(contribution)
+            _save_dev_data()
             return {
                 "success": True,
                 "message": "Contribution deleted successfully.",

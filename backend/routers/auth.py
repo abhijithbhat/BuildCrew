@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from core.database import get_supabase_client, get_supabase_pub_client
-from core.dependencies import get_current_user
+from core.dependencies import get_current_user, stable_dev_user_id
 from schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
@@ -78,7 +78,7 @@ async def signup(credentials: SignUpRequest):
                 "requires_otp": True,
                 "email": credentials.email,
                 "user": {
-                    "id": f"dev-user-{hash(credentials.email) & 0xffff}",
+                    "id": stable_dev_user_id(credentials.email),
                     "email": credentials.email,
                     "display_name": credentials.name,
                 },
@@ -136,7 +136,7 @@ async def verify_otp(req: VerifyOTPRequest):
                 "access_token": f"mock-dev-access-token-{req.email}",
                 "refresh_token": f"mock-dev-refresh-token-{req.email}",
                 "user": {
-                    "id": f"dev-user-{hash(req.email) & 0xffff}",
+                    "id": stable_dev_user_id(req.email),
                     "email": req.email,
                     "display_name": DEV_USER_NAMES_DB.get(req.email.lower()),
                 },
@@ -275,7 +275,7 @@ async def login(credentials: LoginRequest):
                 "expires_in": 3600,
                 "expires_at": 1700000000,
                 "user": {
-                    "id": f"dev-user-{hash(credentials.email) & 0xffff}",
+                    "id": stable_dev_user_id(credentials.email),
                     "email": credentials.email,
                     "display_name": DEV_USER_NAMES_DB.get(email_key),
                 },
