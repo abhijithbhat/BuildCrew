@@ -157,7 +157,7 @@ class ContributionCard extends StatelessWidget {
       text = Colors.green.shade800;
       icon = Icons.verified_rounded;
       label = 'Source Verified';
-    } else if (status == 'confirmed') {
+    } else if (status == 'confirmed' || status == 'peer-confirmed') {
       bg = Colors.indigo.shade50;
       border = Colors.indigo.shade300;
       text = Colors.indigo.shade800;
@@ -169,6 +169,12 @@ class ContributionCard extends StatelessWidget {
       text = const Color(0xFF1D4ED8);
       icon = Icons.person_pin_outlined;
       label = 'Self Declared';
+    } else if (status == 'needs-review' || status == 'disputed') {
+      bg = Colors.red.shade50;
+      border = Colors.red.shade300;
+      text = Colors.red.shade800;
+      icon = Icons.error_outline_rounded;
+      label = 'Needs Review';
     } else {
       bg = Colors.amber.shade50;
       border = Colors.amber.shade300;

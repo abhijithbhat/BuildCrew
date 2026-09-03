@@ -2075,8 +2075,8 @@ async def list_project_contributions(
             .execute()
         )
         all_items = all_c_res.data or []
-        draft_count = sum(1 for c in all_items if c.get("verification_status") in ("source-verified", "pending", "draft"))
-        confirmed_count = sum(1 for c in all_items if c.get("verification_status") == "confirmed")
+        draft_count = sum(1 for c in all_items if c.get("verification_status") in ("source-verified", "pending", "draft", "self-declared"))
+        confirmed_count = sum(1 for c in all_items if c.get("verification_status") in ("confirmed", "peer-confirmed"))
 
         for c in contribs:
             cid = c.get("contributor")
@@ -2135,8 +2135,8 @@ async def list_project_contributions(
                 c for c in DEV_CONTRIBUTIONS_DB if c.get("project") == project_id
             ]
 
-            draft_count = sum(1 for c in dev_contribs if c.get("verification_status") in ("source-verified", "pending", "draft"))
-            confirmed_count = sum(1 for c in dev_contribs if c.get("verification_status") == "confirmed")
+            draft_count = sum(1 for c in dev_contribs if c.get("verification_status") in ("source-verified", "pending", "draft", "self-declared"))
+            confirmed_count = sum(1 for c in dev_contribs if c.get("verification_status") in ("confirmed", "peer-confirmed"))
 
             # Apply filters if provided
             filtered_contribs = dev_contribs

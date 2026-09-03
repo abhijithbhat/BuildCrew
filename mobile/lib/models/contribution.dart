@@ -96,7 +96,8 @@ class Contribution {
   }
 
   bool get isSourceVerified => verificationStatus == 'source-verified';
-  bool get isConfirmed => verificationStatus == 'confirmed';
+  bool get isConfirmed =>
+      verificationStatus == 'confirmed' || verificationStatus == 'peer-confirmed';
   bool get isDraft => !isConfirmed;
 }
 
