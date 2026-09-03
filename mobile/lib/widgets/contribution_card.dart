@@ -7,6 +7,9 @@ class ContributionCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onDelete;
+  final VoidCallback? onRequestConfirmation;
+  final VoidCallback? onConfirm;
+  final VoidCallback? onDispute;
 
   const ContributionCard({
     super.key,
@@ -14,7 +17,11 @@ class ContributionCard extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.onDelete,
+    this.onRequestConfirmation,
+    this.onConfirm,
+    this.onDispute,
   });
+
 
   String _formatDate(DateTime? date, String? rawDate) {
     if (date != null) {
@@ -157,12 +164,24 @@ class ContributionCard extends StatelessWidget {
       text = Colors.green.shade800;
       icon = Icons.verified_rounded;
       label = 'Source Verified';
-    } else if (status == 'confirmed') {
+    } else if (status == 'confirmed' || status == 'peer-confirmed') {
       bg = Colors.indigo.shade50;
       border = Colors.indigo.shade300;
       text = Colors.indigo.shade800;
       icon = Icons.check_circle_rounded;
       label = 'Peer Confirmed';
+    } else if (status == 'needs-review' || contribution.isDisputed) {
+      bg = Colors.red.shade50;
+      border = Colors.red.shade300;
+      text = Colors.red.shade800;
+      icon = Icons.error_outline_rounded;
+      label = 'Needs Review';
+    } else if (contribution.isPendingConfirmation || status.contains('pending-confirmation') || status == 'confirmation-pending') {
+      bg = const Color(0xFFFEF3C7);
+      border = const Color(0xFFFCD34D);
+      text = const Color(0xFFB45309);
+      icon = Icons.hourglass_top_rounded;
+      label = 'Confirmation Pending';
     } else if (status == 'self-declared') {
       bg = const Color(0xFFEFF6FF);
       border = const Color(0xFF93C5FD);
@@ -189,12 +208,15 @@ class ContributionCard extends StatelessWidget {
         children: [
           Icon(icon, size: 12, color: text),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: text,
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: text,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -634,6 +656,109 @@ class ContributionCard extends StatelessWidget {
                       ),
                   ],
                 ),
+
+                // Request Confirmation Button (if not yet confirmed and callback provided)
+                if (!contribution.isConfirmed && onRequestConfirmation != null) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      key: Key('request_confirmation_btn_${contribution.id}'),
+                      onPressed: contribution.isPendingConfirmation
+                          ? null
+                          : onRequestConfirmation,
+                      icon: Icon(
+                        contribution.isPendingConfirmation
+                            ? Icons.hourglass_top_rounded
+                            : Icons.how_to_reg_outlined,
+                        size: 16,
+                      ),
+                      label: Text(
+                        contribution.isPendingConfirmation
+                            ? 'Confirmation Pending'
+                            : 'Request Confirmation',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: contribution.isPendingConfirmation
+                            ? const Color(0xFFD97706)
+                            : const Color(0xFF4F46E5),
+                        side: BorderSide(
+                          color: contribution.isPendingConfirmation
+                              ? const Color(0xFFFCD34D)
+                              : const Color(0xFFC7D2FE),
+                          width: 1.2,
+                        ),
+                        backgroundColor: contribution.isPendingConfirmation
+                            ? const Color(0xFFFEF3C7)
+                            : const Color(0xFFEEF2FF),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 8, horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+                // Teammate Review Action Buttons (Confirm / Dispute)
+                if (!contribution.isConfirmed && onConfirm != null && onDispute != null) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          key: Key('stream_dispute_btn_${contribution.id}'),
+                          onPressed: onDispute,
+                          icon: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 14),
+                          label: const Text(
+                            'Dispute',
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: Colors.redAccent.withAlpha(120), width: 1.2),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton.icon(
+                          key: Key('stream_confirm_btn_${contribution.id}'),
+                          onPressed: onConfirm,
+                          icon: const Icon(Icons.check_rounded, size: 16),
+                          label: const Text(
+                            'Peer Confirm',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

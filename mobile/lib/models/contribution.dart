@@ -96,8 +96,108 @@ class Contribution {
   }
 
   bool get isSourceVerified => verificationStatus == 'source-verified';
-  bool get isConfirmed => verificationStatus == 'confirmed';
+  bool get isConfirmed =>
+      verificationStatus == 'confirmed' || verificationStatus == 'peer-confirmed';
+  bool get isDisputed =>
+      disputeState == 'disputed' || verificationStatus == 'disputed';
+  bool get needsReview =>
+      verificationStatus == 'needs-review' || disputeState == 'disputed';
+  bool get isPendingConfirmation =>
+      verificationStatus == 'confirmation-pending' ||
+      verificationStatus == 'pending-confirmation';
   bool get isDraft => !isConfirmed;
+}
+
+class ConfirmationRequest {
+  final String id;
+  final String contributionId;
+  final String projectId;
+  final String requestedBy;
+  final String reviewerId;
+  final String status;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final String? contributionTitle;
+  final String? projectName;
+  final String? contributorName;
+  final String? category;
+  final String? description;
+  final String? evidenceLink;
+  final Contribution? contribution;
+
+  ConfirmationRequest({
+    required this.id,
+    required this.contributionId,
+    required this.projectId,
+    required this.requestedBy,
+    required this.reviewerId,
+    this.status = 'pending',
+    this.createdAt,
+    this.updatedAt,
+    this.contributionTitle,
+    this.projectName,
+    this.contributorName,
+    this.category,
+    this.description,
+    this.evidenceLink,
+    this.contribution,
+  });
+
+  factory ConfirmationRequest.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      if (value is DateTime) return value;
+      try {
+        return DateTime.parse(value.toString());
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return ConfirmationRequest(
+      id: json['id']?.toString() ?? '',
+      contributionId: json['contribution_id']?.toString() ?? '',
+      projectId: json['project_id']?.toString() ?? '',
+      requestedBy: json['requested_by']?.toString() ?? '',
+      reviewerId: json['reviewer_id']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'pending',
+      createdAt: parseDate(json['created_at']),
+      updatedAt: parseDate(json['updated_at']),
+      contributionTitle: json['contribution_title']?.toString(),
+      projectName: json['project_name']?.toString(),
+      contributorName: json['contributor_name']?.toString(),
+      category: json['category']?.toString(),
+      description: json['description']?.toString(),
+      evidenceLink: json['evidence_link']?.toString(),
+      contribution: json['contribution'] is Map<String, dynamic>
+          ? Contribution.fromJson(json['contribution'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'contribution_id': contributionId,
+      'project_id': projectId,
+      'requested_by': requestedBy,
+      'reviewer_id': reviewerId,
+      'status': status,
+      'created_at': createdAt?.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(),
+      if (contributionTitle != null) 'contribution_title': contributionTitle,
+      if (projectName != null) 'project_name': projectName,
+      if (contributorName != null) 'contributor_name': contributorName,
+      if (category != null) 'category': category,
+      if (description != null) 'description': description,
+      if (evidenceLink != null) 'evidence_link': evidenceLink,
+      if (contribution != null) 'contribution': contribution!.toJson(),
+    };
+  }
+
+  bool get isPending => status == 'pending';
+  bool get isConfirmed => status == 'confirmed';
+  bool get isDisputed => status == 'disputed';
 }
 
 class DraftGenerationResult {
@@ -129,3 +229,4 @@ class DraftGenerationResult {
     );
   }
 }
+

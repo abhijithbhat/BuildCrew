@@ -155,6 +155,22 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.pushNamed(context, '/projects'),
                 ),
                 const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  key: const Key('home_pending_confirmations_btn'),
+                  icon: const Icon(Icons.rate_review_outlined),
+                  label: const Text('Pending Confirmations'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4F46E5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                  onPressed: () =>
+                      Navigator.pushNamed(context, '/pending-confirmations'),
+                ),
+                const SizedBox(height: 12),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.group_add_outlined),
                   label: const Text('Join Project with Code'),

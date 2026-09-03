@@ -88,6 +88,7 @@ def _save_dev_data() -> None:
                     "members": DEV_PROJECT_MEMBERS_DB,
                     "roles": DEV_ROLE_AGREEMENTS_DB,
                     "contributions": DEV_CONTRIBUTIONS_DB,
+                    "confirmation_requests": DEV_CONFIRMATION_REQUESTS_DB,
                 },
                 f,
                 indent=2,
@@ -103,6 +104,7 @@ DEV_PROJECT_MEMBERS_DB: list[dict] = _dev_cache.get("members", [])
 DEV_PROJECT_INVITES_DB: dict[str, dict] = _load_invites()
 DEV_ROLE_AGREEMENTS_DB: list[dict] = _dev_cache.get("roles", [])
 DEV_CONTRIBUTIONS_DB: list[dict] = _dev_cache.get("contributions", [])
+DEV_CONFIRMATION_REQUESTS_DB: list[dict] = _dev_cache.get("confirmation_requests", [])
 
 
 def _is_dev_fallback_error(err_msg: str) -> bool:
@@ -2121,7 +2123,7 @@ async def list_project_contributions(
         )
         all_items = all_c_res.data or []
         draft_count = sum(1 for c in all_items if c.get("verification_status") in ("source-verified", "pending", "draft", "self-declared"))
-        confirmed_count = sum(1 for c in all_items if c.get("verification_status") == "confirmed")
+        confirmed_count = sum(1 for c in all_items if c.get("verification_status") in ("confirmed", "peer-confirmed"))
 
         for c in contribs:
             cid = c.get("contributor")
@@ -2181,7 +2183,7 @@ async def list_project_contributions(
             ]
 
             draft_count = sum(1 for c in dev_contribs if c.get("verification_status") in ("source-verified", "pending", "draft", "self-declared"))
-            confirmed_count = sum(1 for c in dev_contribs if c.get("verification_status") == "confirmed")
+            confirmed_count = sum(1 for c in dev_contribs if c.get("verification_status") in ("confirmed", "peer-confirmed"))
 
             # Apply filters if provided
             filtered_contribs = dev_contribs

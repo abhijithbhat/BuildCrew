@@ -21,10 +21,13 @@ class FakeStorageService extends StorageService {
 
 class FakeMyContributionsProjectService extends ProjectService {
   List<Contribution> mockContributions = [];
+  List<Map<String, dynamic>> mockRoles = [];
   bool shouldThrow = false;
   String? lastFetchedProjectId;
   String? lastFetchedContributor;
   String? lastDeletedId;
+  String? lastRequestedContributionId;
+  List<String>? lastRequestedReviewerIds;
 
   @override
   Future<List<Contribution>> listContributions(
@@ -39,6 +42,36 @@ class FakeMyContributionsProjectService extends ProjectService {
     lastFetchedProjectId = projectId;
     lastFetchedContributor = contributor;
     return mockContributions;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listProjectRoles(String projectId) async {
+    if (shouldThrow) {
+      throw 'Failed to load project roles.';
+    }
+    return mockRoles;
+  }
+
+  @override
+  Future<List<ConfirmationRequest>> requestConfirmation({
+    required String contributionId,
+    required List<String> reviewerIds,
+  }) async {
+    if (shouldThrow) {
+      throw 'Failed to request confirmation.';
+    }
+    lastRequestedContributionId = contributionId;
+    lastRequestedReviewerIds = reviewerIds;
+    return reviewerIds
+        .map((rId) => ConfirmationRequest(
+              id: 'req-$rId',
+              contributionId: contributionId,
+              projectId: 'proj-123',
+              requestedBy: 'user-alex',
+              reviewerId: rId,
+              status: 'pending',
+            ))
+        .toList();
   }
 
   @override
@@ -322,5 +355,72 @@ void main() {
       expect(find.text('Impact log deleted successfully.'), findsOneWidget);
       expect(find.text('Figma Design System UI Tokens'), findsNothing);
     });
+
+    testWidgets('renders Request Confirmation button and allows selecting teammates to send confirmation request', (tester) async {
+      fakeProjectService.mockContributions = List.from(sampleContributions);
+      fakeProjectService.mockRoles = [
+        {
+          'user_id': 'user-alex',
+          'role': 'Lead Fullstack Developer',
+          'profile': {'display_name': 'Alex Developer', 'email': 'alex@buildcrew.io'},
+        },
+        {
+          'user_id': 'user-sara',
+          'role': 'Senior UI/UX Designer',
+          'profile': {'display_name': 'Sara Designer', 'email': 'sara@buildcrew.io'},
+        },
+        {
+          'user_id': 'user-bob',
+          'role': 'DevOps Architect',
+          'profile': {'display_name': 'Bob DevOps', 'email': 'bob@buildcrew.io'},
+        },
+      ];
+
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      // Find Request Confirmation button for self-declared contrib-2
+      final reqBtnFinder = find.byKey(const Key('request_confirmation_btn_contrib-2'));
+      expect(reqBtnFinder, findsOneWidget);
+
+      // Scroll to button and tap
+      await tester.ensureVisible(reqBtnFinder);
+      await tester.pumpAndSettle();
+      await tester.tap(reqBtnFinder);
+      await tester.pumpAndSettle();
+
+      // Modal bottom sheet should be open
+      expect(find.text('Ask teammates to verify "Figma Design System UI Tokens"'), findsOneWidget);
+
+      // Teammates should be listed (excluding user-alex who is the current user)
+      expect(find.text('Sara Designer'), findsOneWidget);
+      expect(find.text('Bob DevOps'), findsOneWidget);
+
+      // Delayed validation test: submit button without selection shows error banner
+      final submitBtn = find.byKey(const Key('submit_request_confirmation_btn'));
+      expect(submitBtn, findsOneWidget);
+      await tester.tap(submitBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Please select at least one teammate to request confirmation.'), findsOneWidget);
+
+      // Select Sara Designer
+      final saraCheckbox = find.byKey(const Key('reviewer_checkbox_user-sara'));
+      await tester.tap(saraCheckbox);
+      await tester.pumpAndSettle();
+
+      // Now tap submit button
+      await tester.tap(submitBtn);
+      await tester.pumpAndSettle();
+
+      // Verify request was sent
+      expect(fakeProjectService.lastRequestedContributionId, 'contrib-2');
+      expect(fakeProjectService.lastRequestedReviewerIds, ['user-sara']);
+
+      // Verify success snackbar and modal closed
+      expect(find.text('Confirmation requested from 1 teammate(s)!'), findsOneWidget);
+      expect(find.text('Ask teammates to verify "Figma Design System UI Tokens"'), findsNothing);
+    });
   });
 }
+

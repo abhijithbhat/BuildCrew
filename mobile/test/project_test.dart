@@ -1072,6 +1072,175 @@ void main() {
       // Ensure contribution was not deleted
       expect(find.text('Another Teammate Figma Wireframe'), findsOneWidget);
     });
+
+    testWidgets('ProjectDetailScreen renders Request Confirmation button on author unconfirmed contribution', (WidgetTester tester) async {
+      final fakeStorageService = FakeStorageService(userId: 'test-user-id');
+      final fakeProjectService = FakeSuccessProjectService();
+
+      final project = Project(
+        id: 'proj-stream-test',
+        name: 'Stream Test Project',
+        description: 'Test project description',
+        role: 'member',
+      );
+
+      final authorContrib = Contribution(
+        id: 'c-author-1',
+        project: 'proj-stream-test',
+        contributor: 'test-user-id',
+        title: 'Author Impact Work',
+        category: 'design',
+        description: 'Design mockups and tokens',
+        verificationStatus: 'self-declared',
+      );
+
+      fakeProjectService.mockContributionsList = [authorContrib];
+      fakeProjectService.mockRolesList = [
+        {
+          'id': 'role-1',
+          'project_id': 'proj-stream-test',
+          'user_id': 'test-user-id',
+          'declared_role': 'Frontend Dev',
+        },
+        {
+          'id': 'role-2',
+          'project_id': 'proj-stream-test',
+          'user_id': 'other-teammate-id',
+          'declared_role': 'Product Designer',
+          'profile': {'display_name': 'Sara Designer', 'email': 'sara@buildcrew.io'},
+        },
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          routes: {
+            ProjectDetailScreen.routeName: (context) => ProjectDetailScreen(
+              projectService: fakeProjectService,
+              storageService: fakeStorageService,
+            ),
+          },
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => Navigator.pushNamed(
+                context,
+                ProjectDetailScreen.routeName,
+                arguments: project,
+              ),
+              child: const Text('Open Project'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Project'));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('Author Impact Work'),
+        500.0,
+      );
+      await tester.pumpAndSettle();
+
+      // Verify the deliverable title and Request Confirmation button are visible
+      expect(find.text('Author Impact Work'), findsOneWidget);
+      final reqBtn = find.byKey(const Key('request_confirmation_btn_c-author-1'));
+      expect(reqBtn, findsOneWidget);
+
+      // Tap Request Confirmation button
+      await tester.tap(reqBtn);
+      await tester.pumpAndSettle();
+
+      // Verify Request Confirmation modal opened (1 on card button, 1 on modal header)
+      expect(find.text('Request Confirmation'), findsNWidgets(2));
+      expect(find.text('Ask teammates to verify "Author Impact Work"'), findsOneWidget);
+      expect(find.text('Sara Designer'), findsOneWidget);
+    });
+
+    testWidgets('ProjectDetailScreen renders Confirmation Pending when requested, and hides review buttons for unrequested teammate contribution',
+        (WidgetTester tester) async {
+      final fakeStorageService = FakeStorageService(userId: 'user-bob');
+      final fakeProjectService = FakeSuccessProjectService();
+
+      final pendingContribution = Contribution(
+        id: 'c-pending-1',
+        project: 'p1',
+        contributor: 'user-bob', // Bob is current user
+        title: 'Pending Verification Work',
+        category: 'design',
+        description: 'Waiting for team review',
+        verificationStatus: 'confirmation-pending',
+      );
+
+      final unrequestedTeammateContribution = Contribution(
+        id: 'c-teammate-self-1',
+        project: 'p1',
+        contributor: 'user-sara', // Sara is other user
+        title: 'Sara Self Declared Work',
+        category: 'code',
+        description: 'Just logged, not yet requested',
+        verificationStatus: 'self-declared',
+      );
+
+      fakeProjectService.mockContributionsList = [
+        pendingContribution,
+        unrequestedTeammateContribution,
+      ];
+
+      final project = Project(
+        id: 'p1',
+        name: 'Alpha Project',
+        description: 'Test project description',
+        createdAt: DateTime.now(),
+        createdBy: 'user-bob',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          routes: {
+            ProjectDetailScreen.routeName: (context) => ProjectDetailScreen(
+                  projectService: fakeProjectService,
+                  storageService: fakeStorageService,
+                ),
+          },
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => Navigator.pushNamed(
+                context,
+                ProjectDetailScreen.routeName,
+                arguments: project,
+              ),
+              child: const Text('Open Project'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Project'));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('Pending Verification Work'),
+        500.0,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
+      // Verify author's card displays Confirmation Pending button (disabled)
+      expect(find.text('Pending Verification Work'), findsOneWidget);
+      expect(find.text('Confirmation Pending'), findsAtLeastNWidgets(1));
+
+      // Scroll to teammate's unrequested contribution
+      await tester.scrollUntilVisible(
+        find.text('Sara Self Declared Work'),
+        500.0,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
+      // Teammate's unrequested contribution must NOT display Peer Confirm or Dispute buttons
+      expect(find.byKey(const Key('stream_confirm_btn_c-teammate-self-1')), findsNothing);
+      expect(find.byKey(const Key('stream_dispute_btn_c-teammate-self-1')), findsNothing);
+    });
   });
 }
 

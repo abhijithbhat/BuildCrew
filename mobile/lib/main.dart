@@ -12,6 +12,7 @@ import 'screens/login_screen.dart';
 import 'screens/my_contributions_screen.dart';
 import 'screens/my_projects_screen.dart';
 import 'screens/otp_screen.dart';
+import 'screens/pending_confirmations_screen.dart';
 import 'screens/project_detail_screen.dart';
 import 'screens/repo_status_screen.dart';
 import 'screens/signup_screen.dart';
@@ -51,6 +52,7 @@ class MyApp extends StatelessWidget {
         RepoStatusScreen.routeName: (context) => const RepoStatusScreen(),
         AddContributionScreen.routeName: (context) => const AddContributionScreen(),
         MyContributionsScreen.routeName: (context) => const MyContributionsScreen(),
+        PendingConfirmationsScreen.routeName: (context) => const PendingConfirmationsScreen(),
       },
     );
   }

@@ -516,7 +516,82 @@ class ProjectService {
       throw _parseDioError(e);
     }
   }
+
+  /// Request peer confirmation from selected teammates for a logged deliverable.
+  Future<List<ConfirmationRequest>> requestConfirmation({
+    required String contributionId,
+    required List<String> reviewerIds,
+  }) async {
+    try {
+      final options = await _getAuthOptions();
+      final payload = {'reviewer_ids': reviewerIds};
+      final response = await _postWithFallback(
+        '/contributions/$contributionId/request-confirmation',
+        payload,
+        options: options,
+      );
+      final rawList = response.data as List<dynamic>? ?? [];
+      return rawList
+          .map((item) => ConfirmationRequest.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Fetch pending confirmations requested from the current user.
+  Future<List<ConfirmationRequest>> getPendingConfirmations() async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _getWithFallback(
+        '/contributions/pending-confirmations',
+        options: options,
+      );
+      final data = response.data;
+      final rawList = (data is Map && data['requests'] is List)
+          ? data['requests'] as List<dynamic>
+          : (data is List ? data : []);
+      return rawList
+          .map((item) => ConfirmationRequest.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Peer confirm a teammate's contribution.
+  Future<Contribution> confirmContribution(String contributionId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _postWithFallback(
+        '/contributions/$contributionId/confirm',
+        {},
+        options: options,
+      );
+      final data = response.data as Map<String, dynamic>;
+      return Contribution.fromJson(data);
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Dispute a teammate's contribution.
+  Future<Contribution> disputeContribution(String contributionId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _postWithFallback(
+        '/contributions/$contributionId/dispute',
+        {},
+        options: options,
+      );
+      final data = response.data as Map<String, dynamic>;
+      return Contribution.fromJson(data);
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
 }
+
 
 
 

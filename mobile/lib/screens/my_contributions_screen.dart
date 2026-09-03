@@ -4,6 +4,7 @@ import '../models/project.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/contribution_card.dart';
+import '../widgets/request_confirmation_modal.dart';
 import 'add_contribution_screen.dart';
 
 class MyContributionsScreen extends StatefulWidget {
@@ -402,7 +403,12 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                 children: [
                   Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
                   SizedBox(width: 10),
-                  Text('Impact log deleted successfully.'),
+                  Expanded(
+                    child: Text(
+                      'Impact log deleted successfully.',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
               backgroundColor: Color(0xFF10B981),
@@ -423,6 +429,32 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
         }
       }
     }
+  }
+
+  Future<void> _openRequestConfirmationModal(Contribution c) async {
+    final targetProjectId =
+        c.project.isNotEmpty ? c.project : (_resolvedProjectId ?? '');
+    if (targetProjectId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot request confirmation: Project ID is missing.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    await RequestConfirmationModal.show(
+      context: context,
+      contribution: c,
+      projectId: targetProjectId,
+      projectService: _projectService,
+      currentUserId: _currentUserId,
+      onSuccess: () {
+        _loadContributions();
+      },
+    );
   }
 
   @override
@@ -718,6 +750,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
               ...filtered.map(
                 (c) => ContributionCard(
                   contribution: c,
+                  onRequestConfirmation: () => _openRequestConfirmationModal(c),
                   onTap: () {
                     if (c.evidenceLink != null && c.evidenceLink!.isNotEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -741,3 +774,5 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
     );
   }
 }
+
+

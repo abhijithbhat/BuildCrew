@@ -82,3 +82,35 @@ class EvidenceUploadResponse(BaseModel):
     size_bytes: int
     storage_path: Optional[str] = None
 
+
+class RequestConfirmationPayload(BaseModel):
+    reviewer_ids: List[str]
+
+
+class ConfirmationRequestResponse(BaseModel):
+    id: str
+    contribution_id: str
+    project_id: str
+    requested_by: str
+    reviewer_id: str
+    status: str = "pending"
+    created_at: Union[datetime, str]
+    updated_at: Union[datetime, str]
+
+    # Enriched metadata for clients
+    contribution_title: Optional[str] = None
+    project_name: Optional[str] = None
+    contributor_name: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    evidence_link: Optional[str] = None
+    contribution: Optional[ContributionResponse] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PendingConfirmationsListResponse(BaseModel):
+    total_count: int
+    requests: List[ConfirmationRequestResponse]
+
+

@@ -5,6 +5,7 @@ import '../models/project.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/contribution_card.dart';
+import '../widgets/request_confirmation_modal.dart';
 import 'add_contribution_screen.dart';
 import 'my_contributions_screen.dart';
 import 'repo_status_screen.dart';
@@ -734,7 +735,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 children: [
                   Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
                   SizedBox(width: 10),
-                  Text('Impact log deleted successfully.'),
+                  Expanded(
+                    child: Text(
+                      'Impact log deleted successfully.',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
               backgroundColor: Color(0xFF10B981),
@@ -754,6 +760,161 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           );
         }
       }
+    }
+  }
+
+  Future<void> _openRequestConfirmationModal(
+      Contribution c, Project project) async {
+    final targetProjectId =
+        c.project.isNotEmpty ? c.project : project.id;
+    if (targetProjectId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot request confirmation: Project ID is missing.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    await RequestConfirmationModal.show(
+      context: context,
+      contribution: c,
+      projectId: targetProjectId,
+      projectService: _projectService,
+      currentUserId: _currentUserId,
+      onSuccess: () {
+        _loadContributions(project.id);
+      },
+    );
+  }
+
+  Future<void> _confirmContributionInStream(
+      Contribution c, Project project) async {
+    try {
+      await _projectService.confirmContribution(c.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded,
+                  color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Confirmed "${c.title}"!',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _loadContributions(project.id);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to confirm: $e'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _disputeContributionInStream(
+      Contribution c, Project project) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF151C2C),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF1E293B)),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded,
+                color: Colors.amberAccent, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Dispute Deliverable?',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to dispute "${c.title}"? Its status will become "Needs Review" and visibility will be set to Private until the dispute is resolved.',
+          style: const TextStyle(
+            color: Color(0xFF94A3B8),
+            fontSize: 13,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel',
+                style: TextStyle(color: Color(0xFF94A3B8))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Dispute',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _projectService.disputeContribution(c.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.info_outline_rounded,
+                  color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Disputed "${c.title}". Set to Needs Review.',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFFD97706),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _loadContributions(project.id);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to dispute: $e'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -1128,6 +1289,36 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             ),
             const SizedBox(height: 12),
 
+            // Review Pending Confirmations Button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                key: const Key('project_detail_pending_confirmations_btn'),
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/pending-confirmations',
+                  );
+                },
+                icon: const Icon(Icons.rate_review_outlined, color: Color(0xFF6366F1)),
+                label: const Text(
+                  'Pending Peer Confirmations',
+                  style: TextStyle(
+                    color: Color(0xFF6366F1),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: Color(0xFF6366F1)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
             // Share Invite Button
             SizedBox(
               width: double.infinity,
@@ -1396,13 +1587,42 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   final canDelete = isOwner ||
                       (_currentUserId != null &&
                           c.contributor == _currentUserId);
+                  final isAuthor = _currentUserId == null ||
+                      _currentUserId!.isEmpty ||
+                      c.contributor == _currentUserId ||
+                      (c.contributorProfile != null &&
+                          c.contributorProfile!['user_id'] == _currentUserId);
+                  final canRequestConfirmation = isAuthor && !c.isConfirmed;
+                  final canReview = !isAuthor && c.isPendingConfirmation && !c.isConfirmed;
+
                   return ContributionCard(
                     contribution: c,
+                    onRequestConfirmation: canRequestConfirmation
+                        ? () => _openRequestConfirmationModal(c, project)
+                        : null,
+                    onConfirm: canReview
+                        ? () => _confirmContributionInStream(c, project)
+                        : null,
+                    onDispute: canReview
+                        ? () => _disputeContributionInStream(c, project)
+                        : null,
                     onTap: () {
-                      // Item tap interaction
+                      if (c.evidenceLink != null &&
+                          c.evidenceLink!.isNotEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Evidence: ${c.evidenceLink}'),
+                            backgroundColor: const Color(0xFF2563EB),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
                     },
-                    onLongPress: () => _confirmAndDeleteContribution(c, project),
-                    onDelete: canDelete ? () => _confirmAndDeleteContribution(c, project) : null,
+                    onLongPress: () =>
+                        _confirmAndDeleteContribution(c, project),
+                    onDelete: canDelete
+                        ? () => _confirmAndDeleteContribution(c, project)
+                        : null,
                   );
                 },
               ),

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from main import app
 from core.dependencies import get_current_user
 from routers.projects import (
+    DEV_CONFIRMATION_REQUESTS_DB,
     DEV_CONTRIBUTIONS_DB,
     DEV_PROJECTS_DB,
     DEV_PROJECT_MEMBERS_DB,
@@ -21,12 +22,14 @@ def cleanup_state():
     DEV_PROJECTS_DB.clear()
     DEV_PROJECT_MEMBERS_DB.clear()
     DEV_CONTRIBUTIONS_DB.clear()
+    DEV_CONFIRMATION_REQUESTS_DB.clear()
     github_service.DEV_GITHUB_INSTALLATIONS_DB.clear()
     yield
     app.dependency_overrides.clear()
     DEV_PROJECTS_DB.clear()
     DEV_PROJECT_MEMBERS_DB.clear()
     DEV_CONTRIBUTIONS_DB.clear()
+    DEV_CONFIRMATION_REQUESTS_DB.clear()
     github_service.DEV_GITHUB_INSTALLATIONS_DB.clear()
 
 
@@ -1073,6 +1076,563 @@ def test_stable_dev_user_id_deterministic():
     assert id1 == id2
     assert id1.startswith("dev-user-")
     assert id1 != id3
+
+
+# ==============================================================================
+# 9. Request Confirmation Endpoint Tests
+# ==============================================================================
+
+def test_request_confirmation_success_by_author():
+    """Author can successfully request peer confirmation from project teammates."""
+    author_user = MagicMock(id="user-author-1", email="author@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: author_user
+
+    DEV_PROJECTS_DB["proj-peer-1"] = {
+        "id": "proj-peer-1",
+        "name": "Peer Review Project",
+        "created_by": "user-author-1",
+    }
+    DEV_PROJECT_MEMBERS_DB.append({
+        "project_id": "proj-peer-1",
+        "user_id": "user-teammate-bob",
+    })
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-design-spec",
+        "project": "proj-peer-1",
+        "contributor": "user-author-1",
+        "title": "Figma Design System Architecture",
+        "category": "design",
+        "verification_status": "self-declared",
+        "evidence_link": "https://figma.com/design-spec",
+    })
+
+    payload = {"reviewer_ids": ["user-teammate-bob"]}
+    response = client.post("/contributions/c-design-spec/request-confirmation", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["contribution_id"] == "c-design-spec"
+    assert data[0]["reviewer_id"] == "user-teammate-bob"
+    assert data[0]["requested_by"] == "user-author-1"
+    assert data[0]["status"] == "pending"
+    assert data[0]["contribution_title"] == "Figma Design System Architecture"
+    assert data[0]["project_name"] == "Peer Review Project"
+
+    # Verify persisted in DEV_CONFIRMATION_REQUESTS_DB
+    assert any(
+        r["contribution_id"] == "c-design-spec" and r["reviewer_id"] == "user-teammate-bob"
+        for r in DEV_CONFIRMATION_REQUESTS_DB
+    )
+    # Verify contribution status transitioned to confirmation-pending
+    target_contrib = next(c for c in DEV_CONTRIBUTIONS_DB if c["id"] == "c-design-spec")
+    assert target_contrib["verification_status"] == "confirmation-pending"
+
+
+def test_request_confirmation_fails_if_not_author():
+    """Non-author teammate cannot request peer confirmation for someone else's contribution."""
+    imposter_user = MagicMock(id="user-imposter-99", email="imposter@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: imposter_user
+
+    DEV_PROJECTS_DB["proj-peer-2"] = {
+        "id": "proj-peer-2",
+        "name": "Peer Review Project 2",
+        "created_by": "user-real-author",
+    }
+    DEV_PROJECT_MEMBERS_DB.append({
+        "project_id": "proj-peer-2",
+        "user_id": "user-imposter-99",
+    })
+    DEV_PROJECT_MEMBERS_DB.append({
+        "project_id": "proj-peer-2",
+        "user_id": "user-reviewer-1",
+    })
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-author-deliverable",
+        "project": "proj-peer-2",
+        "contributor": "user-real-author",
+        "title": "Backend Migration Script",
+        "verification_status": "self-declared",
+    })
+
+    payload = {"reviewer_ids": ["user-reviewer-1"]}
+    response = client.post("/contributions/c-author-deliverable/request-confirmation", json=payload)
+    assert response.status_code == 403
+    assert "Only the author of a contribution can request peer confirmation" in response.json()["detail"]
+
+
+def test_request_confirmation_fails_if_reviewer_not_project_member():
+    """Author cannot request confirmation from an external user who is not in the project."""
+    author_user = MagicMock(id="user-author-2", email="author2@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: author_user
+
+    DEV_PROJECTS_DB["proj-peer-3"] = {
+        "id": "proj-peer-3",
+        "name": "Isolated Project",
+        "created_by": "user-author-2",
+    }
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-author-item",
+        "project": "proj-peer-3",
+        "contributor": "user-author-2",
+        "title": "Security Audit Report",
+        "verification_status": "self-declared",
+    })
+
+    payload = {"reviewer_ids": ["user-external-stranger"]}
+    response = client.post("/contributions/c-author-item/request-confirmation", json=payload)
+    assert response.status_code == 403
+    assert "not a verified member" in response.json()["detail"]
+
+
+def test_request_confirmation_fails_on_self_request():
+    """Author cannot request peer confirmation from themselves."""
+    author_user = MagicMock(id="user-author-3", email="author3@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: author_user
+
+    DEV_PROJECTS_DB["proj-peer-4"] = {
+        "id": "proj-peer-4",
+        "name": "Self Test Project",
+        "created_by": "user-author-3",
+    }
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-self-item",
+        "project": "proj-peer-4",
+        "contributor": "user-author-3",
+        "title": "Self Check Task",
+        "verification_status": "self-declared",
+    })
+
+    payload = {"reviewer_ids": ["user-author-3"]}
+    response = client.post("/contributions/c-self-item/request-confirmation", json=payload)
+    assert response.status_code == 400
+    assert "You cannot request confirmation from yourself" in response.json()["detail"]
+
+
+def test_request_confirmation_empty_reviewers():
+    """Reject empty reviewer list with 400."""
+    author_user = MagicMock(id="user-author-4", email="author4@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: author_user
+
+    payload = {"reviewer_ids": []}
+    response = client.post("/contributions/any-id/request-confirmation", json=payload)
+    assert response.status_code == 400
+    assert "At least one teammate reviewer must be selected" in response.json()["detail"]
+
+
+# ==============================================================================
+# 10. Confirm Contribution Endpoint Tests
+# ==============================================================================
+
+def test_confirm_contribution_success_by_teammate():
+    """Teammate can confirm another member's contribution, updating status to peer-confirmed."""
+    reviewer_user = MagicMock(id="user-teammate-reviewer", email="reviewer@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: reviewer_user
+
+    DEV_PROJECTS_DB["proj-confirm-1"] = {
+        "id": "proj-confirm-1",
+        "name": "Confirmation Workflow Project",
+        "created_by": "user-author-dan",
+    }
+    DEV_PROJECT_MEMBERS_DB.append({
+        "project_id": "proj-confirm-1",
+        "user_id": "user-teammate-reviewer",
+    })
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-confirm-target",
+        "project": "proj-confirm-1",
+        "contributor": "user-author-dan",
+        "title": "API Gateway Setup",
+        "category": "devops",
+        "verification_status": "self-declared",
+        "confirmed_by": None,
+        "created_at": "2026-08-20T10:00:00Z",
+        "updated_at": "2026-08-20T10:00:00Z",
+    })
+    DEV_CONFIRMATION_REQUESTS_DB.append({
+        "id": "req-1",
+        "contribution_id": "c-confirm-target",
+        "project_id": "proj-confirm-1",
+        "requested_by": "user-author-dan",
+        "reviewer_id": "user-teammate-reviewer",
+        "status": "pending",
+    })
+
+    response = client.post("/contributions/c-confirm-target/confirm")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == "c-confirm-target"
+    assert data["verification_status"] == "peer-confirmed"
+    assert data["confirmed_by"] == "user-teammate-reviewer"
+
+    # Verify requests DB updated
+    matching_req = [r for r in DEV_CONFIRMATION_REQUESTS_DB if r["id"] == "req-1"][0]
+    assert matching_req["status"] == "confirmed"
+
+
+def test_confirm_contribution_fails_on_author_self_confirmation():
+    """Author cannot confirm their own contribution."""
+    author_user = MagicMock(id="user-author-dan", email="author@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: author_user
+
+    DEV_PROJECTS_DB["proj-confirm-2"] = {
+        "id": "proj-confirm-2",
+        "name": "Self Confirm Project",
+        "created_by": "user-author-dan",
+    }
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-self-confirm",
+        "project": "proj-confirm-2",
+        "contributor": "user-author-dan",
+        "title": "Solo Research",
+        "verification_status": "self-declared",
+    })
+
+    response = client.post("/contributions/c-self-confirm/confirm")
+    assert response.status_code == 403
+    assert "Authors cannot confirm their own contributions" in response.json()["detail"]
+
+
+def test_confirm_contribution_fails_if_not_project_member():
+    """Non-member cannot confirm a contribution in a project they don't belong to."""
+    stranger_user = MagicMock(id="user-stranger-x", email="stranger@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: stranger_user
+
+    DEV_PROJECTS_DB["proj-confirm-3"] = {
+        "id": "proj-confirm-3",
+        "name": "Secret Project",
+        "created_by": "user-real-leader",
+    }
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-secret-item",
+        "project": "proj-confirm-3",
+        "contributor": "user-real-leader",
+        "title": "Secret Feature",
+        "verification_status": "self-declared",
+    })
+
+    response = client.post("/contributions/c-secret-item/confirm")
+    assert response.status_code == 403
+    assert "You must be a member of this project to confirm contributions" in response.json()["detail"]
+
+
+def test_confirm_contribution_not_found():
+    """Return 404 when contribution ID does not exist."""
+    user = MagicMock(id="user-random", email="random@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    response = client.post("/contributions/c-does-not-exist/confirm")
+    assert response.status_code == 404
+    assert "Contribution not found" in response.json()["detail"]
+
+
+# ==============================================================================
+# 11. Dispute Contribution Endpoint Tests
+# ==============================================================================
+
+def test_dispute_contribution_success_by_teammate():
+    """Teammate can dispute a contribution, setting needs-review, dispute_state: disputed, and visibility: private."""
+    reviewer_user = MagicMock(id="user-teammate-qa", email="qa@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: reviewer_user
+
+    DEV_PROJECTS_DB["proj-dispute-1"] = {
+        "id": "proj-dispute-1",
+        "name": "Dispute Workflow Project",
+        "created_by": "user-author-sam",
+    }
+    DEV_PROJECT_MEMBERS_DB.append({
+        "project_id": "proj-dispute-1",
+        "user_id": "user-teammate-qa",
+    })
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-dispute-target",
+        "project": "proj-dispute-1",
+        "contributor": "user-author-sam",
+        "title": "Unfinished Auth Flow",
+        "category": "code",
+        "verification_status": "self-declared",
+        "dispute_state": "none",
+        "visibility": "public",
+        "created_at": "2026-08-20T10:00:00Z",
+        "updated_at": "2026-08-20T10:00:00Z",
+    })
+    DEV_CONFIRMATION_REQUESTS_DB.append({
+        "id": "req-dispute-1",
+        "contribution_id": "c-dispute-target",
+        "project_id": "proj-dispute-1",
+        "requested_by": "user-author-sam",
+        "reviewer_id": "user-teammate-qa",
+        "status": "pending",
+    })
+
+    response = client.post("/contributions/c-dispute-target/dispute")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == "c-dispute-target"
+    assert data["verification_status"] == "needs-review"
+    assert data["dispute_state"] == "disputed"
+    assert data["visibility"] == "private"
+
+    # Verify requests DB updated
+    matching_req = [r for r in DEV_CONFIRMATION_REQUESTS_DB if r["id"] == "req-dispute-1"][0]
+    assert matching_req["status"] == "disputed"
+
+
+def test_dispute_contribution_fails_on_author_self_dispute():
+    """Author cannot dispute their own contribution."""
+    author_user = MagicMock(id="user-author-sam", email="sam@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: author_user
+
+    DEV_PROJECTS_DB["proj-dispute-2"] = {
+        "id": "proj-dispute-2",
+        "name": "Self Dispute Project",
+        "created_by": "user-author-sam",
+    }
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-self-dispute",
+        "project": "proj-dispute-2",
+        "contributor": "user-author-sam",
+        "title": "Solo Work",
+        "verification_status": "self-declared",
+        "created_at": "2026-08-20T10:00:00Z",
+        "updated_at": "2026-08-20T10:00:00Z",
+    })
+
+    response = client.post("/contributions/c-self-dispute/dispute")
+    assert response.status_code == 403
+    assert "Authors cannot dispute their own contributions" in response.json()["detail"]
+
+
+def test_dispute_contribution_fails_if_not_project_member():
+    """Non-member cannot dispute a contribution in a project they don't belong to."""
+    stranger_user = MagicMock(id="user-stranger-qa", email="stranger-qa@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: stranger_user
+
+    DEV_PROJECTS_DB["proj-dispute-3"] = {
+        "id": "proj-dispute-3",
+        "name": "Private Project",
+        "created_by": "user-real-leader-2",
+    }
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-private-item",
+        "project": "proj-dispute-3",
+        "contributor": "user-real-leader-2",
+        "title": "Internal Spec",
+        "verification_status": "self-declared",
+        "created_at": "2026-08-20T10:00:00Z",
+        "updated_at": "2026-08-20T10:00:00Z",
+    })
+
+    response = client.post("/contributions/c-private-item/dispute")
+    assert response.status_code == 403
+    assert "You must be a member of this project to dispute contributions" in response.json()["detail"]
+
+
+def test_dispute_contribution_not_found():
+    """Return 404 when contribution ID does not exist."""
+    user = MagicMock(id="user-random-qa", email="random-qa@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    response = client.post("/contributions/c-does-not-exist-qa/dispute")
+    assert response.status_code == 404
+    assert "Contribution not found" in response.json()["detail"]
+
+
+# ==============================================================================
+# 12. Pending Confirmations Endpoint Tests
+# ==============================================================================
+
+def test_get_pending_confirmations_empty_when_no_requests():
+    """Returns total_count: 0 and empty list when current user has no pending reviews."""
+    reviewer_user = MagicMock(id="user-empty-inbox", email="empty@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: reviewer_user
+
+    response = client.get("/contributions/pending-confirmations")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_count"] == 0
+    assert data["requests"] == []
+
+
+def test_get_pending_confirmations_returns_assigned_pending_requests():
+    """Returns requests assigned to current user with enriched metadata."""
+    reviewer_user = MagicMock(id="user-reviewer-jen", email="jen@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: reviewer_user
+
+    DEV_PROJECTS_DB["proj-pending-1"] = {
+        "id": "proj-pending-1",
+        "name": "Design System 2.0",
+        "created_by": "user-author-leo",
+    }
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-pending-item-1",
+        "project": "proj-pending-1",
+        "contributor": "user-author-leo",
+        "title": "Figma Color Palette",
+        "category": "design",
+        "description": "Added 30+ accessible colors",
+        "evidence_link": "https://figma.com/file/colors",
+        "verification_status": "self-declared",
+        "created_at": "2026-08-25T10:00:00Z",
+        "updated_at": "2026-08-25T10:00:00Z",
+    })
+    DEV_CONFIRMATION_REQUESTS_DB.append({
+        "id": "req-pending-1",
+        "contribution_id": "c-pending-item-1",
+        "project_id": "proj-pending-1",
+        "requested_by": "user-author-leo",
+        "reviewer_id": "user-reviewer-jen",
+        "status": "pending",
+        "created_at": "2026-08-25T10:05:00Z",
+        "updated_at": "2026-08-25T10:05:00Z",
+    })
+
+    response = client.get("/contributions/pending-confirmations")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_count"] == 1
+    req = data["requests"][0]
+    assert req["id"] == "req-pending-1"
+    assert req["contribution_id"] == "c-pending-item-1"
+    assert req["reviewer_id"] == "user-reviewer-jen"
+    assert req["contribution_title"] == "Figma Color Palette"
+    assert req["project_name"] == "Design System 2.0"
+    assert req["category"] == "design"
+    assert req["evidence_link"] == "https://figma.com/file/colors"
+
+
+def test_get_pending_confirmations_excludes_confirmed_and_other_users():
+    """Excludes non-pending requests and requests assigned to other reviewers."""
+    target_user = MagicMock(id="user-lead-sarah", email="sarah@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: target_user
+
+    # Request assigned to Sarah but already confirmed
+    DEV_CONFIRMATION_REQUESTS_DB.append({
+        "id": "req-already-done",
+        "contribution_id": "c-done",
+        "project_id": "proj-1",
+        "requested_by": "user-a",
+        "reviewer_id": "user-lead-sarah",
+        "status": "confirmed",
+    })
+    # Request assigned to someone else
+    DEV_CONFIRMATION_REQUESTS_DB.append({
+        "id": "req-other-guy",
+        "contribution_id": "c-other",
+        "project_id": "proj-1",
+        "requested_by": "user-a",
+        "reviewer_id": "user-other-guy",
+        "status": "pending",
+    })
+
+    response = client.get("/contributions/pending-confirmations")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_count"] == 0
+    assert data["requests"] == []
+
+
+# ==============================================================================
+# 13. End-to-End Confirmation & Dispute Collaboration Flow
+# ==============================================================================
+
+def test_peer_confirmation_and_dispute_complete_flow():
+    """
+    E2E integration test:
+    1. User A logs manual deliverable in project.
+    2. User A requests confirmation from User B.
+    3. User B fetches pending confirmations and sees request.
+    4. User B confirms deliverable -> verified peer-confirmed.
+    5. User A logs a second deliverable and requests confirmation from User B.
+    6. User B disputes second deliverable -> verified needs-review and private.
+    """
+    user_a = MagicMock(id="user-author-alex", email="alex@buildcrew.io")
+    user_b = MagicMock(id="user-reviewer-sara", email="sara@buildcrew.io")
+
+    # Project setup
+    DEV_PROJECTS_DB["proj-flow-1"] = {
+        "id": "proj-flow-1",
+        "name": "Full Flow App",
+        "created_by": "user-author-alex",
+    }
+    DEV_PROJECT_MEMBERS_DB.append({
+        "project_id": "proj-flow-1",
+        "user_id": "user-reviewer-sara",
+    })
+
+    # Step 1: User A logs first deliverable
+    app.dependency_overrides[get_current_user] = lambda: user_a
+    contrib1_resp = client.post(
+        "/projects/proj-flow-1/contributions",
+        json={
+            "title": "Clean Architecture Spec",
+            "category": "documentation",
+            "description": "System architecture diagram and RFC doc",
+            "evidence_link": "https://buildcrew.io/rfc-spec",
+        },
+    )
+    assert contrib1_resp.status_code == 201
+    c1_id = contrib1_resp.json()["id"]
+
+    # Step 2: User A requests confirmation from User B
+    req_resp = client.post(
+        f"/contributions/{c1_id}/request-confirmation",
+        json={"reviewer_ids": ["user-reviewer-sara"]},
+    )
+    assert req_resp.status_code == 201
+    assert len(req_resp.json()) == 1
+
+    # Step 3: User B fetches pending confirmations
+    app.dependency_overrides[get_current_user] = lambda: user_b
+    pending_resp = client.get("/contributions/pending-confirmations")
+    assert pending_resp.status_code == 200
+    pending_data = pending_resp.json()
+    assert pending_data["total_count"] == 1
+    assert pending_data["requests"][0]["contribution_id"] == c1_id
+
+    # Step 4: User B confirms deliverable
+    confirm_resp = client.post(f"/contributions/{c1_id}/confirm")
+    assert confirm_resp.status_code == 200
+    assert confirm_resp.json()["verification_status"] == "peer-confirmed"
+    assert confirm_resp.json()["confirmed_by"] == "user-reviewer-sara"
+
+    # Verify inbox is now empty for User B
+    empty_pending = client.get("/contributions/pending-confirmations")
+    assert empty_pending.status_code == 200
+    assert empty_pending.json()["total_count"] == 0
+
+    # Step 5: User A logs second deliverable
+    app.dependency_overrides[get_current_user] = lambda: user_a
+    contrib2_resp = client.post(
+        "/projects/proj-flow-1/contributions",
+        json={
+            "title": "Incomplete Auth Patch",
+            "category": "code",
+            "description": "Unfinished auth code without tests",
+        },
+    )
+    assert contrib2_resp.status_code == 201
+    c2_id = contrib2_resp.json()["id"]
+
+    # User A requests confirmation
+    client.post(
+        f"/contributions/{c2_id}/request-confirmation",
+        json={"reviewer_ids": ["user-reviewer-sara"]},
+    )
+
+    # Step 6: User B disputes second deliverable
+    app.dependency_overrides[get_current_user] = lambda: user_b
+    dispute_resp = client.post(f"/contributions/{c2_id}/dispute")
+    assert dispute_resp.status_code == 200
+    data2 = dispute_resp.json()
+    assert data2["verification_status"] == "needs-review"
+    assert data2["dispute_state"] == "disputed"
+    assert data2["visibility"] == "private"
+
+
+
+
+
 
 
 
