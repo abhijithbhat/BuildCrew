@@ -10,6 +10,8 @@ class ContributionCard extends StatelessWidget {
   final VoidCallback? onRequestConfirmation;
   final VoidCallback? onConfirm;
   final VoidCallback? onDispute;
+  final bool? isContributor;
+  final String? currentUserId;
 
   const ContributionCard({
     super.key,
@@ -20,7 +22,21 @@ class ContributionCard extends StatelessWidget {
     this.onRequestConfirmation,
     this.onConfirm,
     this.onDispute,
+    this.isContributor,
+    this.currentUserId,
   });
+
+  bool get _resolvedIsContributor {
+    if (isContributor != null) return isContributor!;
+    if (currentUserId != null && currentUserId!.trim().isNotEmpty) {
+      if (contribution.contributor == currentUserId) return true;
+      if (contribution.contributorProfile != null &&
+          contribution.contributorProfile!['user_id'] == currentUserId) {
+        return true;
+      }
+    }
+    return false;
+  }
 
 
   String _formatDate(DateTime? date, String? rawDate) {
@@ -171,11 +187,19 @@ class ContributionCard extends StatelessWidget {
       icon = Icons.check_circle_rounded;
       label = 'Peer Confirmed';
     } else if (status == 'needs-review' || contribution.isDisputed) {
-      bg = Colors.red.shade50;
-      border = Colors.red.shade300;
-      text = Colors.red.shade800;
-      icon = Icons.error_outline_rounded;
-      label = 'Needs Review';
+      if (_resolvedIsContributor) {
+        bg = const Color(0xFFFEF2F2);
+        border = const Color(0xFFF87171);
+        text = const Color(0xFFB91C1C);
+        icon = Icons.warning_amber_rounded;
+        label = 'Needs Your Review';
+      } else {
+        bg = Colors.red.shade50;
+        border = Colors.red.shade300;
+        text = Colors.red.shade800;
+        icon = Icons.error_outline_rounded;
+        label = 'Needs Review';
+      }
     } else if (contribution.isPendingConfirmation || status.contains('pending-confirmation') || status == 'confirmation-pending') {
       bg = const Color(0xFFFEF3C7);
       border = const Color(0xFFFCD34D);
@@ -368,17 +392,25 @@ class ContributionCard extends StatelessWidget {
     final initial = contributorName.isNotEmpty ? contributorName[0].toUpperCase() : 'C';
     final hasEvidence = contribution.evidenceLink != null && contribution.evidenceLink!.trim().isNotEmpty;
     final isImage = hasEvidence && _isImageUrl(contribution.evidenceLink);
+    final isContributorNeedsReview = contribution.needsReview && _resolvedIsContributor;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200, width: 1.2),
+        border: Border.all(
+          color: isContributorNeedsReview
+              ? const Color(0xFFEF4444)
+              : Colors.grey.shade200,
+          width: isContributorNeedsReview ? 1.6 : 1.2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
+            color: isContributorNeedsReview
+                ? const Color(0xFFEF4444).withValues(alpha: 0.10)
+                : Colors.black.withValues(alpha: 0.03),
+            blurRadius: isContributorNeedsReview ? 10 : 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -444,6 +476,82 @@ class ContributionCard extends StatelessWidget {
                     ),
                   ],
                 ),
+
+                // Contributor-Only "Needs Review" Visual Alert Indicator Banner
+                if (isContributorNeedsReview) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    key: Key('needs_review_contributor_indicator_${contribution.id}'),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFECACA), width: 1),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFFEE2E2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.warning_amber_rounded,
+                            size: 16,
+                            color: Color(0xFFDC2626),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Action Required: Needs Review',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF991B1B),
+                                    ),
+                                  ),
+                                  Spacer(),
+                                  Icon(
+                                    Icons.visibility_off_outlined,
+                                    size: 13,
+                                    color: Color(0xFFDC2626),
+                                  ),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'Hidden from Passport',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFFDC2626),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'A teammate disputed this deliverable. This item is hidden from your public passport and project stream until revised or resolved.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFFB91C1C),
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 const SizedBox(height: 10),
 
                 // Title

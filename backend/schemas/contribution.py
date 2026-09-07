@@ -114,3 +114,22 @@ class PendingConfirmationsListResponse(BaseModel):
     requests: List[ConfirmationRequestResponse]
 
 
+class UserPassportResponse(BaseModel):
+    user_id: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    github_username: Optional[str] = None
+    total_contributions: int
+    confirmed_count: int
+    contributions: List[ContributionResponse]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublicContributionsResponse(BaseModel):
+    total_count: int
+    contributions: List[ContributionResponse]
+
+    model_config = ConfigDict(from_attributes=True)
+
+

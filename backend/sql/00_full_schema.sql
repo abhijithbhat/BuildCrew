@@ -219,7 +219,7 @@ DROP POLICY IF EXISTS "Contributions are viewable based on visibility." ON publi
 CREATE POLICY "Contributions are viewable based on visibility."
     ON public.contributions FOR SELECT
     USING (
-        visibility = 'public'
+        (visibility = 'public' AND verification_status != 'needs-review' AND dispute_state != 'disputed')
         OR contributor = auth.uid()
         OR confirmed_by = auth.uid()
         OR EXISTS (

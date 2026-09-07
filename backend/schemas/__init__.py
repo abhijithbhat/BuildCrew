@@ -27,6 +27,8 @@ from schemas.contribution import (
     DraftGenerationResponse,
     EvidenceUploadResponse,
     ManualContributionCreate,
+    PublicContributionsResponse,
+    UserPassportResponse,
 )
 from schemas.confirmation import (
     ConfirmationCreate,
@@ -62,6 +64,8 @@ __all__ = [
     "ContributionUpdate",
     "DraftGenerationResponse",
     "ContributionsListResponse",
+    "PublicContributionsResponse",
+    "UserPassportResponse",
     "ConfirmationCreate",
     "ConfirmationResponse",
     "ConfirmationUpdate",

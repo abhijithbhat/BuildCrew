@@ -472,6 +472,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
     final selfDeclaredCount = _allContributions
         .where((c) => c.verificationStatus.toLowerCase() == 'self-declared')
         .length;
+    final needsReviewCount = _allContributions.where((c) => c.needsReview).length;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B0F19),
@@ -549,6 +550,47 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                     TextButton(
                       onPressed: _loadContributions,
                       child: const Text('Retry', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (needsReviewCount > 0) ...[
+              Container(
+                key: const Key('my_contributions_needs_review_alert'),
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF450A0A).withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline_rounded, color: Color(0xFFF87171), size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$needsReviewCount deliverable${needsReviewCount > 1 ? "s require" : " requires"} your review',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Disputed items are hidden from your public passport until resolved.',
+                            style: TextStyle(
+                              color: Color(0xFFFCA5A5),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -750,6 +792,8 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
               ...filtered.map(
                 (c) => ContributionCard(
                   contribution: c,
+                  isContributor: true,
+                  currentUserId: _currentUserId,
                   onRequestConfirmation: () => _openRequestConfirmationModal(c),
                   onTap: () {
                     if (c.evidenceLink != null && c.evidenceLink!.isNotEmpty) {

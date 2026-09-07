@@ -52,6 +52,51 @@ app.include_router(projects_router)
 app.include_router(github_router)
 app.include_router(contributions_router)
 
+# Public Passport Endpoints
+from routers.contributions import get_user_passport
+from schemas.contribution import UserPassportResponse
+
+@app.get(
+    "/users/{user_id}/passport",
+    response_model=UserPassportResponse,
+    tags=["Passport"],
+    summary="Get public builder passport",
+)
+@app.get(
+    "/users/{user_id}/passport/",
+    response_model=UserPassportResponse,
+    tags=["Passport"],
+    include_in_schema=False,
+)
+async def get_user_passport_endpoint(user_id: str):
+    """
+    Public builder passport query for a user.
+    Guarantees that ANY contribution with status 'needs-review', dispute_state 'disputed',
+    or visibility 'private' is strictly excluded from the passport.
+    """
+    return await get_user_passport(user_id)
+
+
+@app.get(
+    "/users/{user_id}/contributions",
+    response_model=UserPassportResponse,
+    tags=["Passport"],
+    summary="Get public user contributions",
+)
+@app.get(
+    "/users/{user_id}/contributions/",
+    response_model=UserPassportResponse,
+    tags=["Passport"],
+    include_in_schema=False,
+)
+async def get_user_contributions_endpoint(user_id: str):
+    """
+    Public user contributions query.
+    Guarantees that ANY contribution with status 'needs-review', dispute_state 'disputed',
+    or visibility 'private' is strictly excluded.
+    """
+    return await get_user_passport(user_id)
+
 # Mount static files directory for local dev evidence uploads
 import os
 from fastapi.staticfiles import StaticFiles

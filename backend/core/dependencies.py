@@ -1,9 +1,11 @@
 import hashlib
+from typing import Any, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from core.database import get_supabase_pub_client
 
 security = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)
 
 
 def stable_dev_user_id(email: str) -> str:
@@ -58,5 +60,17 @@ async def get_current_user(
             detail=f"Could not validate credentials: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+async def get_optional_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional),
+) -> Optional[Any]:
+    """Optional FastAPI dependency allowing unauthenticated access while identifying authenticated users."""
+    if not credentials:
+        return None
+    try:
+        return await get_current_user(credentials)
+    except Exception:
+        return None
 
 

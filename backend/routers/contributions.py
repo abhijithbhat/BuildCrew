@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from core.database import get_supabase_client
 from core.dependencies import get_current_user
 from core.logging import logger
@@ -25,7 +25,9 @@ from schemas.contribution import (
     EvidenceUploadResponse,
     ManualContributionCreate,
     PendingConfirmationsListResponse,
+    PublicContributionsResponse,
     RequestConfirmationPayload,
+    UserPassportResponse,
 )
 
 router = APIRouter(prefix="/contributions", tags=["Contributions"])
@@ -474,10 +476,18 @@ async def request_peer_confirmation(
         contribution = c_res.data[0]
 
         # 2. Author check
-        if contribution.get("contributor") != user_id:
+        contrib_author = contribution.get("contributor") or contribution.get("contributor_id")
+        if contrib_author != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only the author of a contribution can request peer confirmation.",
+            )
+
+        # 2b. Self-Request Block: Contributor cannot request confirmation from themselves
+        if user_id in reviewer_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You cannot request confirmation from yourself.",
             )
 
         target_project_id = contribution.get("project") or contribution.get("project_id")
@@ -596,10 +606,18 @@ async def request_peer_confirmation(
                 )
             contribution = matching[0]
 
-            if contribution.get("contributor") != user_id:
+            contrib_author = contribution.get("contributor") or contribution.get("contributor_id")
+            if contrib_author != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only the author of a contribution can request peer confirmation.",
+                )
+
+            # Self-Request Block
+            if user_id in reviewer_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="You cannot request confirmation from yourself.",
                 )
 
             target_project_id = contribution.get("project") or contribution.get("project_id")
@@ -708,7 +726,8 @@ async def confirm_contribution(
         contribution = c_res.data[0]
 
         # 2. Self-Action Block: Author cannot confirm their own contribution
-        if contribution.get("contributor") == user_id:
+        author_id = contribution.get("contributor") or contribution.get("contributor_id")
+        if author_id == user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Authors cannot confirm their own contributions.",
@@ -785,7 +804,7 @@ async def confirm_contribution(
             supabase.table("confirmation_requests").update({
                 "status": "confirmed",
                 "updated_at": now_iso,
-            }).eq("contribution_id", contribution_id).eq("reviewer_id", user_id).execute()
+            }).eq("contribution_id", contribution_id).execute()
         except Exception:
             pass
 
@@ -826,7 +845,8 @@ async def confirm_contribution(
             contribution = matching[0]
 
             # 1. Self-Action Block
-            if contribution.get("contributor") == user_id:
+            author_id = contribution.get("contributor") or contribution.get("contributor_id")
+            if author_id == user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Authors cannot confirm their own contributions.",
@@ -908,7 +928,8 @@ async def dispute_contribution(
         contribution = c_res.data[0]
 
         # 2. Self-Action Block: Author cannot dispute their own contribution
-        if contribution.get("contributor") == user_id:
+        author_id = contribution.get("contributor") or contribution.get("contributor_id")
+        if author_id == user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Authors cannot dispute their own contributions.",
@@ -985,7 +1006,7 @@ async def dispute_contribution(
             supabase.table("confirmation_requests").update({
                 "status": "disputed",
                 "updated_at": now_iso,
-            }).eq("contribution_id", contribution_id).eq("reviewer_id", user_id).execute()
+            }).eq("contribution_id", contribution_id).execute()
         except Exception:
             pass
 
@@ -1026,7 +1047,8 @@ async def dispute_contribution(
             contribution = matching[0]
 
             # 1. Self-Action Block
-            if contribution.get("contributor") == user_id:
+            author_id = contribution.get("contributor") or contribution.get("contributor_id")
+            if author_id == user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Authors cannot dispute their own contributions.",
@@ -1137,6 +1159,9 @@ async def get_pending_confirmations(
             u_id = r.get("requested_by")
 
             contrib = contrib_map.get(c_id, {})
+            # Ghost Pending Safety: Skip if contribution was deleted or already confirmed/disputed
+            if not contrib or contrib.get("verification_status") in ("confirmed", "peer-confirmed", "needs-review", "disputed"):
+                continue
             project = project_map.get(p_id, {})
             profile = profile_map.get(u_id, {})
 
@@ -1198,6 +1223,9 @@ async def get_pending_confirmations(
                     (c for c in DEV_CONTRIBUTIONS_DB if c.get("id") == c_id),
                     None,
                 )
+                # Ghost Pending Safety: Skip if contribution was deleted or already confirmed/disputed
+                if not contrib or contrib.get("verification_status") in ("confirmed", "peer-confirmed", "needs-review", "disputed"):
+                    continue
                 p_id = r.get("project_id") or (
                     contrib.get("project") if contrib else None
                 )
@@ -1252,6 +1280,222 @@ async def get_pending_confirmations(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to fetch pending confirmations: {err_msg}",
+        )
+
+
+@router.get(
+    "/passport/{user_id}",
+    response_model=UserPassportResponse,
+    status_code=status.HTTP_200_OK,
+)
+@router.get(
+    "/passport/{user_id}/",
+    response_model=UserPassportResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+async def get_user_passport(
+    user_id: str,
+):
+    """
+    Public builder passport query for a user.
+    Guarantees that ANY contribution with status 'needs-review', dispute_state 'disputed',
+    or visibility 'private' is strictly excluded from the passport.
+    """
+    try:
+        supabase = get_supabase_client()
+
+        # Fetch profile
+        profile = {}
+        try:
+            p_res = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
+            if p_res.data:
+                profile = p_res.data
+        except Exception:
+            pass
+
+        # Fetch contributions for this user
+        c_res = (
+            supabase.table("contributions")
+            .select("*")
+            .eq("contributor", user_id)
+            .eq("visibility", "public")
+            .neq("verification_status", "needs-review")
+            .neq("dispute_state", "disputed")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        raw_items = c_res.data or []
+
+        # Strict defense-in-depth filter
+        valid_items = [
+            c for c in raw_items
+            if c.get("verification_status") != "needs-review"
+            and c.get("dispute_state") != "disputed"
+            and c.get("visibility") == "public"
+        ]
+
+        for c in valid_items:
+            c["contributor_name"] = profile.get("display_name") or c.get("contributor_name") or f"User {user_id[:8]}"
+            c["contributor_profile"] = profile or None
+
+        confirmed_count = sum(1 for c in valid_items if c.get("verification_status") in ("confirmed", "peer-confirmed"))
+
+        return UserPassportResponse(
+            user_id=user_id,
+            display_name=profile.get("display_name"),
+            avatar_url=profile.get("avatar_url"),
+            github_username=profile.get("github_username"),
+            total_contributions=len(valid_items),
+            confirmed_count=confirmed_count,
+            contributions=valid_items,
+        )
+
+    except Exception as e:
+        err_msg = str(e)
+        if _is_dev_fallback_error(err_msg):
+            # Local Dev Fallback
+            display_name = DEV_USER_NAMES_DB.get(user_id, f"User {user_id[:8]}")
+
+            valid_items = [
+                c for c in DEV_CONTRIBUTIONS_DB
+                if c.get("contributor") == user_id
+                and c.get("verification_status") != "needs-review"
+                and c.get("dispute_state") != "disputed"
+                and c.get("visibility") == "public"
+            ]
+
+            for c in valid_items:
+                if not c.get("contributor_name"):
+                    c["contributor_name"] = display_name
+                if not c.get("contributor_profile"):
+                    c["contributor_profile"] = {
+                        "user_id": user_id,
+                        "display_name": display_name,
+                        "email": f"{user_id}@buildcrew.io",
+                    }
+
+            confirmed_count = sum(1 for c in valid_items if c.get("verification_status") in ("confirmed", "peer-confirmed"))
+
+            return UserPassportResponse(
+                user_id=user_id,
+                display_name=display_name,
+                avatar_url=None,
+                github_username=None,
+                total_contributions=len(valid_items),
+                confirmed_count=confirmed_count,
+                contributions=valid_items,
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to fetch user passport: {err_msg}",
+        )
+
+
+@router.get(
+    "/public",
+    response_model=PublicContributionsResponse,
+    status_code=status.HTTP_200_OK,
+)
+@router.get(
+    "/public/",
+    response_model=PublicContributionsResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+async def list_public_contributions(
+    user_id: Optional[str] = Query(None),
+    project_id: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+):
+    """
+    Publicly query contributions stream across projects and builders.
+    Strictly excludes any contribution with verification_status == 'needs-review'
+    or dispute_state == 'disputed' or visibility != 'public'.
+    """
+    try:
+        supabase = get_supabase_client()
+        query = (
+            supabase.table("contributions")
+            .select("*")
+            .eq("visibility", "public")
+            .neq("verification_status", "needs-review")
+            .neq("dispute_state", "disputed")
+        )
+        if user_id and user_id.strip():
+            query = query.eq("contributor", user_id.strip())
+        if project_id and project_id.strip():
+            query = query.eq("project", project_id.strip())
+        if category and category.strip():
+            query = query.eq("category", category.strip().lower())
+
+        c_res = query.order("created_at", desc=True).execute()
+        raw_items = c_res.data or []
+
+        valid_items = [
+            c for c in raw_items
+            if c.get("verification_status") != "needs-review"
+            and c.get("dispute_state") != "disputed"
+            and c.get("visibility") == "public"
+        ]
+
+        contributor_ids = list({c.get("contributor") for c in valid_items if c.get("contributor")})
+        profiles_map = {}
+        if contributor_ids:
+            try:
+                p_res = supabase.table("profiles").select("*").in_("id", contributor_ids).execute()
+                for p in (p_res.data or []):
+                    profiles_map[p.get("id")] = p
+            except Exception:
+                pass
+
+        for c in valid_items:
+            cid = c.get("contributor")
+            prof = profiles_map.get(cid) or c.get("profiles") or {}
+            c["contributor_name"] = prof.get("display_name") or prof.get("email") or c.get("contributor_name") or (f"User {cid[:8]}" if cid else "Contributor")
+            c["contributor_profile"] = prof or None
+
+        return PublicContributionsResponse(
+            total_count=len(valid_items),
+            contributions=valid_items,
+        )
+
+    except Exception as e:
+        err_msg = str(e)
+        if _is_dev_fallback_error(err_msg):
+            valid_items = [
+                c for c in DEV_CONTRIBUTIONS_DB
+                if c.get("visibility") == "public"
+                and c.get("verification_status") != "needs-review"
+                and c.get("dispute_state") != "disputed"
+            ]
+            if user_id and user_id.strip():
+                valid_items = [c for c in valid_items if c.get("contributor") == user_id.strip()]
+            if project_id and project_id.strip():
+                valid_items = [c for c in valid_items if c.get("project") == project_id.strip()]
+            if category and category.strip():
+                cat_f = category.strip().lower()
+                valid_items = [c for c in valid_items if c.get("category", "").lower() == cat_f]
+
+            for c in valid_items:
+                cid = c.get("contributor")
+                if cid and not c.get("contributor_profile"):
+                    c["contributor_name"] = c.get("contributor_name") or f"Member {cid}"
+                    c["contributor_profile"] = {
+                        "user_id": cid,
+                        "display_name": c["contributor_name"],
+                        "email": f"{cid}@buildcrew.io",
+                    }
+
+            return PublicContributionsResponse(
+                total_count=len(valid_items),
+                contributions=valid_items,
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to list public contributions: {err_msg}",
         )
 
 

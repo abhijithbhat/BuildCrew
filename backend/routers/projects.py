@@ -2049,9 +2049,14 @@ async def list_project_contributions(
     status_filter: Optional[str] = Query(None, alias="status"),
     contributor_filter: Optional[str] = Query(None, alias="contributor"),
     category_filter: Optional[str] = Query(None, alias="category"),
+    visibility_filter: Optional[str] = Query(None, alias="visibility"),
     current_user: Any = Depends(get_current_user),
 ):
-    """List all contribution records (drafts and confirmed) for a project with optional status, contributor, and category filtering."""
+    """
+    List contribution records for a project with optional status, contributor, category, and visibility filtering.
+    Guarantees that any contribution with status 'needs-review' or 'disputed' is excluded for all non-author callers
+    and completely excluded from public views.
+    """
     user_id = _get_user_id(current_user)
 
     try:
@@ -2099,11 +2104,31 @@ async def list_project_contributions(
             query = query.eq("contributor", contributor_filter.strip())
         if category_filter and category_filter.strip():
             query = query.eq("category", category_filter.strip().lower())
+        if visibility_filter and visibility_filter.strip():
+            query = query.eq("visibility", visibility_filter.strip().lower())
 
         c_res = query.order("created_at", desc=True).execute()
-        contribs = c_res.data or []
+        raw_contribs = c_res.data or []
 
-        # Fetch profile metadata for all contributors
+        # Enforce legal-safety barrier: exclude needs-review / disputed / private items for non-authors
+        is_public_view = bool(visibility_filter and visibility_filter.strip().lower() == "public")
+        contribs = []
+        for c in raw_contribs:
+            is_author = c.get("contributor") == user_id
+            is_disputed_or_review = (
+                c.get("verification_status") == "needs-review"
+                or c.get("dispute_state") == "disputed"
+                or c.get("visibility") == "private"
+            )
+            # Exclude for non-authors
+            if is_disputed_or_review and not is_author:
+                continue
+            # If public query, exclude needs-review/disputed unconditionally even for author
+            if is_public_view and (c.get("verification_status") == "needs-review" or c.get("dispute_state") == "disputed"):
+                continue
+            contribs.append(c)
+
+        # Fetch profile metadata for all visible contributors
         contributor_ids = list({c.get("contributor") for c in contribs if c.get("contributor")})
         profiles_map = {}
         if contributor_ids:
@@ -2114,16 +2139,30 @@ async def list_project_contributions(
             except Exception:
                 pass
 
-        # Count drafts vs confirmed across all project contributions
+        # Count drafts vs confirmed across visible project contributions
         all_c_res = (
             supabase.table("contributions")
-            .select("verification_status")
+            .select("*")
             .eq("project", project_id)
             .execute()
         )
-        all_items = all_c_res.data or []
-        draft_count = sum(1 for c in all_items if c.get("verification_status") in ("source-verified", "pending", "draft", "self-declared"))
-        confirmed_count = sum(1 for c in all_items if c.get("verification_status") in ("confirmed", "peer-confirmed"))
+        all_raw_items = all_c_res.data or []
+        visible_all_items = []
+        for c in all_raw_items:
+            is_author = c.get("contributor") == user_id
+            is_disputed_or_review = (
+                c.get("verification_status") == "needs-review"
+                or c.get("dispute_state") == "disputed"
+                or c.get("visibility") == "private"
+            )
+            if is_disputed_or_review and not is_author:
+                continue
+            if is_public_view and (c.get("verification_status") == "needs-review" or c.get("dispute_state") == "disputed"):
+                continue
+            visible_all_items.append(c)
+
+        draft_count = sum(1 for c in visible_all_items if c.get("verification_status") in ("source-verified", "pending", "draft", "self-declared", "needs-review"))
+        confirmed_count = sum(1 for c in visible_all_items if c.get("verification_status") in ("confirmed", "peer-confirmed"))
 
         for c in contribs:
             cid = c.get("contributor")
@@ -2165,28 +2204,32 @@ async def list_project_contributions(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Project not found.",
                 )
-            project_data = DEV_PROJECTS_DB[project_id]
-
-            is_lead = project_data.get("created_by") == user_id
-            is_member = is_lead or any(
-                m.get("project_id") == project_id and m.get("user_id") == user_id
-                for m in DEV_PROJECT_MEMBERS_DB
-            )
-            if not is_member:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You must be a member of this project to view contributions.",
-                )
 
             dev_contribs = [
                 c for c in DEV_CONTRIBUTIONS_DB if c.get("project") == project_id
             ]
 
-            draft_count = sum(1 for c in dev_contribs if c.get("verification_status") in ("source-verified", "pending", "draft", "self-declared"))
-            confirmed_count = sum(1 for c in dev_contribs if c.get("verification_status") in ("confirmed", "peer-confirmed"))
+            # Apply legal-safety barrier: exclude needs-review / disputed / private items for non-authors
+            is_public_view = bool(visibility_filter and visibility_filter.strip().lower() == "public")
+            visible_dev_contribs = []
+            for c in dev_contribs:
+                is_author = c.get("contributor") == user_id
+                is_disputed_or_review = (
+                    c.get("verification_status") == "needs-review"
+                    or c.get("dispute_state") == "disputed"
+                    or c.get("visibility") == "private"
+                )
+                if is_disputed_or_review and not is_author:
+                    continue
+                if is_public_view and (c.get("verification_status") == "needs-review" or c.get("dispute_state") == "disputed"):
+                    continue
+                visible_dev_contribs.append(c)
+
+            draft_count = sum(1 for c in visible_dev_contribs if c.get("verification_status") in ("source-verified", "pending", "draft", "self-declared", "needs-review"))
+            confirmed_count = sum(1 for c in visible_dev_contribs if c.get("verification_status") in ("confirmed", "peer-confirmed"))
 
             # Apply filters if provided
-            filtered_contribs = dev_contribs
+            filtered_contribs = visible_dev_contribs
             if status_filter and status_filter.strip():
                 sf = status_filter.strip().lower()
                 filtered_contribs = [c for c in filtered_contribs if c.get("verification_status", "").lower() == sf]
@@ -2196,6 +2239,9 @@ async def list_project_contributions(
             if category_filter and category_filter.strip():
                 cat_f = category_filter.strip().lower()
                 filtered_contribs = [c for c in filtered_contribs if c.get("category", "").lower() == cat_f]
+            if visibility_filter and visibility_filter.strip():
+                vis_f = visibility_filter.strip().lower()
+                filtered_contribs = [c for c in filtered_contribs if c.get("visibility", "").lower() == vis_f]
 
             for c in filtered_contribs:
                 cid = c.get("contributor")
@@ -2219,6 +2265,137 @@ async def list_project_contributions(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to list contributions: {err_msg}",
         )
+
+
+@router.get(
+    "/{project_id}/contributions/public",
+    response_model=ContributionsListResponse,
+    status_code=status.HTTP_200_OK,
+)
+@router.get(
+    "/{project_id}/contributions/public/",
+    response_model=ContributionsListResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+async def list_public_project_contributions(
+    project_id: str,
+    category_filter: Optional[str] = Query(None, alias="category"),
+):
+    """
+    Publicly list verified & public contribution records for a project.
+    Guarantees any contribution with status 'needs-review' or 'disputed' is 100% excluded.
+    Does not require membership or authentication.
+    """
+    try:
+        supabase = get_supabase_client()
+
+        # Check project exists
+        proj_res = supabase.table("projects").select("id, name").eq("id", project_id).single().execute()
+        if not proj_res.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found.",
+            )
+
+        query = (
+            supabase.table("contributions")
+            .select("*")
+            .eq("project", project_id)
+            .eq("visibility", "public")
+            .neq("verification_status", "needs-review")
+            .neq("dispute_state", "disputed")
+        )
+        if category_filter and category_filter.strip():
+            query = query.eq("category", category_filter.strip().lower())
+
+        c_res = query.order("created_at", desc=True).execute()
+        raw_contribs = c_res.data or []
+
+        # Extra guarantee: filter out any needs-review or disputed items
+        contribs = [
+            c for c in raw_contribs
+            if c.get("verification_status") != "needs-review"
+            and c.get("dispute_state") != "disputed"
+            and c.get("visibility") == "public"
+        ]
+
+        contributor_ids = list({c.get("contributor") for c in contribs if c.get("contributor")})
+        profiles_map = {}
+        if contributor_ids:
+            try:
+                p_res = supabase.table("profiles").select("*").in_("id", contributor_ids).execute()
+                for p in (p_res.data or []):
+                    profiles_map[p.get("id")] = p
+            except Exception:
+                pass
+
+        for c in contribs:
+            cid = c.get("contributor")
+            prof = profiles_map.get(cid) or c.get("profiles") or {}
+            c["contributor_name"] = prof.get("display_name") or prof.get("email") or c.get("contributor_name") or (f"User {cid[:8]}" if cid else "Contributor")
+            c["contributor_profile"] = prof or None
+
+        confirmed_count = sum(1 for c in contribs if c.get("verification_status") in ("confirmed", "peer-confirmed"))
+        draft_count = sum(1 for c in contribs if c.get("verification_status") not in ("confirmed", "peer-confirmed"))
+
+        return {
+            "project_id": project_id,
+            "total_count": len(contribs),
+            "draft_count": draft_count,
+            "confirmed_count": confirmed_count,
+            "contributions": contribs,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        err_msg = str(e)
+        if _is_dev_fallback_error(err_msg):
+            if project_id not in DEV_PROJECTS_DB and not any(c.get("project") == project_id for c in DEV_CONTRIBUTIONS_DB):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Project not found.",
+                )
+
+            dev_contribs = [
+                c for c in DEV_CONTRIBUTIONS_DB
+                if c.get("project") == project_id
+                and c.get("verification_status") != "needs-review"
+                and c.get("dispute_state") != "disputed"
+                and c.get("visibility") == "public"
+            ]
+
+            if category_filter and category_filter.strip():
+                cat_f = category_filter.strip().lower()
+                dev_contribs = [c for c in dev_contribs if c.get("category", "").lower() == cat_f]
+
+            for c in dev_contribs:
+                cid = c.get("contributor")
+                if cid and not c.get("contributor_profile"):
+                    c["contributor_name"] = c.get("contributor_name") or f"Member {cid}"
+                    c["contributor_profile"] = {
+                        "user_id": cid,
+                        "display_name": c["contributor_name"],
+                        "email": f"{cid}@buildcrew.io",
+                    }
+
+            confirmed_count = sum(1 for c in dev_contribs if c.get("verification_status") in ("confirmed", "peer-confirmed"))
+            draft_count = sum(1 for c in dev_contribs if c.get("verification_status") not in ("confirmed", "peer-confirmed"))
+
+            return {
+                "project_id": project_id,
+                "total_count": len(dev_contribs),
+                "draft_count": draft_count,
+                "confirmed_count": confirmed_count,
+                "contributions": dev_contribs,
+            }
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to list public contributions: {err_msg}",
+        )
+
 
 
 @router.post(

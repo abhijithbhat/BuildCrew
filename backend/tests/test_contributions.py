@@ -1185,6 +1185,8 @@ def test_request_confirmation_fails_if_reviewer_not_project_member():
     assert "not a verified member" in response.json()["detail"]
 
 
+
+
 def test_request_confirmation_fails_on_self_request():
     """Author cannot request peer confirmation from themselves."""
     author_user = MagicMock(id="user-author-3", email="author3@buildcrew.io")
@@ -1629,12 +1631,314 @@ def test_peer_confirmation_and_dispute_complete_flow():
     assert data2["dispute_state"] == "disputed"
     assert data2["visibility"] == "private"
 
+    # Verify author User A can still see their disputed item in their project review feed
+    app.dependency_overrides[get_current_user] = lambda: user_a
+    author_proj_resp = client.get("/projects/proj-flow-1/contributions")
+    assert author_proj_resp.status_code == 200
+    author_contrib_ids = [c["id"] for c in author_proj_resp.json()["contributions"]]
+    assert c2_id in author_contrib_ids
+
+    # Verify reviewer User B does NOT see the disputed item in the project contributions feed
+    app.dependency_overrides[get_current_user] = lambda: user_b
+    reviewer_proj_resp = client.get("/projects/proj-flow-1/contributions")
+    assert reviewer_proj_resp.status_code == 200
+    reviewer_contrib_ids = [c["id"] for c in reviewer_proj_resp.json()["contributions"]]
+    assert c2_id not in reviewer_contrib_ids
 
 
+def test_needs_review_excluded_from_public_and_passport_queries():
+    """
+    Phase 12 Legal-Safety Barrier Test:
+    Guarantees that ANY contribution with status 'needs-review' or 'disputed'
+    is strictly and unconditionally excluded from:
+    1. /users/{user_id}/passport (public passport query)
+    2. /contributions/passport/{user_id} (alias public passport query)
+    3. /contributions/public (public stream query)
+    4. /projects/{project_id}/contributions/public (public project stream)
+    5. /projects/{project_id}/contributions (teammate non-author query)
+    6. Tampered items where visibility='public' but verification_status='needs-review'
+    7. Author personal query shows the disputed item exclusively to author for resolution.
+    """
+    author = MagicMock(id="user-builder-zoe", email="zoe@buildcrew.io")
+    reviewer = MagicMock(id="user-reviewer-max", email="max@buildcrew.io")
+
+    proj_id = "proj-legal-safety-1"
+    DEV_PROJECTS_DB[proj_id] = {
+        "id": proj_id,
+        "name": "Decentralized Credential Protocol",
+        "created_by": "user-builder-zoe",
+    }
+    DEV_PROJECT_MEMBERS_DB.append({
+        "project_id": proj_id,
+        "user_id": "user-reviewer-max",
+    })
+
+    # 1. Author logs first deliverable (valid work)
+    app.dependency_overrides[get_current_user] = lambda: author
+    resp1 = client.post(
+        f"/projects/{proj_id}/contributions",
+        json={
+            "title": "Smart Contract Audited Token Vault",
+            "category": "code",
+            "description": "ERC-4626 vault with invariant fuzz testing",
+            "visibility": "public",
+        },
+    )
+    assert resp1.status_code == 201
+    good_contrib_id = resp1.json()["id"]
+
+    # 2. Author logs second deliverable (contested deliverable)
+    resp2 = client.post(
+        f"/projects/{proj_id}/contributions",
+        json={
+            "title": "Fictitious Marketing Campaign",
+            "category": "other",
+            "description": "Unverified external marketing claims",
+            "visibility": "public",
+        },
+    )
+    assert resp2.status_code == 201
+    disputed_contrib_id = resp2.json()["id"]
+
+    # 3. Request confirmation for both
+    client.post(
+        f"/contributions/{good_contrib_id}/request-confirmation",
+        json={"reviewer_ids": ["user-reviewer-max"]},
+    )
+    client.post(
+        f"/contributions/{disputed_contrib_id}/request-confirmation",
+        json={"reviewer_ids": ["user-reviewer-max"]},
+    )
+
+    # 4. Reviewer confirms deliverable 1 -> peer-confirmed
+    app.dependency_overrides[get_current_user] = lambda: reviewer
+    confirm_res = client.post(f"/contributions/{good_contrib_id}/confirm")
+    assert confirm_res.status_code == 200
+    assert confirm_res.json()["verification_status"] == "peer-confirmed"
+
+    # 5. Reviewer disputes deliverable 2 -> needs-review & disputed
+    dispute_res = client.post(f"/contributions/{disputed_contrib_id}/dispute")
+    assert dispute_res.status_code == 200
+    assert dispute_res.json()["verification_status"] == "needs-review"
+    assert dispute_res.json()["dispute_state"] == "disputed"
+
+    # Clear dependency overrides to simulate unauthenticated public visitor
+    app.dependency_overrides.clear()
+
+    # TEST A: Public builder passport endpoint GET /users/{user_id}/passport
+    passport_resp = client.get(f"/users/{author.id}/passport")
+    assert passport_resp.status_code == 200
+    passport_data = passport_resp.json()
+    passport_ids = [c["id"] for c in passport_data["contributions"]]
+    assert good_contrib_id in passport_ids
+    assert disputed_contrib_id not in passport_ids, "Disputed contribution must be excluded from /users/{id}/passport"
+    assert passport_data["total_contributions"] == 1
+    assert passport_data["confirmed_count"] == 1
+
+    # TEST B: Alias public builder passport endpoint GET /contributions/passport/{user_id}
+    passport_alias_resp = client.get(f"/contributions/passport/{author.id}")
+    assert passport_alias_resp.status_code == 200
+    alias_ids = [c["id"] for c in passport_alias_resp.json()["contributions"]]
+    assert good_contrib_id in alias_ids
+    assert disputed_contrib_id not in alias_ids, "Disputed contribution must be excluded from /contributions/passport/{id}"
+
+    # TEST C: Public contributions stream GET /contributions/public
+    public_stream_resp = client.get(f"/contributions/public?user_id={author.id}")
+    assert public_stream_resp.status_code == 200
+    public_ids = [c["id"] for c in public_stream_resp.json()["contributions"]]
+    assert good_contrib_id in public_ids
+    assert disputed_contrib_id not in public_ids, "Disputed contribution must be excluded from /contributions/public"
+
+    # TEST D: Public project contributions stream GET /projects/{project_id}/contributions/public
+    proj_public_resp = client.get(f"/projects/{proj_id}/contributions/public")
+    assert proj_public_resp.status_code == 200
+    proj_public_ids = [c["id"] for c in proj_public_resp.json()["contributions"]]
+    assert good_contrib_id in proj_public_ids
+    assert disputed_contrib_id not in proj_public_ids, "Disputed contribution must be excluded from /projects/{id}/contributions/public"
+
+    # TEST E: Teammate Reviewer Max views project contributions feed -> disputed item is NOT visible
+    app.dependency_overrides[get_current_user] = lambda: reviewer
+    teammate_feed_resp = client.get(f"/projects/{proj_id}/contributions")
+    assert teammate_feed_resp.status_code == 200
+    teammate_ids = [c["id"] for c in teammate_feed_resp.json()["contributions"]]
+    assert good_contrib_id in teammate_ids
+    assert disputed_contrib_id not in teammate_ids, "Teammate must not see disputed needs-review contribution"
+
+    # TEST F: Tamper Simulation — even if database row mistakenly has visibility='public',
+    # status 'needs-review' MUST guarantee exclusion from all public and passport queries
+    for c in DEV_CONTRIBUTIONS_DB:
+        if c.get("id") == disputed_contrib_id:
+            c["visibility"] = "public"  # Maliciously or accidentally set to public
+            break
+
+    app.dependency_overrides.clear()
+    tamper_passport_resp = client.get(f"/users/{author.id}/passport")
+    assert tamper_passport_resp.status_code == 200
+    tamper_ids = [c["id"] for c in tamper_passport_resp.json()["contributions"]]
+    assert disputed_contrib_id not in tamper_ids, "Tampered needs-review item with visibility='public' must STILL be excluded!"
+
+    tamper_public_resp = client.get(f"/projects/{proj_id}/contributions/public")
+    assert tamper_public_resp.status_code == 200
+    tamper_proj_ids = [c["id"] for c in tamper_public_resp.json()["contributions"]]
+    assert disputed_contrib_id not in tamper_proj_ids, "Tampered needs-review item must STILL be excluded from public project view!"
+
+    # TEST G: Author Zoe views project contributions feed -> author CAN see their disputed item
+    app.dependency_overrides[get_current_user] = lambda: author
+    author_feed_resp = client.get(f"/projects/{proj_id}/contributions")
+    assert author_feed_resp.status_code == 200
+    author_ids = [c["id"] for c in author_feed_resp.json()["contributions"]]
+    assert good_contrib_id in author_ids
+    assert disputed_contrib_id in author_ids, "Author must be able to view their own disputed deliverable in their dashboard"
 
 
+def test_disputed_contribution_needs_review_excluded_from_visibility_public_queries_regardless_of_flags():
+    """
+    Guarantees that:
+    1. A contribution is created.
+    2. A teammate disputes it, transitioning status to 'needs-review' (and dispute_state to 'disputed').
+    3. The contribution is confirmed to be strictly excluded from a query filtered to visibility='public'.
+    4. Assert it NEVER appears in that result set regardless of any other flag set on it
+       (e.g., visibility='public', is_confirmed=True, featured=True, is_published=True,
+       confidence_score=1.0, tier='tier_1', status='approved', etc.).
+    """
+    author = MagicMock(id="user-author-clara", email="clara@buildcrew.io")
+    peer = MagicMock(id="user-peer-marcus", email="marcus@buildcrew.io")
 
+    proj_id = "proj-dispute-exclusion-test"
+    DEV_PROJECTS_DB[proj_id] = {
+        "id": proj_id,
+        "name": "Zero Knowledge Verification Engine",
+        "created_by": author.id,
+    }
+    DEV_PROJECT_MEMBERS_DB.append({
+        "project_id": proj_id,
+        "user_id": peer.id,
+    })
 
+    # 1. Create deliverable 1 (to be disputed)
+    app.dependency_overrides[get_current_user] = lambda: author
+    create_res1 = client.post(
+        f"/projects/{proj_id}/contributions",
+        json={
+            "title": "ZK Rollup Circuit Proof Implementation",
+            "category": "code",
+            "description": "Plonk proof generation circuit implementation with constraint checks",
+            "visibility": "public",
+        },
+    )
+    assert create_res1.status_code == 201
+    disputed_id = create_res1.json()["id"]
 
+    # Also create deliverable 2 (valid baseline item that gets peer-confirmed)
+    create_res2 = client.post(
+        f"/projects/{proj_id}/contributions",
+        json={
+            "title": "Benchmarking Framework for Rollup Prover",
+            "category": "code",
+            "description": "End-to-end circuit latency benchmarks",
+            "visibility": "public",
+        },
+    )
+    assert create_res2.status_code == 201
+    valid_id = create_res2.json()["id"]
 
+    # 2. Peer disputes deliverable 1 -> verification_status becomes 'needs-review'
+    app.dependency_overrides[get_current_user] = lambda: peer
+    dispute_res = client.post(f"/contributions/{disputed_id}/dispute")
+    assert dispute_res.status_code == 200
+    dispute_data = dispute_res.json()
+    assert dispute_data["verification_status"] == "needs-review"
+    assert dispute_data["dispute_state"] == "disputed"
+
+    # Peer confirms deliverable 2 -> peer-confirmed
+    confirm_res = client.post(f"/contributions/{valid_id}/confirm")
+    assert confirm_res.status_code == 200
+    assert confirm_res.json()["verification_status"] == "peer-confirmed"
+
+    # 3. Confirm exclusion from query filtered to visibility='public'
+    pub_query_res = client.get(f"/projects/{proj_id}/contributions?visibility=public")
+    assert pub_query_res.status_code == 200
+    returned_ids = [c["id"] for c in pub_query_res.json()["contributions"]]
+    assert disputed_id not in returned_ids, "Disputed needs-review item must be excluded from visibility='public' query!"
+    assert valid_id in returned_ids, "Valid deliverable must be present in query results."
+
+    # 4. Rigorous Flag Independence Assertion:
+    # Assert it NEVER appears in visibility='public' results regardless of any other flag on it.
+    conflicting_flag_permutations = [
+        # Flag Permutation A: Database row visibility forced to 'public'
+        {"visibility": "public"},
+        # Flag Permutation B: visibility='public' with high confidence score and featured flag
+        {"visibility": "public", "featured": True, "confidence_score": 1.0},
+        # Flag Permutation C: visibility='public' with is_confirmed=True and status='approved'
+        {"visibility": "public", "is_confirmed": True, "status": "approved"},
+        # Flag Permutation D: visibility='public' with tier='featured', starred=True, and is_verified=True
+        {"visibility": "public", "tier": "featured", "starred": True, "is_verified": True},
+        # Flag Permutation E: visibility='public' with dispute_state cleared/None and is_published=True
+        {"visibility": "public", "is_published": True, "dispute_state": None},
+        # Flag Permutation F: Kitchen-sink of positive flags while status remains 'needs-review'
+        {
+            "visibility": "public",
+            "is_published": True,
+            "featured": True,
+            "starred": True,
+            "is_verified": True,
+            "is_confirmed": True,
+            "status": "approved",
+            "tier": "tier_1",
+            "confidence_score": 0.99,
+        },
+    ]
+
+    for flags in conflicting_flag_permutations:
+        # Mutate the in-memory database row with the conflicting flags while keeping status='needs-review'
+        for c in DEV_CONTRIBUTIONS_DB:
+            if c.get("id") == disputed_id:
+                c.update(flags)
+                c["verification_status"] = "needs-review"
+                break
+
+        # A. Query filtered to visibility='public' as Peer
+        app.dependency_overrides[get_current_user] = lambda: peer
+        peer_query = client.get(f"/projects/{proj_id}/contributions?visibility=public")
+        assert peer_query.status_code == 200
+        peer_ids = [c["id"] for c in peer_query.json()["contributions"]]
+        assert disputed_id not in peer_ids, f"Leaked to peer in visibility=public under flags: {flags}"
+        assert valid_id in peer_ids
+
+        # B. Query filtered to visibility='public' as Author
+        app.dependency_overrides[get_current_user] = lambda: author
+        author_pub_query = client.get(f"/projects/{proj_id}/contributions?visibility=public")
+        assert author_pub_query.status_code == 200
+        author_pub_ids = [c["id"] for c in author_pub_query.json()["contributions"]]
+        assert disputed_id not in author_pub_ids, f"Leaked to author in visibility=public under flags: {flags}"
+        assert valid_id in author_pub_ids
+
+        # C. Dedicated Public Project Stream endpoint GET /projects/{project_id}/contributions/public
+        app.dependency_overrides.clear()
+        pub_stream_res = client.get(f"/projects/{proj_id}/contributions/public")
+        assert pub_stream_res.status_code == 200
+        stream_ids = [c["id"] for c in pub_stream_res.json()["contributions"]]
+        assert disputed_id not in stream_ids, f"Leaked in public project stream under flags: {flags}"
+        assert valid_id in stream_ids
+
+        # D. Global Public Contributions endpoint GET /contributions/public
+        global_stream_res = client.get(f"/contributions/public?project_id={proj_id}")
+        assert global_stream_res.status_code == 200
+        global_ids = [c["id"] for c in global_stream_res.json()["contributions"]]
+        assert disputed_id not in global_ids, f"Leaked in global public stream under flags: {flags}"
+        assert valid_id in global_ids
+
+        # E. Public Builder Passport endpoint GET /users/{user_id}/passport
+        passport_res = client.get(f"/users/{author.id}/passport")
+        assert passport_res.status_code == 200
+        passport_ids = [c["id"] for c in passport_res.json()["contributions"]]
+        assert disputed_id not in passport_ids, f"Leaked in user passport under flags: {flags}"
+        assert valid_id in passport_ids
+
+        # F. Alias Public Builder Passport endpoint GET /contributions/passport/{user_id}
+        alias_passport_res = client.get(f"/contributions/passport/{author.id}")
+        assert alias_passport_res.status_code == 200
+        alias_ids = [c["id"] for c in alias_passport_res.json()["contributions"]]
+        assert disputed_id not in alias_ids, f"Leaked in alias passport under flags: {flags}"
+        assert valid_id in alias_ids
 

@@ -1597,6 +1597,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
                   return ContributionCard(
                     contribution: c,
+                    isContributor: isAuthor,
+                    currentUserId: _currentUserId,
                     onRequestConfirmation: canRequestConfirmation
                         ? () => _openRequestConfirmationModal(c, project)
                         : null,

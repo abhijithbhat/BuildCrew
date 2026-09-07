@@ -141,5 +141,69 @@ void main() {
       expect(find.text('feat: add dark theme support'), findsOneWidget);
       expect(find.text('Sarah Engineer'), findsOneWidget);
     });
+
+    testWidgets('Renders needs-review indicator banner when visible to author/contributor', (tester) async {
+      final disputedContribution = Contribution(
+        id: 'c-disputed-1',
+        contributor: 'user-alex',
+        project: 'p-1',
+        title: 'Draft landing page design',
+        verificationStatus: 'needs-review',
+        disputeState: 'disputed',
+        visibility: 'private',
+        contributorName: 'Alex Author',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ContributionCard(
+              contribution: disputedContribution,
+              isContributor: true,
+              currentUserId: 'user-alex',
+            ),
+          ),
+        ),
+      );
+
+      // Verify contributor-only indicator is visible
+      expect(find.byKey(const Key('needs_review_contributor_indicator_c-disputed-1')), findsOneWidget);
+      expect(find.text('Action Required: Needs Review'), findsOneWidget);
+      expect(find.text('Hidden from Passport'), findsOneWidget);
+      expect(find.text('Needs Your Review'), findsOneWidget);
+    });
+
+    testWidgets('Hides needs-review indicator banner when viewed by non-contributor', (tester) async {
+      final disputedContribution = Contribution(
+        id: 'c-disputed-2',
+        contributor: 'user-alex',
+        project: 'p-1',
+        title: 'Draft landing page design',
+        verificationStatus: 'needs-review',
+        disputeState: 'disputed',
+        visibility: 'private',
+        contributorName: 'Alex Author',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ContributionCard(
+              contribution: disputedContribution,
+              isContributor: false,
+              currentUserId: 'user-reviewer-sara',
+            ),
+          ),
+        ),
+      );
+
+      // Verify contributor-only indicator is NOT visible to non-contributor
+      expect(find.byKey(const Key('needs_review_contributor_indicator_c-disputed-2')), findsNothing);
+      expect(find.text('Action Required: Needs Review'), findsNothing);
+      expect(find.text('Hidden from Passport'), findsNothing);
+      expect(find.text('Needs Review'), findsOneWidget);
+      expect(find.text('Needs Your Review'), findsNothing);
+    });
   });
 }
+
