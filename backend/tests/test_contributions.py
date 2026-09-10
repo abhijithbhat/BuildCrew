@@ -1942,3 +1942,173 @@ def test_disputed_contribution_needs_review_excluded_from_visibility_public_quer
         assert disputed_id not in alias_ids, f"Leaked in alias passport under flags: {flags}"
         assert valid_id in alias_ids
 
+
+def test_publish_confirmed_contribution_success():
+    """Publish endpoint toggles visibility to public for a confirmed deliverable."""
+    author = MagicMock(id="user-publish-author", email="author@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: author
+
+    contrib_id = "c-publish-confirmed-1"
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": contrib_id,
+        "project": "proj-publish-1",
+        "contributor": author.id,
+        "title": "Smart Contract Auditing",
+        "category": "security",
+        "verification_status": "confirmed",
+        "visibility": "private",
+        "dispute_state": "none",
+        "created_at": "2026-09-01T10:00:00Z",
+        "updated_at": "2026-09-01T10:00:00Z",
+    })
+
+    res = client.post(f"/contributions/{contrib_id}/publish")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["id"] == contrib_id
+    assert data["visibility"] == "public"
+
+    # Confirm updated in DB
+    updated = next(c for c in DEV_CONTRIBUTIONS_DB if c["id"] == contrib_id)
+    assert updated["visibility"] == "public"
+
+
+def test_publish_peer_confirmed_contribution_success():
+    """Publish endpoint toggles visibility to public for a peer-confirmed deliverable."""
+    author = MagicMock(id="user-publish-peer-author", email="peer_author@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: author
+
+    contrib_id = "c-publish-peer-confirmed-1"
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": contrib_id,
+        "project": "proj-publish-1",
+        "contributor": author.id,
+        "title": "Flutter Architecture Refactor",
+        "category": "frontend",
+        "verification_status": "peer-confirmed",
+        "visibility": "private",
+        "dispute_state": "none",
+        "created_at": "2026-09-01T10:00:00Z",
+        "updated_at": "2026-09-01T10:00:00Z",
+    })
+
+    res = client.post(f"/contributions/{contrib_id}/publish")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["visibility"] == "public"
+
+
+def test_publish_unconfirmed_contribution_fails_with_400():
+    """Strict Defense-in-Depth Guard: Unconfirmed (pending, self-declared) cannot be published."""
+    author = MagicMock(id="user-publish-unconfirmed-author", email="unconfirmed@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: author
+
+    for status_val in ["pending", "self-declared", "draft", "source-verified"]:
+        cid = f"c-unconfirmed-{status_val}"
+        DEV_CONTRIBUTIONS_DB.append({
+            "id": cid,
+            "project": "proj-publish-1",
+            "contributor": author.id,
+            "title": f"Feature {status_val}",
+            "category": "code",
+            "verification_status": status_val,
+            "visibility": "private",
+            "dispute_state": "none",
+            "created_at": "2026-09-01T10:00:00Z",
+            "updated_at": "2026-09-01T10:00:00Z",
+        })
+
+        res = client.post(f"/contributions/{cid}/publish")
+        assert res.status_code == 400, f"Expected 400 for status {status_val}, got {res.status_code}"
+        assert "Only confirmed contributions can be published" in res.json()["detail"]
+
+
+def test_publish_disputed_or_needs_review_fails_with_400():
+    """Disputed / needs-review contributions must NEVER be publishable."""
+    author = MagicMock(id="user-publish-disputed-author", email="disputed@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: author
+
+    cid = "c-disputed-publish-test"
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": cid,
+        "project": "proj-publish-1",
+        "contributor": author.id,
+        "title": "Disputed Delivery",
+        "category": "code",
+        "verification_status": "needs-review",
+        "visibility": "private",
+        "dispute_state": "disputed",
+        "created_at": "2026-09-01T10:00:00Z",
+        "updated_at": "2026-09-01T10:00:00Z",
+    })
+
+    res = client.post(f"/contributions/{cid}/publish")
+    assert res.status_code == 400
+    assert "Only confirmed contributions can be published" in res.json()["detail"]
+
+
+def test_unpublish_contribution_success():
+    """Unpublish endpoint toggles visibility to private."""
+    author = MagicMock(id="user-unpublish-author", email="author@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: author
+
+    cid = "c-unpublish-test-1"
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": cid,
+        "project": "proj-publish-1",
+        "contributor": author.id,
+        "title": "CI/CD Pipeline Setup",
+        "category": "devops",
+        "verification_status": "confirmed",
+        "visibility": "public",
+        "dispute_state": "none",
+        "created_at": "2026-09-01T10:00:00Z",
+        "updated_at": "2026-09-01T10:00:00Z",
+    })
+
+    res = client.post(f"/contributions/{cid}/unpublish")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["visibility"] == "private"
+
+    updated = next(c for c in DEV_CONTRIBUTIONS_DB if c["id"] == cid)
+    assert updated["visibility"] == "private"
+
+
+def test_publish_unpublish_unauthorized_fails_with_403():
+    """Non-author and non-owner cannot publish or unpublish."""
+    author = MagicMock(id="user-auth-owner", email="owner@buildcrew.io")
+    intruder = MagicMock(id="user-intruder", email="intruder@buildcrew.io")
+
+    cid = "c-auth-test-1"
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": cid,
+        "project": "proj-publish-1",
+        "contributor": author.id,
+        "title": "Private Module",
+        "verification_status": "confirmed",
+        "visibility": "private",
+        "created_at": "2026-09-01T10:00:00Z",
+        "updated_at": "2026-09-01T10:00:00Z",
+    })
+
+    app.dependency_overrides[get_current_user] = lambda: intruder
+    pub_res = client.post(f"/contributions/{cid}/publish")
+    assert pub_res.status_code == 403
+
+    unpub_res = client.post(f"/contributions/{cid}/unpublish")
+    assert unpub_res.status_code == 403
+
+
+def test_publish_unpublish_not_found_fails_with_404():
+    """Nonexistent contribution returns 404."""
+    user = MagicMock(id="user-any", email="user@buildcrew.io")
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    pub_res = client.post("/contributions/nonexistent-id-999/publish")
+    assert pub_res.status_code == 404
+
+    unpub_res = client.post("/contributions/nonexistent-id-999/unpublish")
+    assert unpub_res.status_code == 404
+
+

@@ -6,6 +6,7 @@ import '../services/storage_service.dart';
 import '../widgets/contribution_card.dart';
 import '../widgets/request_confirmation_modal.dart';
 import 'add_contribution_screen.dart';
+import 'publish_selection_screen.dart';
 
 class MyContributionsScreen extends StatefulWidget {
   static const String routeName = '/my-contributions';
@@ -249,12 +250,17 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Icon(icon, color: color, size: 18),
-                    Text(
-                      value,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          value,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -503,6 +509,21 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            key: const Key('my_contributions_passport_btn'),
+            icon: const Icon(Icons.verified_user_outlined, color: Color(0xFF60A5FA)),
+            tooltip: 'Passport Visibility',
+            onPressed: () {
+              Navigator.pushNamed(
+                context,
+                PublishSelectionScreen.routeName,
+                arguments: {
+                  'projectId': _resolvedProjectId,
+                  'projectName': widget.project?.name ?? 'Project',
+                },
+              );
+            },
+          ),
           IconButton(
             key: const Key('my_contributions_refresh_btn'),
             icon: const Icon(Icons.refresh_rounded, color: Colors.blueAccent),

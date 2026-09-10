@@ -347,6 +347,8 @@ async def delete_contribution(
             .execute()
         )
         if not c_res.data or len(c_res.data) == 0:
+            if any(c.get("id") == contribution_id for c in DEV_CONTRIBUTIONS_DB):
+                raise Exception("LOCAL DEV FALLBACK: contribution in dev store")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Contribution not found.",
@@ -469,6 +471,8 @@ async def request_peer_confirmation(
             .execute()
         )
         if not c_res.data or len(c_res.data) == 0:
+            if any(c.get("id") == contribution_id for c in DEV_CONTRIBUTIONS_DB):
+                raise Exception("LOCAL DEV FALLBACK: contribution in dev store")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Contribution not found.",
@@ -719,6 +723,8 @@ async def confirm_contribution(
             .execute()
         )
         if not c_res.data or len(c_res.data) == 0:
+            if any(c.get("id") == contribution_id for c in DEV_CONTRIBUTIONS_DB):
+                raise Exception("LOCAL DEV FALLBACK: contribution in dev store")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Contribution not found.",
@@ -921,6 +927,8 @@ async def dispute_contribution(
             .execute()
         )
         if not c_res.data or len(c_res.data) == 0:
+            if any(c.get("id") == contribution_id for c in DEV_CONTRIBUTIONS_DB):
+                raise Exception("LOCAL DEV FALLBACK: contribution in dev store")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Contribution not found.",
@@ -1092,6 +1100,335 @@ async def dispute_contribution(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to dispute contribution: {err_msg}",
         )
+
+
+@router.post(
+    "/{contribution_id}/publish",
+    response_model=ContributionResponse,
+    status_code=status.HTTP_200_OK,
+)
+@router.post(
+    "/{contribution_id}/publish/",
+    response_model=ContributionResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+async def publish_contribution(
+    contribution_id: str,
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Publish a confirmed contribution to the public passport, toggling visibility to 'public'.
+    Strictly rejects with 400 if verification_status is not 'confirmed' or 'peer-confirmed',
+    or if the deliverable is disputed/needs-review.
+    """
+    user_id = _get_user_id(current_user)
+
+    try:
+        supabase = get_supabase_client()
+
+        # 1. Fetch contribution
+        c_res = (
+            supabase.table("contributions")
+            .select("*")
+            .eq("id", contribution_id)
+            .execute()
+        )
+        if not c_res.data or len(c_res.data) == 0:
+            if any(c.get("id") == contribution_id for c in DEV_CONTRIBUTIONS_DB):
+                raise Exception("LOCAL DEV FALLBACK: contribution in dev store")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Contribution not found.",
+            )
+        contribution = c_res.data[0]
+
+        # 2. Ownership / Authorization check
+        is_author = (
+            contribution.get("contributor") == user_id
+            or contribution.get("contributor_id") == user_id
+        )
+        target_project_id = contribution.get("project") or contribution.get("project_id")
+        is_lead = False
+        if target_project_id:
+            try:
+                proj_res = (
+                    supabase.table("projects")
+                    .select("created_by")
+                    .eq("id", target_project_id)
+                    .single()
+                    .execute()
+                )
+                if proj_res.data and proj_res.data.get("created_by") == user_id:
+                    is_lead = True
+            except Exception:
+                pass
+
+        if not is_author and not is_lead:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to modify this contribution's visibility.",
+            )
+
+        # 3. Strict Defense-in-Depth Verification Guard:
+        # Only confirmed contributions can ever be made public.
+        v_status = contribution.get("verification_status")
+        d_state = contribution.get("dispute_state")
+        if v_status not in ("confirmed", "peer-confirmed") or d_state == "disputed" or v_status == "needs-review":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only confirmed contributions can be published to your passport.",
+            )
+
+        # 4. Update visibility to 'public'
+        now_iso = datetime.now(timezone.utc).isoformat()
+        update_payload = {
+            "visibility": "public",
+            "updated_at": now_iso,
+        }
+        upd_res = (
+            supabase.table("contributions")
+            .update(update_payload)
+            .eq("id", contribution_id)
+            .execute()
+        )
+        updated_contrib = (
+            upd_res.data[0]
+            if upd_res.data and len(upd_res.data) > 0
+            else {**contribution, **update_payload}
+        )
+
+        # 5. Hydrate contributor profile/name if needed
+        cid = updated_contrib.get("contributor")
+        try:
+            prof_res = (
+                supabase.table("profiles")
+                .select("*")
+                .eq("id", cid)
+                .single()
+                .execute()
+            )
+            prof_data = prof_res.data or {}
+            updated_contrib["contributor_name"] = (
+                prof_data.get("display_name")
+                or prof_data.get("email")
+                or f"User {cid[:8]}"
+            )
+            updated_contrib["contributor_profile"] = prof_data
+        except Exception:
+            pass
+
+        return updated_contrib
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        err_msg = str(e)
+        if _is_dev_fallback_error(err_msg):
+            # Local Dev Fallback
+            matching = [c for c in DEV_CONTRIBUTIONS_DB if c.get("id") == contribution_id]
+            if not matching:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Contribution not found.",
+                )
+            contribution = matching[0]
+
+            # Authorization Check
+            is_author = (
+                contribution.get("contributor") == user_id
+                or contribution.get("contributor_id") == user_id
+            )
+            target_project_id = contribution.get("project") or contribution.get("project_id")
+            project_data = DEV_PROJECTS_DB.get(target_project_id, {})
+            is_lead = project_data.get("created_by") == user_id
+            if not is_author and not is_lead:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You are not authorized to modify this contribution's visibility.",
+                )
+
+            # Strict Guard: Only confirmed deliverables can be made public
+            v_status = contribution.get("verification_status")
+            d_state = contribution.get("dispute_state")
+            if v_status not in ("confirmed", "peer-confirmed") or d_state == "disputed" or v_status == "needs-review":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Only confirmed contributions can be published to your passport.",
+                )
+
+            now_iso = datetime.now(timezone.utc).isoformat()
+            if not contribution.get("created_at"):
+                contribution["created_at"] = now_iso
+            contribution["visibility"] = "public"
+            contribution["updated_at"] = now_iso
+
+            cid = contribution.get("contributor")
+            if cid and not contribution.get("contributor_name"):
+                contribution["contributor_name"] = DEV_USER_NAMES_DB.get(cid, f"User {cid[:8]}")
+
+            _save_dev_data()
+            return contribution
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to publish contribution: {err_msg}",
+        )
+
+
+@router.post(
+    "/{contribution_id}/unpublish",
+    response_model=ContributionResponse,
+    status_code=status.HTTP_200_OK,
+)
+@router.post(
+    "/{contribution_id}/unpublish/",
+    response_model=ContributionResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+async def unpublish_contribution(
+    contribution_id: str,
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Unpublish a contribution from the public passport, toggling visibility to 'private'.
+    Allows builders to selectively conceal deliverables.
+    """
+    user_id = _get_user_id(current_user)
+
+    try:
+        supabase = get_supabase_client()
+
+        # 1. Fetch contribution
+        c_res = (
+            supabase.table("contributions")
+            .select("*")
+            .eq("id", contribution_id)
+            .execute()
+        )
+        if not c_res.data or len(c_res.data) == 0:
+            if any(c.get("id") == contribution_id for c in DEV_CONTRIBUTIONS_DB):
+                raise Exception("LOCAL DEV FALLBACK: contribution in dev store")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Contribution not found.",
+            )
+        contribution = c_res.data[0]
+
+        # 2. Ownership / Authorization check
+        is_author = (
+            contribution.get("contributor") == user_id
+            or contribution.get("contributor_id") == user_id
+        )
+        target_project_id = contribution.get("project") or contribution.get("project_id")
+        is_lead = False
+        if target_project_id:
+            try:
+                proj_res = (
+                    supabase.table("projects")
+                    .select("created_by")
+                    .eq("id", target_project_id)
+                    .single()
+                    .execute()
+                )
+                if proj_res.data and proj_res.data.get("created_by") == user_id:
+                    is_lead = True
+            except Exception:
+                pass
+
+        if not is_author and not is_lead:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to modify this contribution's visibility.",
+            )
+
+        # 3. Update visibility to 'private'
+        now_iso = datetime.now(timezone.utc).isoformat()
+        update_payload = {
+            "visibility": "private",
+            "updated_at": now_iso,
+        }
+        upd_res = (
+            supabase.table("contributions")
+            .update(update_payload)
+            .eq("id", contribution_id)
+            .execute()
+        )
+        updated_contrib = (
+            upd_res.data[0]
+            if upd_res.data and len(upd_res.data) > 0
+            else {**contribution, **update_payload}
+        )
+
+        # 4. Hydrate contributor profile/name if needed
+        cid = updated_contrib.get("contributor")
+        try:
+            prof_res = (
+                supabase.table("profiles")
+                .select("*")
+                .eq("id", cid)
+                .single()
+                .execute()
+            )
+            prof_data = prof_res.data or {}
+            updated_contrib["contributor_name"] = (
+                prof_data.get("display_name")
+                or prof_data.get("email")
+                or f"User {cid[:8]}"
+            )
+            updated_contrib["contributor_profile"] = prof_data
+        except Exception:
+            pass
+
+        return updated_contrib
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        err_msg = str(e)
+        if _is_dev_fallback_error(err_msg):
+            # Local Dev Fallback
+            matching = [c for c in DEV_CONTRIBUTIONS_DB if c.get("id") == contribution_id]
+            if not matching:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Contribution not found.",
+                )
+            contribution = matching[0]
+
+            # Authorization Check
+            is_author = (
+                contribution.get("contributor") == user_id
+                or contribution.get("contributor_id") == user_id
+            )
+            target_project_id = contribution.get("project") or contribution.get("project_id")
+            project_data = DEV_PROJECTS_DB.get(target_project_id, {})
+            is_lead = project_data.get("created_by") == user_id
+            if not is_author and not is_lead:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You are not authorized to modify this contribution's visibility.",
+                )
+
+            now_iso = datetime.now(timezone.utc).isoformat()
+            if not contribution.get("created_at"):
+                contribution["created_at"] = now_iso
+            contribution["visibility"] = "private"
+            contribution["updated_at"] = now_iso
+
+            cid = contribution.get("contributor")
+            if cid and not contribution.get("contributor_name"):
+                contribution["contributor_name"] = DEV_USER_NAMES_DB.get(cid, f"User {cid[:8]}")
+
+            _save_dev_data()
+            return contribution
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to unpublish contribution: {err_msg}",
+        )
+
 
 
 @router.get(

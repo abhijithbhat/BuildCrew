@@ -134,6 +134,8 @@ def _is_dev_fallback_error(err_msg: str) -> bool:
             "foreign key",
             "23503",
             "is not present in table",
+            "dev_fallback",
+            "local dev fallback",
         )
     )
     if matched:

@@ -590,6 +590,38 @@ class ProjectService {
       throw _parseDioError(e);
     }
   }
+
+  /// Publish a confirmed contribution to the public passport.
+  Future<Contribution> publishContribution(String contributionId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _postWithFallback(
+        '/contributions/$contributionId/publish',
+        {},
+        options: options,
+      );
+      final data = response.data as Map<String, dynamic>;
+      return Contribution.fromJson(data);
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Unpublish a contribution from the public passport, toggling visibility to private.
+  Future<Contribution> unpublishContribution(String contributionId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _postWithFallback(
+        '/contributions/$contributionId/unpublish',
+        {},
+        options: options,
+      );
+      final data = response.data as Map<String, dynamic>;
+      return Contribution.fromJson(data);
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
 }
 
 

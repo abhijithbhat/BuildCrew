@@ -430,49 +430,61 @@ class ContributionCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: sourceColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: sourceColor.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(_getSourceIcon(), size: 13, color: sourceColor),
-                          const SizedBox(width: 4),
-                          Text(
-                            _getSourceLabel(),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: sourceColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildStatusChip(),
-                        if (onDelete != null) ...[
-                          const SizedBox(width: 6),
-                          InkWell(
-                            onTap: onDelete,
-                            borderRadius: BorderRadius.circular(6),
-                            child: Padding(
-                              padding: const EdgeInsets.all(2.0),
-                              child: Icon(
-                                Icons.delete_outline_rounded,
-                                size: 16,
-                                color: Colors.grey.shade400,
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: sourceColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: sourceColor.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(_getSourceIcon(), size: 13, color: sourceColor),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                _getSourceLabel(),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: sourceColor,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Flexible(
+                            child: _buildStatusChip(),
                           ),
+                          if (onDelete != null) ...[
+                            const SizedBox(width: 6),
+                            InkWell(
+                              onTap: onDelete,
+                              borderRadius: BorderRadius.circular(6),
+                              child: Padding(
+                                padding: const EdgeInsets.all(2.0),
+                                child: Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 16,
+                                  color: Colors.grey.shade400,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -508,7 +520,10 @@ class ContributionCard extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
+                              Wrap(
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                runSpacing: 4,
                                 children: [
                                   Text(
                                     'Action Required: Needs Review',
@@ -518,20 +533,24 @@ class ContributionCard extends StatelessWidget {
                                       color: Color(0xFF991B1B),
                                     ),
                                   ),
-                                  Spacer(),
-                                  Icon(
-                                    Icons.visibility_off_outlined,
-                                    size: 13,
-                                    color: Color(0xFFDC2626),
-                                  ),
-                                  SizedBox(width: 3),
-                                  Text(
-                                    'Hidden from Passport',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFFDC2626),
-                                    ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.visibility_off_outlined,
+                                        size: 13,
+                                        color: Color(0xFFDC2626),
+                                      ),
+                                      SizedBox(width: 3),
+                                      Text(
+                                        'Hidden from Passport',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFFDC2626),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),

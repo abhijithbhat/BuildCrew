@@ -8,6 +8,7 @@ import '../widgets/contribution_card.dart';
 import '../widgets/request_confirmation_modal.dart';
 import 'add_contribution_screen.dart';
 import 'my_contributions_screen.dart';
+import 'publish_selection_screen.dart';
 import 'repo_status_screen.dart';
 import 'team_roles_screen.dart';
 
@@ -1035,6 +1036,21 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         foregroundColor: Colors.black87,
         actions: [
           IconButton(
+            key: const Key('project_detail_publish_selection_btn'),
+            icon: const Icon(Icons.verified_user_outlined, color: Colors.blueAccent),
+            tooltip: 'Select for Passport',
+            onPressed: () {
+              Navigator.pushNamed(
+                context,
+                PublishSelectionScreen.routeName,
+                arguments: {
+                  'projectId': project.id,
+                  'projectName': project.name,
+                },
+              );
+            },
+          ),
+          IconButton(
             icon: _isGeneratingInvite
                 ? const SizedBox(
                     width: 18,
@@ -1382,36 +1398,41 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.history_edu_rounded, color: Color(0xFF2563EB), size: 22),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Contribution Stream',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${_contributions.length}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF2563EB),
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.history_edu_rounded, color: Color(0xFF2563EB), size: 22),
+                      const SizedBox(width: 8),
+                      const Flexible(
+                        child: Text(
+                          'Contribution Stream',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${_contributions.length}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2563EB),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.refresh_rounded, size: 20, color: Colors.blueAccent),
