@@ -167,7 +167,7 @@ void main() {
   });
 
   testWidgets(
-      'checking an unchecked box optimistically selects it and calls publishContribution',
+      'checking an unchecked box stages selection and tapping Save Passport calls publishContribution',
       (tester) async {
     final mockService = MockPublishProjectService();
     Set<String>? currentSelection;
@@ -182,18 +182,24 @@ void main() {
     // Initially c-2 is private (unselected), c-1 is public (selected)
     expect(find.text('1 of 2 selected'), findsOneWidget);
 
-    // Tap c-2 checkbox to publish
+    // Tap c-2 checkbox to stage for publishing (does NOT call service yet)
     await tester.tap(find.byKey(const Key('publish_checkbox_c-2')));
     await tester.pumpAndSettle();
 
-    // Verify service was called with c-2
-    expect(mockService.publishedIds, contains('c-2'));
+    expect(mockService.publishedIds, isEmpty);
     expect(find.text('2 of 2 selected'), findsOneWidget);
     expect(currentSelection?.contains('c-2'), isTrue);
+
+    // Tap Save Passport to commit
+    await tester.tap(find.byKey(const Key('publish_save_button')));
+    await tester.pumpAndSettle();
+
+    // Verify service was called on save
+    expect(mockService.publishedIds, contains('c-2'));
   });
 
   testWidgets(
-      'unchecking a checked box optimistically unselects it and calls unpublishContribution',
+      'unchecking a checked box stages unselection and tapping Save Passport calls unpublishContribution',
       (tester) async {
     final mockService = MockPublishProjectService();
     Set<String>? currentSelection;
@@ -208,18 +214,23 @@ void main() {
     // Initially c-1 is public (selected)
     expect(find.text('1 of 2 selected'), findsOneWidget);
 
-    // Tap c-1 card to unpublish
+    // Tap c-1 card to stage for unpublishing
     await tester.tap(find.text('Solidity Smart Contract Implementation'));
     await tester.pumpAndSettle();
 
-    // Verify service was called with c-1
-    expect(mockService.unpublishedIds, contains('c-1'));
+    expect(mockService.unpublishedIds, isEmpty);
     expect(find.text('0 of 2 selected'), findsOneWidget);
     expect(currentSelection?.contains('c-1'), isFalse);
+
+    // Tap Save Passport to commit
+    await tester.tap(find.byKey(const Key('publish_save_button')));
+    await tester.pumpAndSettle();
+
+    expect(mockService.unpublishedIds, contains('c-1'));
   });
 
   testWidgets(
-      'rollback on publish error: reverts checkbox to unchecked and displays error snackbar',
+      'error on Save Passport: displays error snackbar',
       (tester) async {
     final mockService = MockPublishProjectService()..shouldFailPublish = true;
 
@@ -229,12 +240,13 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // Tap c-2 to publish
+    // Tap c-2 to stage for publishing
     await tester.tap(find.byKey(const Key('publish_checkbox_c-2')));
     await tester.pumpAndSettle();
 
-    // Checkbox must revert back to unchecked (1 of 2 selected)
-    expect(find.text('1 of 2 selected'), findsOneWidget);
+    // Tap Save Passport
+    await tester.tap(find.byKey(const Key('publish_save_button')));
+    await tester.pumpAndSettle();
 
     // Red error snackbar displayed with backend guard detail
     expect(find.byType(SnackBar), findsOneWidget);
@@ -245,7 +257,7 @@ void main() {
   });
 
   testWidgets(
-      'rollback on unpublish error: reverts checkbox to checked and displays error snackbar',
+      'error on Save Passport unpublish: displays error snackbar',
       (tester) async {
     final mockService = MockPublishProjectService()..shouldFailUnpublish = true;
 
@@ -255,12 +267,14 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // Tap c-1 to unpublish
+    // Tap c-1 to stage for unpublishing
     await tester.tap(find.byKey(const Key('publish_checkbox_c-1')));
     await tester.pumpAndSettle();
 
-    // Checkbox must revert back to checked (1 of 2 selected)
-    expect(find.text('1 of 2 selected'), findsOneWidget);
+    // Tap Save Passport
+    await tester.tap(find.byKey(const Key('publish_save_button')));
+    await tester.pumpAndSettle();
+
     expect(find.byType(SnackBar), findsOneWidget);
     expect(
       find.textContaining('Failed to unpublish contribution'),
@@ -285,7 +299,7 @@ void main() {
     expect(find.text('1 of 2 selected'), findsOneWidget);
   });
 
-  testWidgets('Select All calls publish for all unselected items', (tester) async {
+  testWidgets('Select All stages selection for all unselected items and Save Passport publishes them', (tester) async {
     final mockService = MockPublishProjectService();
 
     await tester.pumpWidget(createTestWidget(
@@ -298,11 +312,17 @@ void main() {
     await tester.tap(find.byKey(const Key('publish_toggle_all_btn')));
     await tester.pumpAndSettle();
 
-    expect(mockService.publishedIds, contains('c-2'));
+    expect(mockService.publishedIds, isEmpty);
     expect(find.text('2 of 2 selected'), findsOneWidget);
+
+    // Tap Save Passport
+    await tester.tap(find.byKey(const Key('publish_save_button')));
+    await tester.pumpAndSettle();
+
+    expect(mockService.publishedIds, contains('c-2'));
   });
 
-  testWidgets('Deselect All calls unpublish for all selected items',
+  testWidgets('Deselect All stages unselection and Save Passport unpublishes all selected items',
       (tester) async {
     final mockService = MockPublishProjectService();
 
@@ -338,9 +358,15 @@ void main() {
     await tester.tap(find.byKey(const Key('publish_toggle_all_btn')));
     await tester.pumpAndSettle();
 
+    expect(mockService.unpublishedIds, isEmpty);
+    expect(find.text('0 of 2 selected'), findsOneWidget);
+
+    // Tap Save Passport
+    await tester.tap(find.byKey(const Key('publish_save_button')));
+    await tester.pumpAndSettle();
+
     expect(mockService.unpublishedIds, contains('c-1'));
     expect(mockService.unpublishedIds, contains('c-2'));
-    expect(find.text('0 of 2 selected'), findsOneWidget);
   });
 
   testWidgets('search query filters confirmed contributions', (tester) async {
@@ -388,7 +414,7 @@ void main() {
 
     expect(onSaveCalled, isTrue);
     expect(find.byType(SnackBar), findsOneWidget);
-    expect(find.textContaining('Updated passport: 1 deliverables published.'),
+    expect(find.textContaining('Updated passport: 1 deliverable published.'),
         findsOneWidget);
   });
 }

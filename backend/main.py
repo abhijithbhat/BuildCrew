@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from core.logging import logger
+from core.templates import templates
 from routers.auth import router as auth_router
 from routers.contributions import router as contributions_router
 from routers.github import router as github_router
@@ -53,8 +54,54 @@ app.include_router(github_router)
 app.include_router(contributions_router)
 
 # Public Passport Endpoints
-from routers.contributions import get_user_passport
-from schemas.contribution import UserPassportResponse
+from typing import Optional
+from routers.contributions import get_project_passport, get_user_passport
+from schemas.contribution import ProjectPassportResponse, UserPassportResponse
+
+@app.get(
+    "/passport/{user_id}/{project_id}",
+    response_model=ProjectPassportResponse,
+    tags=["Passport"],
+    summary="Get public project-scoped contribution passport",
+)
+@app.get(
+    "/passport/{user_id}/{project_id}/",
+    response_model=ProjectPassportResponse,
+    tags=["Passport"],
+    include_in_schema=False,
+)
+async def get_project_passport_endpoint(
+    request: Request,
+    user_id: str,
+    project_id: str,
+    format: Optional[str] = None,
+):
+    """
+    Public (no-authentication-required) endpoint for viewing a builder's verified passport
+    for a specific project. Returns ONLY published contributions, strictly excluding
+    any unconfirmed, private, or disputed items.
+    """
+    passport_data = await get_project_passport(user_id, project_id)
+
+    # If client specifically accepts text/html and passport.html exists, render Jinja2 template
+    import os
+    from core.templates import TEMPLATES_DIR, templates
+    template_path = os.path.join(TEMPLATES_DIR, "passport.html")
+    accept_header = request.headers.get("accept", "")
+
+    if format != "json" and "text/html" in accept_header and os.path.exists(template_path):
+        return templates.TemplateResponse(
+            request=request,
+            name="passport.html",
+            context={
+                "passport": passport_data.model_dump(),
+                "user_id": user_id,
+                "project_id": project_id,
+            },
+        )
+
+    return passport_data
+
 
 @app.get(
     "/users/{user_id}/passport",
@@ -96,6 +143,7 @@ async def get_user_contributions_endpoint(user_id: str):
     or visibility 'private' is strictly excluded.
     """
     return await get_user_passport(user_id)
+
 
 # Mount static files directory for local dev evidence uploads
 import os

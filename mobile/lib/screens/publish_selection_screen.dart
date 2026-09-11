@@ -37,7 +37,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
 
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _selectedIds = {};
-  final Set<String> _updatingIds = {};
+  bool _isSaving = false;
 
   List<Contribution> _confirmedContributions = [];
   String _searchQuery = '';
@@ -161,60 +161,103 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
     }).toList();
   }
 
-  Future<void> _toggleItem(Contribution item) async {
+  void _toggleItem(Contribution item) {
+    if (_isSaving) return;
     final id = item.id;
-    if (_updatingIds.contains(id)) return; // Prevent concurrent requests for same item
-
-    final wasSelected = _selectedIds.contains(id);
-    final willSelect = !wasSelected;
-
-    // 1. Optimistic UI update
     setState(() {
-      if (willSelect) {
-        _selectedIds.add(id);
-      } else {
+      if (_selectedIds.contains(id)) {
         _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
       }
-      _updatingIds.add(id);
     });
     widget.onSelectionChanged?.call(Set.from(_selectedIds));
+  }
 
-    // 2. Call backend endpoint
-    try {
-      if (willSelect) {
-        final updated = await _projectService.publishContribution(id);
-        if (!mounted) return;
-        _updateContributionInList(updated);
-      } else {
-        final updated = await _projectService.unpublishContribution(id);
-        if (!mounted) return;
-        _updateContributionInList(updated);
+  void _selectAll() {
+    if (_isSaving) return;
+    setState(() {
+      for (final c in _filteredContributions) {
+        _selectedIds.add(c.id);
       }
-    } catch (e) {
-      if (!mounted) return;
+    });
+    widget.onSelectionChanged?.call(Set.from(_selectedIds));
+  }
 
-      // 3. Rollback on failure
-      setState(() {
-        if (willSelect) {
-          _selectedIds.remove(id);
-        } else {
-          _selectedIds.add(id);
+  void _deselectAll() {
+    if (_isSaving) return;
+    setState(() {
+      for (final c in _filteredContributions) {
+        _selectedIds.remove(c.id);
+      }
+    });
+    widget.onSelectionChanged?.call(Set.from(_selectedIds));
+  }
+
+  Future<void> _savePassport() async {
+    if (_isSaving) return;
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final toPublish = _confirmedContributions
+          .where((c) => _selectedIds.contains(c.id) && c.visibility.toLowerCase() != 'public')
+          .map((c) => c.id)
+          .toList();
+
+      final toUnpublish = _confirmedContributions
+          .where((c) => !_selectedIds.contains(c.id) && c.visibility.toLowerCase() == 'public')
+          .map((c) => c.id)
+          .toList();
+
+      final futures = <Future<Contribution>>[];
+      for (final id in toPublish) {
+        futures.add(_projectService.publishContribution(id));
+      }
+      for (final id in toUnpublish) {
+        futures.add(_projectService.unpublishContribution(id));
+      }
+
+      if (futures.isNotEmpty) {
+        final results = await Future.wait(futures);
+        if (!mounted) return;
+        for (final updated in results) {
+          _updateContributionInList(updated);
         }
-      });
-      widget.onSelectionChanged?.call(Set.from(_selectedIds));
+      }
 
+      if (!mounted) return;
+      widget.onSave?.call();
+
+      final totalSelected = _selectedIds.length;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.error_outline_rounded,
-                  color: Colors.white, size: 20),
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  e.toString(),
-                  style: const TextStyle(fontSize: 13),
+                  'Updated passport: $totalSelected deliverable${totalSelected == 1 ? "" : "s"} published.',
                 ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(e.toString()),
               ),
             ],
           ),
@@ -225,7 +268,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
     } finally {
       if (mounted) {
         setState(() {
-          _updatingIds.remove(id);
+          _isSaving = false;
         });
       }
     }
@@ -238,24 +281,6 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
         _confirmedContributions[index] = updated;
       }
     });
-  }
-
-  Future<void> _selectAll() async {
-    final toPublish = _filteredContributions
-        .where((c) => !_selectedIds.contains(c.id))
-        .toList();
-    for (final c in toPublish) {
-      await _toggleItem(c);
-    }
-  }
-
-  Future<void> _deselectAll() async {
-    final toUnpublish = _filteredContributions
-        .where((c) => _selectedIds.contains(c.id))
-        .toList();
-    for (final c in toUnpublish) {
-      await _toggleItem(c);
-    }
   }
 
   Color _getCategoryColor(String? category) {
@@ -356,219 +381,233 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          // Header summary card
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF334155)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB).withAlpha(40),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFF3B82F6).withAlpha(80),
+      body: RefreshIndicator(
+        onRefresh: _fetchContributions,
+        color: const Color(0xFF2563EB),
+        backgroundColor: const Color(0xFF151C2C),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header summary card
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF334155)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2563EB).withAlpha(40),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFF3B82F6).withAlpha(80),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.verified_user_rounded,
+                                color: Color(0xFF60A5FA),
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Public Passport Visibility',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Choose which confirmed deliverables are featured on your public passport profile. Unchecked items remain private to your team.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF94A3B8),
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        // Stats badges row
+                        Row(
+                          children: [
+                            _buildStatBadge(
+                              label: 'Published',
+                              count: totalSelected,
+                              color: const Color(0xFF10B981),
+                              icon: Icons.public_rounded,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildStatBadge(
+                              label: 'Private',
+                              count: totalConfirmed - totalSelected > 0
+                                  ? totalConfirmed - totalSelected
+                                  : 0,
+                              color: const Color(0xFF64748B),
+                              icon: Icons.lock_outline_rounded,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildStatBadge(
+                              label: 'Confirmed',
+                              count: totalConfirmed,
+                              color: const Color(0xFF3B82F6),
+                              icon: Icons.check_circle_outline_rounded,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Search & filter field
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      key: const Key('publish_search_field'),
+                      controller: _searchController,
+                      onChanged: (val) {
+                        setState(() {
+                          _searchQuery = val;
+                        });
+                      },
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFF151C2C),
+                        hintText: 'Search confirmed deliverables...',
+                        hintStyle: const TextStyle(
+                          color: Color(0xFFB0BEC5),
+                          fontSize: 13,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          color: Color(0xFF94A3B8),
+                          size: 20,
+                        ),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear_rounded,
+                                    color: Color(0xFF94A3B8), size: 18),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchQuery = '';
+                                  });
+                                },
+                              )
+                            : null,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFF1E293B)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFF1E293B)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFF2563EB)),
                         ),
                       ),
-                      child: const Icon(
-                        Icons.verified_user_rounded,
-                        color: Color(0xFF60A5FA),
-                        size: 24,
-                      ),
                     ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Error banner if initial fetch failed
+                  if (_errorMessage != null)
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withAlpha(25),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.red.withAlpha(70)),
+                      ),
+                      child: Row(
                         children: [
-                          Text(
-                            'Public Passport Visibility',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                          const Icon(Icons.error_outline_rounded,
+                              color: Colors.redAccent, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(color: Colors.redAccent, fontSize: 13),
                             ),
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Choose which confirmed deliverables are featured on your public passport profile. Unchecked items remain private to your team.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF94A3B8),
-                              height: 1.4,
-                            ),
+                          TextButton(
+                            onPressed: _fetchContributions,
+                            child: const Text('Retry', style: TextStyle(color: Colors.redAccent)),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                // Stats badges row
-                Row(
-                  children: [
-                    _buildStatBadge(
-                      label: 'Published',
-                      count: totalSelected,
-                      color: const Color(0xFF10B981),
-                      icon: Icons.public_rounded,
-                    ),
-                    const SizedBox(width: 8),
-                    _buildStatBadge(
-                      label: 'Private',
-                      count: totalConfirmed - totalSelected > 0
-                          ? totalConfirmed - totalSelected
-                          : 0,
-                      color: const Color(0xFF64748B),
-                      icon: Icons.lock_outline_rounded,
-                    ),
-                    const SizedBox(width: 8),
-                    _buildStatBadge(
-                      label: 'Confirmed',
-                      count: totalConfirmed,
-                      color: const Color(0xFF3B82F6),
-                      icon: Icons.check_circle_outline_rounded,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Search & filter field
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextField(
-              key: const Key('publish_search_field'),
-              controller: _searchController,
-              onChanged: (val) {
-                setState(() {
-                  _searchQuery = val;
-                });
-              },
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: const Color(0xFF151C2C),
-                hintText: 'Search confirmed deliverables...',
-                hintStyle: const TextStyle(
-                  color: Color(0xFFB0BEC5),
-                  fontSize: 13,
-                ),
-                prefixIcon: const Icon(
-                  Icons.search_rounded,
-                  color: Color(0xFF94A3B8),
-                  size: 20,
-                ),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear_rounded,
-                            color: Color(0xFF94A3B8), size: 18),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchQuery = '';
-                          });
-                        },
-                      )
-                    : null,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF1E293B)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF1E293B)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF2563EB)),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Error banner if initial fetch failed
-          if (_errorMessage != null)
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.withAlpha(25),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.red.withAlpha(70)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.error_outline_rounded,
-                      color: Colors.redAccent, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _errorMessage!,
-                      style: const TextStyle(color: Colors.redAccent, fontSize: 13),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _fetchContributions,
-                    child: const Text('Retry', style: TextStyle(color: Colors.redAccent)),
-                  ),
                 ],
               ),
             ),
-
-          // Contributions list or empty state or loader
-          Expanded(
-            child: _isLoading
-                ? const Center(
+            if (_isLoading)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 48),
+                  child: Center(
                     child: CircularProgressIndicator(
                       color: Color(0xFF2563EB),
                     ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: _fetchContributions,
-                    color: const Color(0xFF2563EB),
-                    backgroundColor: const Color(0xFF151C2C),
-                    child: filtered.isEmpty
-                        ? _buildEmptyState()
-                        : ListView.builder(
-                            key: const Key('publish_selection_list'),
-                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
-                            itemCount: filtered.length,
-                            itemBuilder: (context, index) {
-                              final item = filtered[index];
-                              final isSelected = _selectedIds.contains(item.id);
-                              final isUpdating = _updatingIds.contains(item.id);
-                              return _buildContributionCheckCard(
-                                item,
-                                isSelected,
-                                isUpdating,
-                              );
-                            },
-                          ),
                   ),
-          ),
-        ],
+                ),
+              )
+            else if (filtered.isEmpty)
+              SliverToBoxAdapter(
+                child: _buildEmptyState(),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final item = filtered[index];
+                      final isSelected = _selectedIds.contains(item.id);
+                      return _buildContributionCheckCard(
+                        item,
+                        isSelected,
+                        _isSaving,
+                      );
+                    },
+                    childCount: filtered.length,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
 
       // Bottom action bar
@@ -619,27 +658,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
               const SizedBox(width: 12),
               ElevatedButton.icon(
                 key: const Key('publish_save_button'),
-                onPressed: () {
-                  widget.onSave?.call();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          const Icon(Icons.check_circle_rounded,
-                              color: Colors.white, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Updated passport: $totalSelected deliverables published.',
-                            ),
-                          ),
-                        ],
-                      ),
-                      backgroundColor: const Color(0xFF10B981),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
+                onPressed: _isSaving ? null : _savePassport,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563EB),
                   foregroundColor: Colors.white,
@@ -649,10 +668,19 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                icon: const Icon(Icons.check_rounded, size: 18),
-                label: const Text(
-                  'Save Passport',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check_rounded, size: 18),
+                label: Text(
+                  _isSaving ? 'Saving...' : 'Save Passport',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -934,79 +962,69 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
   }
 
   Widget _buildEmptyState() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF151C2C),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFF1E293B)),
-                      ),
-                      child: const Icon(
-                        Icons.fact_check_outlined,
-                        size: 48,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'No Confirmed Deliverables',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _searchQuery.isNotEmpty
-                          ? 'No confirmed deliverables match "$_searchQuery". Try clearing your search.'
-                          : 'Only deliverables confirmed by your team peers can be featured on your passport. Submit or request confirmations for your work to publish them.',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF94A3B8),
-                        height: 1.4,
-                      ),
-                    ),
-                    if (_searchQuery.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      OutlinedButton(
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchQuery = '';
-                          });
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF60A5FA),
-                          side: const BorderSide(color: Color(0xFF2563EB)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: const Text('Clear Search'),
-                      ),
-                    ],
-                  ],
-                ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 36),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: const Color(0xFF151C2C),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF1E293B)),
+              ),
+              child: const Icon(
+                Icons.fact_check_outlined,
+                size: 48,
+                color: Color(0xFF64748B),
               ),
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 16),
+            const Text(
+              'No Confirmed Deliverables',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _searchQuery.isNotEmpty
+                  ? 'No confirmed deliverables match "$_searchQuery". Try clearing your search.'
+                  : 'Only deliverables confirmed by your team peers can be featured on your passport. Submit or request confirmations for your work to publish them.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF94A3B8),
+                height: 1.4,
+              ),
+            ),
+            if (_searchQuery.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              OutlinedButton(
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() {
+                    _searchQuery = '';
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF60A5FA),
+                  side: const BorderSide(color: Color(0xFF2563EB)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text('Clear Search'),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

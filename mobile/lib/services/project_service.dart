@@ -481,7 +481,7 @@ class ProjectService {
         if (dateRange != null && dateRange.trim().isNotEmpty)
           'date_range': dateRange.trim(),
         'source_type': sourceType ?? 'manual',
-        'visibility': visibility ?? 'public',
+        'visibility': visibility ?? 'private',
       };
 
       final response = await _postWithFallback(

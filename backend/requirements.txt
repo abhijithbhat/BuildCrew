@@ -6,4 +6,5 @@ pydantic-settings
 pytest
 httpx
 python-multipart
+jinja2
 

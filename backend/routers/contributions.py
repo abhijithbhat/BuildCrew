@@ -15,6 +15,7 @@ from routers.projects import (
     DEV_CONTRIBUTIONS_DB,
     DEV_PROJECTS_DB,
     DEV_PROJECT_MEMBERS_DB,
+    DEV_ROLE_AGREEMENTS_DB,
     _get_user_id,
     _is_dev_fallback_error,
     _save_dev_data,
@@ -25,6 +26,7 @@ from schemas.contribution import (
     EvidenceUploadResponse,
     ManualContributionCreate,
     PendingConfirmationsListResponse,
+    ProjectPassportResponse,
     PublicContributionsResponse,
     RequestConfirmationPayload,
     UserPassportResponse,
@@ -174,7 +176,7 @@ async def create_manual_contribution(
     description = (
         payload.description.strip() if payload.description else None
     )
-    visibility = (payload.visibility or "public").strip()
+    visibility = (payload.visibility or "private").strip()
 
     now_iso = datetime.now(timezone.utc).isoformat()
     contribution_id = str(uuid.uuid4())
@@ -1727,6 +1729,217 @@ async def get_user_passport(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to fetch user passport: {err_msg}",
+        )
+
+
+@router.get(
+    "/passport/{user_id}/{project_id}",
+    response_model=ProjectPassportResponse,
+    tags=["Passport"],
+    summary="Get public project contribution passport",
+)
+@router.get(
+    "/passport/{user_id}/{project_id}/",
+    response_model=ProjectPassportResponse,
+    tags=["Passport"],
+    include_in_schema=False,
+)
+async def get_project_passport_route(
+    user_id: str,
+    project_id: str,
+):
+    return await get_project_passport(user_id, project_id)
+
+
+async def get_project_passport(
+    user_id: str,
+    project_id: str,
+) -> ProjectPassportResponse:
+    """
+    Public builder passport query for a specific project.
+    Strictly returns ONLY published contributions (visibility == 'public')
+    and strictly excludes any items with verification_status == 'needs-review'
+    or dispute_state == 'disputed'.
+    """
+    try:
+        supabase = get_supabase_client()
+
+        # 1. Fetch user profile
+        profile = {}
+        try:
+            p_res = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
+            if p_res.data:
+                profile = p_res.data
+        except Exception:
+            pass
+
+        # 2. Fetch project info
+        project_name = "Project"
+        project_data = {}
+        try:
+            proj_res = supabase.table("projects").select("*").eq("id", project_id).single().execute()
+            if proj_res.data:
+                project_data = proj_res.data
+                project_name = project_data.get("name") or "Project"
+        except Exception:
+            pass
+
+        # 3. Fetch role agreement for this user in this project
+        role_name = None
+        role_category = None
+        try:
+            r_res = (
+                supabase.table("role_agreements")
+                .select("*")
+                .eq("project_id", project_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if r_res.data and len(r_res.data) > 0:
+                role_name = r_res.data[0].get("role_name")
+                role_category = r_res.data[0].get("category")
+        except Exception:
+            pass
+
+        if not role_name:
+            if project_data.get("created_by") == user_id:
+                role_name = "Team Lead"
+            else:
+                role_name = "Contributor"
+
+        # 4. Fetch published contributions for this user & project
+        c_res = (
+            supabase.table("contributions")
+            .select("*")
+            .eq("contributor", user_id)
+            .eq("project", project_id)
+            .eq("visibility", "public")
+            .neq("verification_status", "needs-review")
+            .neq("dispute_state", "disputed")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        raw_items = c_res.data or []
+
+        # If empty, also check if dev fallback has items (for tests / offline)
+        if not raw_items:
+            matching_dev = [
+                c for c in DEV_CONTRIBUTIONS_DB
+                if (c.get("contributor") == user_id or c.get("contributor_id") == user_id)
+                and (c.get("project") == project_id or c.get("project_id") == project_id)
+                and c.get("visibility") == "public"
+                and c.get("verification_status") not in ("needs-review", "self-declared", "draft-pending")
+                and c.get("dispute_state") != "disputed"
+            ]
+            if matching_dev:
+                raise Exception("LOCAL DEV FALLBACK: matching contributions in dev store")
+
+        # Strict defense-in-depth filter:
+        # Only published items, confirmed, not in needs-review or disputed
+        valid_items = [
+            c for c in raw_items
+            if c.get("verification_status") != "needs-review"
+            and c.get("dispute_state") != "disputed"
+            and c.get("visibility") == "public"
+            and c.get("verification_status") in ("confirmed", "peer-confirmed", "source-verified")
+        ]
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        display_name = profile.get("display_name") or f"User {user_id[:8]}"
+        for c in valid_items:
+            c["contributor_name"] = display_name
+            c["contributor_profile"] = profile or None
+            if not c.get("created_at"):
+                c["created_at"] = now_iso
+            if not c.get("updated_at"):
+                c["updated_at"] = c.get("created_at") or now_iso
+
+        confirmed_count = sum(
+            1 for c in valid_items
+            if c.get("verification_status") in ("confirmed", "peer-confirmed", "source-verified")
+        )
+
+        return ProjectPassportResponse(
+            user_id=user_id,
+            project_id=project_id,
+            project_name=project_name,
+            display_name=display_name,
+            avatar_url=profile.get("avatar_url"),
+            github_username=profile.get("github_username"),
+            role=role_name,
+            role_category=role_category,
+            total_contributions=len(valid_items),
+            confirmed_count=confirmed_count,
+            contributions=valid_items,
+        )
+
+    except Exception as e:
+        err_msg = str(e)
+        if _is_dev_fallback_error(err_msg):
+            # Local Dev Fallback
+            display_name = DEV_USER_NAMES_DB.get(user_id, f"User {user_id[:8]}")
+            dev_project = DEV_PROJECTS_DB.get(project_id, {})
+            project_name = dev_project.get("name", "Project")
+
+            # Look up role
+            role_name = None
+            role_category = None
+            for r in DEV_ROLE_AGREEMENTS_DB:
+                if r.get("project_id") == project_id and r.get("user_id") == user_id:
+                    role_name = r.get("role_name")
+                    role_category = r.get("category")
+                    break
+
+            if not role_name:
+                if dev_project.get("created_by") == user_id:
+                    role_name = "Team Lead"
+                else:
+                    role_name = "Contributor"
+
+            valid_items = [
+                c for c in DEV_CONTRIBUTIONS_DB
+                if (c.get("contributor") == user_id or c.get("contributor_id") == user_id)
+                and (c.get("project") == project_id or c.get("project_id") == project_id)
+                and c.get("visibility") == "public"
+                and c.get("verification_status") != "needs-review"
+                and c.get("verification_status") in ("confirmed", "peer-confirmed", "source-verified")
+                and c.get("dispute_state") != "disputed"
+            ]
+
+            now_iso = datetime.now(timezone.utc).isoformat()
+            for c in valid_items:
+                if not c.get("contributor_name"):
+                    c["contributor_name"] = display_name
+                if not c.get("contributor_profile"):
+                    c["contributor_profile"] = {
+                        "user_id": user_id,
+                        "display_name": display_name,
+                        "email": f"{user_id}@buildcrew.io",
+                    }
+                if not c.get("created_at"):
+                    c["created_at"] = now_iso
+                if not c.get("updated_at"):
+                    c["updated_at"] = c.get("created_at") or now_iso
+
+            confirmed_count = len(valid_items)
+
+            return ProjectPassportResponse(
+                user_id=user_id,
+                project_id=project_id,
+                project_name=project_name,
+                display_name=display_name,
+                avatar_url=None,
+                github_username=None,
+                role=role_name,
+                role_category=role_category,
+                total_contributions=len(valid_items),
+                confirmed_count=confirmed_count,
+                contributions=valid_items,
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to fetch project passport: {err_msg}",
         )
 
 

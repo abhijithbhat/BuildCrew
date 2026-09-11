@@ -12,7 +12,7 @@ class ContributionBase(BaseModel):
     evidence_link: Optional[str] = None
     verification_status: str = "pending"
     confirmed_by: Optional[str] = None
-    visibility: str = "public"
+    visibility: str = "private"
     dispute_state: str = "none"
 
 
@@ -30,7 +30,7 @@ class ManualContributionCreate(BaseModel):
     date_range: Optional[str] = None
     source_type: Optional[str] = "manual"
     evidence_link: Optional[str] = None
-    visibility: Optional[str] = "public"
+    visibility: Optional[str] = "private"
 
 
 
@@ -128,6 +128,22 @@ class UserPassportResponse(BaseModel):
 
 class PublicContributionsResponse(BaseModel):
     total_count: int
+    contributions: List[ContributionResponse]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProjectPassportResponse(BaseModel):
+    user_id: str
+    project_id: str
+    project_name: Optional[str] = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    github_username: Optional[str] = None
+    role: Optional[str] = None
+    role_category: Optional[str] = None
+    total_contributions: int
+    confirmed_count: int
     contributions: List[ContributionResponse]
 
     model_config = ConfigDict(from_attributes=True)
