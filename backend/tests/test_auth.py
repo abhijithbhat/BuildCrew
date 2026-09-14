@@ -153,3 +153,74 @@ def test_get_me_invalid_jwt():
         )
         assert response.status_code == 401
         assert "Could not validate credentials" in response.json()["detail"]
+
+
+def test_refresh_token_success():
+    mock_supabase = MagicMock()
+    mock_session = MagicMock()
+    mock_session.access_token = "new-access-token-xyz"
+    mock_session.refresh_token = "new-refresh-token-abc"
+    mock_session.token_type = "bearer"
+    mock_session.expires_in = 3600
+    mock_session.expires_at = 1750000000
+
+    mock_user = MagicMock()
+    mock_user.id = "user-uuid-123"
+    mock_user.email = "builder@example.com"
+    mock_user.user_metadata = {"display_name": "Pro Builder"}
+
+    mock_auth_response = MagicMock()
+    mock_auth_response.session = mock_session
+    mock_auth_response.user = mock_user
+
+    mock_supabase.auth.refresh_session.return_value = mock_auth_response
+
+    with patch("routers.auth.get_supabase_pub_client", return_value=mock_supabase):
+        response = client.post(
+            "/auth/refresh",
+            json={"refresh_token": "valid-refresh-token-123"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["access_token"] == "new-access-token-xyz"
+        assert data["refresh_token"] == "new-refresh-token-abc"
+        assert data["token_type"] == "bearer"
+        assert data["expires_in"] == 3600
+        assert data["expires_at"] == 1750000000
+        assert data["user"]["email"] == "builder@example.com"
+        assert data["user"]["display_name"] == "Pro Builder"
+
+
+def test_refresh_token_invalid_or_expired():
+    mock_supabase = MagicMock()
+    mock_supabase.auth.refresh_session.side_effect = Exception("Refresh token is not valid")
+
+    with patch("routers.auth.get_supabase_pub_client", return_value=mock_supabase):
+        response = client.post(
+            "/auth/refresh",
+            json={"refresh_token": "expired-or-revoked-token"},
+        )
+        assert response.status_code == 401
+        assert "INVALID_REFRESH_TOKEN" in response.json()["detail"]
+
+
+def test_refresh_token_empty():
+    response = client.post(
+        "/auth/refresh",
+        json={"refresh_token": "   "},
+    )
+    assert response.status_code == 401
+    assert "INVALID_REFRESH_TOKEN" in response.json()["detail"]
+
+
+def test_refresh_token_dev_mode():
+    response = client.post(
+        "/auth/refresh",
+        json={"refresh_token": "mock-dev-refresh-token-developer@buildcrew.com"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "mock-dev-access-token-developer@buildcrew.com" in data["access_token"]
+    assert "mock-dev-refresh-token-developer@buildcrew.com" in data["refresh_token"]
+    assert data["user"]["email"] == "developer@buildcrew.com"
+

@@ -1,34 +1,18 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'api_client.dart';
 import 'storage_service.dart';
 
 class GitHubService {
   final Dio _dio;
   final StorageService _storageService;
 
-  static List<String> get fallbackBaseUrls {
-    if (kIsWeb) return ['http://localhost:8000'];
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return [
-        'http://127.0.0.1:8000',
-        'http://192.168.0.112:8000',
-        'http://10.0.2.2:8000',
-      ];
-    }
-    return ['http://localhost:8000', 'http://127.0.0.1:8000'];
-  }
+  static List<String> get fallbackBaseUrls => ApiClient.fallbackBaseUrls;
 
   GitHubService({Dio? dio, StorageService? storageService})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 10),
-                receiveTimeout: const Duration(seconds: 10),
-                headers: {'Content-Type': 'application/json'},
-              ),
-            ),
-        _storageService = storageService ?? StorageService();
+      : _storageService = storageService ?? StorageService(),
+        _dio = dio ?? ApiClient.instance.dio;
 
   Future<Options> _getAuthOptions() async {
     final token = await _storageService.getAccessToken();

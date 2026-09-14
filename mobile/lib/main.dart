@@ -18,6 +18,7 @@ import 'screens/publish_selection_screen.dart';
 import 'screens/repo_status_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/team_roles_screen.dart';
+import 'services/api_client.dart';
 import 'services/storage_service.dart';
 
 void main() {
@@ -32,6 +33,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: ApiClient.navigatorKey,
       title: 'BuildCrew',
       debugShowCheckedModeBanner: false,
       initialRoute: '/',

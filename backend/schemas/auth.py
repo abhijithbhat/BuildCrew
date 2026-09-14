@@ -28,3 +28,17 @@ class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
 
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class RefreshTokenResponse(BaseModel):
+    message: str = "Token refreshed successfully"
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int | None = None
+    expires_at: int | None = None
+    user: dict | None = None
+

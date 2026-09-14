@@ -290,6 +290,39 @@ class AuthService {
     }
   }
 
+  /// Calls POST /auth/refresh with refresh token to get a new session.
+  Future<Map<String, dynamic>> refreshToken({String? refreshToken}) async {
+    final token = refreshToken ?? await _storageService.getRefreshToken();
+    if (token == null || token.trim().isEmpty) {
+      throw 'No refresh token available';
+    }
+    try {
+      final response = await _postWithFallback(
+        '/auth/refresh',
+        {'refresh_token': token.trim()},
+      );
+      final data = response.data as Map<String, dynamic>;
+      final newAccessToken = data['access_token']?.toString();
+      final newRefreshToken = data['refresh_token']?.toString();
+      if (newAccessToken != null && newAccessToken.isNotEmpty) {
+        await _storageService.saveTokens(
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken ?? token,
+        );
+      }
+      return data;
+    } on DioException catch (e) {
+      if (e.response?.data != null) {
+        final data = e.response!.data;
+        if (data is Map && data.containsKey('detail')) throw data['detail'].toString();
+      }
+      throw e.message ?? 'Token refresh failed.';
+    } catch (e) {
+      if (e is String) rethrow;
+      throw 'An unexpected error occurred.';
+    }
+  }
+
   /// Retrieve stored access token from FlutterSecureStorage.
   Future<String?> getStoredAccessToken() async {
     return await _storageService.getAccessToken();

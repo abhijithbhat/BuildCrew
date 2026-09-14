@@ -1,9 +1,11 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from core.database import get_supabase_client, get_supabase_pub_client
 from core.dependencies import get_current_user, stable_dev_user_id
 from schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
+    RefreshTokenRequest,
     ResetPasswordRequest,
     SignUpRequest,
     VerifyOTPRequest,
@@ -288,6 +290,116 @@ async def login(credentials: LoginRequest):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=err_msg,
+        )
+
+
+@router.post("/refresh", status_code=status.HTTP_200_OK)
+async def refresh_token(payload: RefreshTokenRequest):
+    """
+    Refresh an expired access token using a valid refresh token.
+    Calls Supabase auth.refresh_session(refresh_token).
+    Returns new access_token, refresh_token, token_type, expires_in, and expires_at.
+    Returns 401 Unauthorized with INVALID_REFRESH_TOKEN if refresh token is invalid or expired.
+    """
+    raw_token = (payload.refresh_token or "").strip()
+    if not raw_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="INVALID_REFRESH_TOKEN: Refresh token is required",
+            headers={"WWW-Authenticate": "Bearer error=\"invalid_token\", error_description=\"Refresh token is required\""},
+        )
+
+    # Local Dev Mode fallback if token matches mock pattern
+    if raw_token.startswith("mock-dev-refresh-token-"):
+        email = raw_token.replace("mock-dev-refresh-token-", "")
+        now_ts = int(datetime.now(timezone.utc).timestamp())
+        return {
+            "message": "Token refreshed successfully (Local Dev Mode)",
+            "access_token": f"mock-dev-access-token-{email}",
+            "refresh_token": f"mock-dev-refresh-token-{email}",
+            "token_type": "bearer",
+            "expires_in": 3600,
+            "expires_at": now_ts + 3600,
+            "user": {
+                "id": stable_dev_user_id(email),
+                "email": email,
+                "display_name": DEV_USER_NAMES_DB.get(email.lower(), email),
+            },
+        }
+
+    supabase = get_supabase_pub_client()
+    try:
+        response = supabase.auth.refresh_session(raw_token)
+        if not response or not response.session or not response.session.access_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="INVALID_REFRESH_TOKEN: Invalid or expired refresh token. Please log in again.",
+                headers={"WWW-Authenticate": "Bearer error=\"invalid_token\", error_description=\"Refresh token is expired or invalid\""},
+            )
+
+        user_meta = getattr(response.user, "user_metadata", {}) or {} if response.user else {}
+        display_name = (
+            user_meta.get("display_name")
+            or user_meta.get("name")
+            or user_meta.get("full_name")
+        )
+        if not display_name and response.user:
+            try:
+                prof = (
+                    supabase.table("profiles")
+                    .select("display_name, full_name")
+                    .eq("id", response.user.id)
+                    .single()
+                    .execute()
+                )
+                if prof.data:
+                    display_name = prof.data.get("display_name") or prof.data.get("full_name")
+            except Exception:
+                pass
+
+        return {
+            "message": "Token refreshed successfully",
+            "access_token": response.session.access_token,
+            "refresh_token": response.session.refresh_token,
+            "token_type": response.session.token_type or "bearer",
+            "expires_in": response.session.expires_in,
+            "expires_at": response.session.expires_at,
+            "user": {
+                "id": response.user.id if response.user else None,
+                "email": response.user.email if response.user else None,
+                "display_name": display_name,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        err_msg = str(e)
+        if (
+            "nodename nor servname provided" in err_msg
+            or "gai_error" in err_msg
+            or "Name or service not known" in err_msg
+        ):
+            if raw_token.startswith("mock-dev-refresh-token-"):
+                email = raw_token.replace("mock-dev-refresh-token-", "")
+                now_ts = int(datetime.now(timezone.utc).timestamp())
+                return {
+                    "message": "Token refreshed successfully (Local Dev Mode)",
+                    "access_token": f"mock-dev-access-token-{email}",
+                    "refresh_token": f"mock-dev-refresh-token-{email}",
+                    "token_type": "bearer",
+                    "expires_in": 3600,
+                    "expires_at": now_ts + 3600,
+                    "user": {
+                        "id": stable_dev_user_id(email),
+                        "email": email,
+                        "display_name": DEV_USER_NAMES_DB.get(email.lower(), email),
+                    },
+                }
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="INVALID_REFRESH_TOKEN: Invalid or expired refresh token. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer error=\"invalid_token\", error_description=\"Refresh token is expired or invalid\""},
         )
 
 

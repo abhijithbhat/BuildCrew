@@ -787,6 +787,34 @@ class ContributionCard extends StatelessWidget {
                 // Request Confirmation Button (if not yet confirmed and callback provided)
                 if (!contribution.isConfirmed && onRequestConfirmation != null) ...[
                   const SizedBox(height: 12),
+                  if (contribution.isPendingConfirmation) ...[
+                    Container(
+                      key: Key('stream_waiting_banner_${contribution.id}'),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFDE68A), width: 1),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.hourglass_top_rounded, size: 15, color: Color(0xFFD97706)),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Request sent to teammates. Waiting for peer confirmation.',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFFB45309),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -832,9 +860,61 @@ class ContributionCard extends StatelessWidget {
                   ),
                 ],
 
-                // Teammate Review Action Buttons (Confirm / Dispute)
+                // Teammate Review Action Banner & Buttons (Confirm / Dispute)
                 if (!contribution.isConfirmed && onConfirm != null && onDispute != null) ...[
                   const SizedBox(height: 12),
+                  Container(
+                    key: Key('stream_review_banner_${contribution.id}'),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFBFDBFE), width: 1),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFDBEAFE),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.notifications_active_outlined,
+                            size: 15,
+                            color: Color(0xFF2563EB),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Action Needed: Review Requested',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1E40AF),
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'A teammate requested your peer confirmation. Verify this deliverable below.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF3B82F6),
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
