@@ -74,7 +74,6 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
     }
   }
 
-
   @override
   void dispose() {
     _roleController.dispose();
@@ -94,9 +93,9 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Colors.blueAccent,
+              primary: Color(0xFF4F46E5),
               onPrimary: Colors.white,
-              onSurface: Colors.black87,
+              onSurface: Color(0xFF0F172A),
             ),
           ),
           child: child!,
@@ -186,8 +185,11 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                 ? 'Successfully updated role "$roleName"!'
                 : 'Successfully declared role "$roleName"!',
           ),
-          backgroundColor: Colors.green.shade700,
+          backgroundColor: const Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
 
@@ -217,16 +219,22 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
     );
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(
           _isEditing ? 'Update Your Role' : 'Declare Your Role',
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Color(0xFF0F172A),
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
         ),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        scrolledUnderElevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: const Color(0xFF0F172A),
       ),
       body: SafeArea(
         child: Center(
@@ -241,31 +249,47 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                   // Top Hero Badge
                   Center(
                     child: Container(
-                      width: 80,
-                      height: 80,
+                      width: 68,
+                      height: 68,
                       decoration: BoxDecoration(
-                        color: Colors.blue.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xFF4F46E5),
+                            Color(0xFF6366F1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
                       ),
                       child: Icon(
                         _isEditing
                             ? Icons.edit_note_rounded
                             : Icons.badge_outlined,
-                        size: 42,
-                        color: Colors.blueAccent,
+                        size: 32,
+                        color: Colors.white,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 24),
                   Text(
                     _isEditing
                         ? 'Update Your Role Agreement'
                         : 'Declare Your Project Role',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
+                      color: Color(0xFF0F172A),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -273,35 +297,46 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                         ? 'Modify your declared title, responsibilities, or milestone timeline.'
                         : 'Define your title, responsibilities, and target milestones to align with your crew.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
+                    style: const TextStyle(
+                      color: Color(0xFF64748B),
                       fontSize: 14,
+                      letterSpacing: -0.1,
                       height: 1.4,
                     ),
                   ),
                   const SizedBox(height: 28),
 
-
                   // Error Message Banner
                   if (_errorMessage != null) ...[
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
-                        color: Colors.red.shade50,
+                        color: const Color(0xFFFEF2F2),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.red.shade200),
+                        border: Border.all(
+                          color: const Color(0xFFFECACA),
+                          width: 1,
+                        ),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.error_outline,
-                              color: Colors.red.shade700, size: 20),
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            color: Color(0xFFDC2626),
+                            size: 20,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               _errorMessage!,
-                              style: TextStyle(
-                                color: Colors.red.shade800,
+                              style: const TextStyle(
+                                color: Color(0xFF991B1B),
                                 fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                height: 1.3,
                               ),
                             ),
                           ),
@@ -317,7 +352,17 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
+                      border: Border.all(
+                        color: const Color(0xFFE2E8F0),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -328,23 +373,68 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1.1,
-                            color: Colors.grey,
+                            color: Color(0xFF64748B),
                           ),
                         ),
                         const SizedBox(height: 10),
                         TextFormField(
                           controller: _roleController,
                           textInputAction: TextInputAction.next,
+                          enabled: !_isLoading,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F172A),
+                          ),
                           decoration: InputDecoration(
-                            hintText: 'e.g., Lead Frontend Engineer, Backend Architect',
+                            hintText:
+                                'e.g., Lead Frontend Engineer, Backend Architect',
                             hintStyle: hintStyle,
-                            prefixIcon: const Icon(Icons.work_outline_rounded),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                            prefixIcon: const Icon(
+                              Icons.work_outline_rounded,
+                              color: Color(0xFF64748B),
+                              size: 20,
                             ),
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
-                              vertical: 14,
+                              vertical: 16,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE2E8F0),
+                                width: 1.2,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE2E8F0),
+                                width: 1.2,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF4F46E5),
+                                width: 1.8,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFEF4444),
+                                width: 1.2,
+                              ),
+                            ),
+                            focusedErrorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFDC2626),
+                                width: 1.8,
+                              ),
                             ),
                           ),
                           validator: (val) {
@@ -360,7 +450,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
 
                   // Responsibilities Text Area Card
                   Container(
@@ -368,7 +458,17 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
+                      border: Border.all(
+                        color: const Color(0xFFE2E8F0),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -379,7 +479,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1.1,
-                            color: Colors.grey,
+                            color: Color(0xFF64748B),
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -388,6 +488,13 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                           minLines: 3,
                           maxLines: 5,
                           textInputAction: TextInputAction.newline,
+                          enabled: !_isLoading,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF0F172A),
+                            height: 1.45,
+                          ),
                           decoration: InputDecoration(
                             hintText:
                                 'Outline your core duties, deliverables, technical areas, or scope...',
@@ -395,14 +502,52 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                             alignLabelWithHint: true,
                             prefixIcon: const Padding(
                               padding: EdgeInsets.only(bottom: 50.0),
-                              child: Icon(Icons.assignment_outlined),
+                              child: Icon(
+                                Icons.assignment_outlined,
+                                color: Color(0xFF64748B),
+                                size: 20,
+                              ),
+                            ),
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE2E8F0),
+                                width: 1.2,
+                              ),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE2E8F0),
+                                width: 1.2,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF4F46E5),
+                                width: 1.8,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFEF4444),
+                                width: 1.2,
+                              ),
+                            ),
+                            focusedErrorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFDC2626),
+                                width: 1.8,
+                              ),
                             ),
                           ),
                           validator: (val) {
@@ -415,7 +560,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
 
                   // Deadline Picker Card
                   Container(
@@ -423,28 +568,38 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
+                      border: Border.all(
+                        color: const Color(0xFFE2E8F0),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
+                          children: const [
+                            Text(
                               'TARGET DEADLINE',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 1.1,
-                                color: Colors.grey,
+                                color: Color(0xFF64748B),
                               ),
                             ),
                             Text(
                               'Optional',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.grey.shade500,
+                                color: Color(0xFF94A3B8),
                                 fontStyle: FontStyle.italic,
                               ),
                             ),
@@ -460,14 +615,19 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                               vertical: 14,
                             ),
                             decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade400),
+                              color: const Color(0xFFF8FAFC),
+                              border: Border.all(
+                                color: const Color(0xFFE2E8F0),
+                                width: 1.2,
+                              ),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Row(
                               children: [
                                 const Icon(
                                   Icons.event_available_rounded,
-                                  color: Colors.blueAccent,
+                                  color: Color(0xFF4F46E5),
+                                  size: 20,
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -479,15 +639,18 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                                         ? const TextStyle(
                                             fontSize: 14,
                                             fontWeight: FontWeight.w600,
-                                            color: Colors.black87,
+                                            color: Color(0xFF0F172A),
                                           )
                                         : hintStyle,
                                   ),
                                 ),
                                 if (_selectedDeadline != null)
                                   IconButton(
-                                    icon: const Icon(Icons.close_rounded,
-                                        size: 18, color: Colors.grey),
+                                    icon: const Icon(
+                                      Icons.close_rounded,
+                                      size: 18,
+                                      color: Color(0xFF64748B),
+                                    ),
                                     onPressed: _clearDeadline,
                                     tooltip: 'Clear deadline',
                                     padding: EdgeInsets.zero,
@@ -496,7 +659,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                                 else
                                   const Icon(
                                     Icons.arrow_drop_down,
-                                    color: Colors.grey,
+                                    color: Color(0xFF64748B),
                                   ),
                               ],
                             ),
@@ -511,20 +674,23 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleFormSubmit,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
+                      backgroundColor: const Color(0xFF4F46E5),
+                      disabledBackgroundColor:
+                          const Color(0xFF818CF8).withValues(alpha: 0.6),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
                       elevation: 2,
+                      shadowColor: const Color(0xFF4F46E5).withValues(alpha: 0.35),
                     ),
                     child: _isLoading
                         ? const SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
-                              strokeWidth: 2,
+                              strokeWidth: 2.2,
                               valueColor:
                                   AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
@@ -544,14 +710,14 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                                     ? 'Update Role Agreement'
                                     : 'Declare Role',
                                 style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.3,
                                 ),
                               ),
                             ],
                           ),
                   ),
-
                 ],
               ),
             ),

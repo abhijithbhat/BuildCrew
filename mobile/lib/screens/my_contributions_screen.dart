@@ -4,6 +4,7 @@ import '../models/project.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/contribution_card.dart';
+import '../widgets/empty_state_view.dart';
 import '../widgets/request_confirmation_modal.dart';
 import 'add_contribution_screen.dart';
 import 'publish_selection_screen.dart';
@@ -236,12 +237,21 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             decoration: BoxDecoration(
-              color: isSelected ? color.withAlpha(25) : const Color(0xFF151C2C),
+              color: isSelected ? color.withAlpha(20) : Colors.white,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: isSelected ? color : const Color(0xFF1E293B),
+                color: isSelected ? color : const Color(0xFFE2E8F0),
                 width: isSelected ? 1.5 : 1.0,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: isSelected
+                      ? color.withAlpha(25)
+                      : const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,7 +279,9 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                 Text(
                   title,
                   style: TextStyle(
-                    color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                    color: isSelected
+                        ? const Color(0xFF0F172A)
+                        : const Color(0xFF64748B),
                     fontSize: 11,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                   ),
@@ -301,10 +313,10 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF151C2C),
+          color: isSelected ? const Color(0xFF4F46E5) : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? const Color(0xFF3B82F6) : const Color(0xFF1E293B),
+            color: isSelected ? const Color(0xFF4F46E5) : const Color(0xFFE2E8F0),
           ),
         ),
         child: Row(
@@ -313,13 +325,13 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
             Icon(
               icon,
               size: 14,
-              color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
             ),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                color: isSelected ? Colors.white : const Color(0xFF475569),
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               ),
@@ -335,26 +347,33 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF151C2C),
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Color(0xFF1E293B)),
+            side: const BorderSide(color: Color(0xFFE2E8F0)),
           ),
           title: const Row(
             children: [
-              Icon(Icons.info_outline_rounded, color: Color(0xFF60A5FA), size: 22),
+              Icon(Icons.info_outline_rounded, color: Color(0xFF4F46E5), size: 22),
               SizedBox(width: 8),
-              Text('GitHub Contribution', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(
+                'GitHub Contribution',
+                style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
           content: const Text(
             'This contribution was automatically imported from GitHub. To modify or delete it, please push changes to your GitHub repository.',
-            style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13, height: 1.4),
+            style: TextStyle(color: Color(0xFF64748B), fontSize: 13, height: 1.4),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK', style: TextStyle(color: Color(0xFF60A5FA))),
+              child: const Text('OK', style: TextStyle(color: Color(0xFF4F46E5), fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -365,35 +384,43 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF151C2C),
+        backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF1E293B)),
+          side: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
         title: const Row(
           children: [
-            Icon(Icons.delete_forever_rounded, color: Colors.redAccent, size: 24),
+            Icon(Icons.delete_forever_rounded, color: Color(0xFFE11D48), size: 24),
             SizedBox(width: 8),
-            Text('Delete Impact Log?', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+            Text(
+              'Delete Impact Log?',
+              style: TextStyle(
+                color: Color(0xFF0F172A),
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
         content: Text(
           'Are you sure you want to delete "${c.title}"?\n\nThis will remove the logged deliverable and its attached evidence link from your contribution timeline.',
-          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13, height: 1.4),
+          style: const TextStyle(color: Color(0xFF64748B), fontSize: 13, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: const Color(0xFFE11D48),
               foregroundColor: Colors.white,
+              elevation: 0,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Delete Log'),
+            child: const Text('Delete Log', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -428,7 +455,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to delete contribution: $e'),
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: const Color(0xFFE11D48),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -444,7 +471,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Cannot request confirmation: Project ID is missing.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: Color(0xFFE11D48),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -481,10 +508,14 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
     final needsReviewCount = _allContributions.where((c) => c.needsReview).length;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0F19),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF151C2C),
+        backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
         centerTitle: false,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -494,7 +525,8 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: Color(0xFF0F172A),
+                letterSpacing: -0.3,
               ),
             ),
             Text(
@@ -503,7 +535,8 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                   : 'Personal Contribution Feed',
               style: const TextStyle(
                 fontSize: 12,
-                color: Color(0xFF94A3B8),
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w400,
               ),
             ),
           ],
@@ -511,7 +544,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
         actions: [
           IconButton(
             key: const Key('my_contributions_passport_btn'),
-            icon: const Icon(Icons.verified_user_outlined, color: Color(0xFF60A5FA)),
+            icon: const Icon(Icons.verified_user_outlined, color: Color(0xFF4F46E5)),
             tooltip: 'Passport Visibility',
             onPressed: () {
               Navigator.pushNamed(
@@ -520,13 +553,14 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                 arguments: {
                   'projectId': _resolvedProjectId,
                   'projectName': widget.project?.name ?? 'Project',
+                  'userId': _currentUserId,
                 },
               );
             },
           ),
           IconButton(
             key: const Key('my_contributions_refresh_btn'),
-            icon: const Icon(Icons.refresh_rounded, color: Colors.blueAccent),
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF4F46E5)),
             tooltip: 'Refresh',
             onPressed: _isLoading ? null : _loadContributions,
           ),
@@ -535,7 +569,8 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('my_contributions_add_fab'),
         onPressed: _openAddContributionScreen,
-        backgroundColor: const Color(0xFF2563EB),
+        backgroundColor: const Color(0xFF4F46E5),
+        elevation: 3,
         icon: const Icon(Icons.add_rounded, color: Colors.white),
         label: const Text(
           'Add Impact',
@@ -544,7 +579,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _loadContributions,
-        color: const Color(0xFF2563EB),
+        color: const Color(0xFF4F46E5),
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           children: [
@@ -554,23 +589,23 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.red.withAlpha(30),
+                  color: const Color(0xFFFFF1F2),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.red.withAlpha(80)),
+                  border: Border.all(color: const Color(0xFFFECDD3)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 20),
+                    const Icon(Icons.error_outline_rounded, color: Color(0xFFE11D48), size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         _errorMessage!,
-                        style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                        style: const TextStyle(color: Color(0xFFBE123C), fontSize: 13),
                       ),
                     ),
                     TextButton(
                       onPressed: _loadContributions,
-                      child: const Text('Retry', style: TextStyle(color: Colors.white)),
+                      child: const Text('Retry', style: TextStyle(color: Color(0xFFE11D48), fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -582,13 +617,13 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                 margin: const EdgeInsets.only(bottom: 14),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF450A0A).withValues(alpha: 0.6),
+                  color: const Color(0xFFFFF1F2),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
+                  border: Border.all(color: const Color(0xFFFECDD3)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline_rounded, color: Color(0xFFF87171), size: 22),
+                    const Icon(Icons.error_outline_rounded, color: Color(0xFFE11D48), size: 22),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -597,7 +632,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                           Text(
                             '$needsReviewCount deliverable${needsReviewCount > 1 ? "s require" : " requires"} your review',
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: Color(0xFF9F1239),
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
                             ),
@@ -606,7 +641,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                           const Text(
                             'Disputed items are hidden from your public passport until resolved.',
                             style: TextStyle(
-                              color: Color(0xFFFCA5A5),
+                              color: Color(0xFFBE123C),
                               fontSize: 11,
                             ),
                           ),
@@ -625,7 +660,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                   title: 'Total Logs',
                   value: '$totalCount',
                   icon: Icons.history_edu_rounded,
-                  color: const Color(0xFF3B82F6),
+                  color: const Color(0xFF4F46E5),
                   isSelected: _activeStatTab == 'total',
                   onTap: () {
                     setState(() {
@@ -687,14 +722,14 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                   _searchQuery = val;
                 });
               },
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Search contributions by title, category, or spec...',
                 hintStyle: const TextStyle(color: Color(0xFFB0BEC5), fontSize: 13),
-                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 20),
+                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF4F46E5), size: 20),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear_rounded, color: Colors.white70, size: 18),
+                        icon: const Icon(Icons.clear_rounded, color: Color(0xFF64748B), size: 18),
                         onPressed: () {
                           _searchController.clear();
                           setState(() {
@@ -704,15 +739,15 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                       )
                     : null,
                 filled: true,
-                fillColor: const Color(0xFF151C2C),
+                fillColor: Colors.white,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF1E293B)),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF2563EB)),
+                  borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 1.5),
                 ),
               ),
             ),
@@ -739,75 +774,65 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
               const Center(
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  color: Color(0xFF2563EB),
+                  color: Color(0xFF4F46E5),
                 ),
               ),
               const SizedBox(height: 16),
               const Center(
                 child: Text(
                   'Loading your personal contributions...',
-                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                  style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
                 ),
               ),
             ] else if (filtered.isEmpty) ...[
-              const SizedBox(height: 40),
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF151C2C),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1E293B)),
+              const SizedBox(height: 24),
+              EmptyStateView(
+                icon: _searchQuery.isNotEmpty || _selectedCategory != 'all'
+                    ? Icons.search_off_rounded
+                    : Icons.assignment_turned_in_outlined,
+                title: _searchQuery.isNotEmpty || _selectedCategory != 'all'
+                    ? 'No matching contributions found'
+                    : 'No contributions logged yet',
+                description: _searchQuery.isNotEmpty || _selectedCategory != 'all'
+                    ? 'Try clearing filters or searching for different keywords to view your deliverables.'
+                    : 'Declare your non-code impact or sync GitHub activity to show deliverables.',
+                primaryAction: ElevatedButton.icon(
+                  key: const Key('my_contributions_empty_add_btn'),
+                  onPressed: _openAddContributionScreen,
+                  icon: const Icon(Icons.add_rounded, color: Colors.white, size: 18),
+                  label: const Text(
+                    'Log Your First Contribution',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4F46E5),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB).withAlpha(30),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.assignment_turned_in_outlined,
-                        size: 32,
-                        color: Color(0xFF3B82F6),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      _searchQuery.isNotEmpty || _selectedCategory != 'all'
-                          ? 'No matching contributions found'
-                          : 'No contributions logged yet',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _searchQuery.isNotEmpty || _selectedCategory != 'all'
-                          ? 'Try clearing filters or searching for different keywords.'
-                          : 'Declare your non-code impact or sync GitHub activity to show deliverables.',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
-                    ),
-                    const SizedBox(height: 18),
-                    ElevatedButton.icon(
-                      key: const Key('my_contributions_empty_add_btn'),
-                      onPressed: _openAddContributionScreen,
-                      icon: const Icon(Icons.add_rounded, color: Colors.white),
-                      label: const Text('Log Your First Contribution'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                secondaryAction: (_searchQuery.isNotEmpty || _selectedCategory != 'all')
+                    ? OutlinedButton.icon(
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchQuery = '';
+                            _selectedCategory = 'all';
+                          });
+                        },
+                        icon: const Icon(Icons.clear_rounded, size: 16),
+                        label: const Text('Clear Filters'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF4F46E5),
+                          side: const BorderSide(color: Color(0xFFC7D2FE)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
+                      )
+                    : null,
               ),
             ] else ...[
               ...filtered.map(
@@ -821,7 +846,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('Evidence: ${c.evidenceLink}'),
-                          backgroundColor: const Color(0xFF2563EB),
+                          backgroundColor: const Color(0xFF4F46E5),
                           behavior: SnackBarBehavior.floating,
                         ),
                       );
@@ -839,5 +864,3 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
     );
   }
 }
-
-

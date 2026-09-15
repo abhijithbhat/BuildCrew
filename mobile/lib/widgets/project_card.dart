@@ -25,194 +25,220 @@ class ProjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final roleColor = isOwner ? Colors.amber.shade900 : Colors.blue.shade700;
-    final roleBgColor = isOwner ? Colors.amber.shade50 : Colors.blue.shade50;
+    final roleColor = isOwner ? const Color(0xFFB45309) : const Color(0xFF4338CA);
+    final roleBgColor = isOwner ? const Color(0xFFFEF3C7) : const Color(0xFFEEF2FF);
+    final roleBorderColor = isOwner ? const Color(0xFFFDE68A) : const Color(0xFFE0E7FF);
     final roleLabel = isOwner ? 'Team Lead' : 'Member';
 
-
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200, width: 1.2),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      color: Colors.white,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Row: Avatar + Title + Role Badge
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: isOwner
-                            ? [Colors.deepPurple.shade400, Colors.indigo.shade600]
-                            : [Colors.blue.shade400, Colors.blue.shade700],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Center(
-                      child: Text(
-                        project.name.isNotEmpty
-                            ? project.name.substring(0, 1).toUpperCase()
-                            : 'P',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header Row: Avatar + Title + Role Badge
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: isOwner
+                              ? [const Color(0xFF4F46E5), const Color(0xFF7C3AED)]
+                              : [const Color(0xFF2563EB), const Color(0xFF0284C7)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          project.name,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (project.createdAt != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            'Created ${_formatDate(project.createdAt)}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade500,
-                            ),
+                        borderRadius: BorderRadius.circular(13),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isOwner
+                                    ? const Color(0xFF4F46E5)
+                                    : const Color(0xFF2563EB))
+                                .withValues(alpha: 0.25),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
                           ),
                         ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: roleBgColor,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: roleColor.withValues(alpha: 0.3),
                       ),
-                    ),
-                    child: Text(
-                      roleLabel,
-                      style: TextStyle(
-                        color: roleColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              // Description
-              if (project.description != null &&
-                  project.description!.trim().isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  project.description!.trim(),
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade700,
-                    height: 1.4,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-
-              const SizedBox(height: 14),
-              Divider(height: 1, color: Colors.grey.shade100),
-              const SizedBox(height: 10),
-
-              // Bottom Actions Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.group_outlined,
-                        size: 16,
-                        color: Colors.grey.shade600,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        isOwner ? 'Crew Admin' : 'Collaborator',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      if (onInviteTap != null)
-                        InkWell(
-                          onTap: onInviteTap,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.share_outlined,
-                                  size: 14,
-                                  color: Colors.blue.shade700,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Invite',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.blue.shade700,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
+                      child: Center(
+                        child: Text(
+                          project.name.isNotEmpty
+                              ? project.name.substring(0, 1).toUpperCase()
+                              : 'P',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 12,
-                        color: Colors.grey.shade400,
                       ),
-                    ],
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            project.name,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (project.createdAt != null) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              'Created ${_formatDate(project.createdAt)}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF94A3B8),
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: roleBgColor,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: roleBorderColor,
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        roleLabel,
+                        style: TextStyle(
+                          color: roleColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Description
+                if (project.description != null &&
+                    project.description!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    project.description!.trim(),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF475569),
+                      height: 1.45,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
-              ),
-            ],
+
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 10),
+
+                // Bottom Actions Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.group_outlined,
+                          size: 16,
+                          color: const Color(0xFF64748B),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isOwner ? 'Crew Admin' : 'Collaborator',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        if (onInviteTap != null)
+                          InkWell(
+                            onTap: onInviteTap,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              child: Row(
+                                children: const [
+                                  Icon(
+                                    Icons.share_outlined,
+                                    size: 14,
+                                    color: Color(0xFF4F46E5),
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Invite',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF4F46E5),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 12,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

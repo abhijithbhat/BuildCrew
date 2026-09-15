@@ -28,7 +28,6 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
   final TextEditingController _repoNameController = TextEditingController();
   final TextEditingController _instIdController = TextEditingController();
 
-
   List<Map<String, dynamic>> _availableRepos = [];
 
   @override
@@ -98,6 +97,9 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
             ),
             backgroundColor: const Color(0xFF10B981),
             behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
         Navigator.pop(context, true);
@@ -140,8 +142,8 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
       final data = await _gitHubService.getInstallation(projectId);
       if (data['connected'] == true && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
+          SnackBar(
+            content: const Row(
               children: [
                 Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
                 SizedBox(width: 10),
@@ -150,8 +152,11 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                 ),
               ],
             ),
-            backgroundColor: Color(0xFF10B981),
+            backgroundColor: const Color(0xFF10B981),
             behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
         Navigator.pop(context, true);
@@ -198,12 +203,16 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
         instId.isNotEmpty ? instId : 'auto',
         repoFullName: repoName,
       );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Linked "$repoName" successfully!'),
             backgroundColor: const Color(0xFF10B981),
             behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
         Navigator.pop(context, true);
@@ -250,7 +259,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                 ),
               ],
             ),
-            backgroundColor: const Color(0xFF2563EB),
+            backgroundColor: const Color(0xFF4F46E5),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
@@ -273,9 +282,6 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
     }
   }
 
-
-
-
   @override
   Widget build(BuildContext context) {
     final routeArgs =
@@ -288,21 +294,26 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
         '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0F19),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF111827),
+        backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white, size: 20),
+              color: Color(0xFF0F172A), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Connect Repository',
           style: TextStyle(
-            color: Colors.white,
+            color: Color(0xFF0F172A),
             fontSize: 18,
             fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
           ),
         ),
         centerTitle: true,
@@ -318,19 +329,19 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
               // Header GitHub Icon & Badge
               Center(
                 child: Container(
-                  width: 90,
-                  height: 90,
+                  width: 68,
+                  height: 68,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF2563EB), Color(0xFF7C3AED)],
+                      colors: [Color(0xFF4F46E5), Color(0xFF6366F1)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF7C3AED).withValues(alpha: 0.35),
-                        blurRadius: 24,
+                        color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                        blurRadius: 18,
                         offset: const Offset(0, 8),
                       ),
                     ],
@@ -338,21 +349,21 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                   child: const Center(
                     child: Icon(
                       Icons.code_rounded,
-                      size: 46,
+                      size: 34,
                       color: Colors.white,
                     ),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 22),
 
               // Title & Subtitle
               Text(
                 'Link GitHub to\n$effectiveProjectName',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF0F172A),
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                   height: 1.25,
@@ -365,8 +376,8 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
               Text(
                 'Connect your repository to seamlessly track commits, review pull requests, and log member contributions.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey.shade400,
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
                   fontSize: 14,
                   height: 1.5,
                 ),
@@ -383,54 +394,61 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF151C2C),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: const Color(0xFF1E293B),
-                    width: 1.2,
+                    color: const Color(0xFFE2E8F0),
+                    width: 1,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                      blurRadius: 12,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
                 child: Column(
                   children: [
                     _buildFeatureRow(
                       icon: Icons.history_rounded,
-                      iconColor: const Color(0xFF60A5FA),
+                      iconColor: const Color(0xFF3B82F6),
                       title: 'Live Commit Sync',
                       subtitle:
                           'Track team branch pushes and commit logs in real-time.',
                     ),
                     const Divider(
-                      color: Color(0xFF1E293B),
+                      color: Color(0xFFF1F5F9),
                       height: 28,
                       thickness: 1,
                     ),
                     _buildFeatureRow(
                       icon: Icons.alt_route_rounded,
-                      iconColor: const Color(0xFFA78BFA),
+                      iconColor: const Color(0xFF8B5CF6),
                       title: 'Pull Request Activity',
                       subtitle:
                           'Monitor reviews, approvals, and merged feature branches.',
                     ),
                     const Divider(
-                      color: Color(0xFF1E293B),
+                      color: Color(0xFFF1F5F9),
                       height: 28,
                       thickness: 1,
                     ),
                     _buildFeatureRow(
                       icon: Icons.bug_report_outlined,
-                      iconColor: const Color(0xFF34D399),
+                      iconColor: const Color(0xFF10B981),
                       title: 'Issue & Milestone Tracking',
                       subtitle:
                           'Stay aligned on bugs, user stories, and tasks.',
                     ),
                     const Divider(
-                      color: Color(0xFF1E293B),
+                      color: Color(0xFFF1F5F9),
                       height: 28,
                       thickness: 1,
                     ),
                     _buildFeatureRow(
                       icon: Icons.lock_outline_rounded,
-                      iconColor: const Color(0xFFFBBF24),
+                      iconColor: const Color(0xFFF59E0B),
                       title: 'Secure & Read-Only Access',
                       subtitle:
                           'Fine-grained GitHub App permissions with RS256 token exchange.',
@@ -446,21 +464,24 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade900.withValues(alpha: 0.2),
+                    color: const Color(0xFFFFF1F2),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: Colors.red.shade700.withValues(alpha: 0.5)),
+                      color: const Color(0xFFFECDD3),
+                    ),
                   ),
                   child: Row(
                     children: [
                       const Icon(Icons.error_outline_rounded,
-                          color: Colors.redAccent, size: 20),
+                          color: Color(0xFFE11D48), size: 20),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           _errorMessage!,
                           style: const TextStyle(
-                              color: Colors.redAccent, fontSize: 13),
+                            color: Color(0xFFBE123C),
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ],
@@ -471,18 +492,17 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
 
               // Connect Button
               SizedBox(
-                height: 56,
+                height: 54,
                 child: ElevatedButton(
                   onPressed:
                       _isLoading ? null : () => _onConnectPressed(effectiveProjectId),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
+                    backgroundColor: const Color(0xFF4F46E5),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    elevation: 5,
-                    shadowColor: const Color(0xFF2563EB).withValues(alpha: 0.5),
+                    elevation: 0,
                   ),
                   child: _isLoading
                       ? const SizedBox(
@@ -517,22 +537,22 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
 
               // Verify Connection Button
               SizedBox(
-                height: 52,
+                height: 50,
                 child: OutlinedButton.icon(
                   onPressed: _isLoading
                       ? null
                       : () => _checkIfAlreadyConnected(effectiveProjectId),
-                  icon: const Icon(Icons.sync_rounded, color: Color(0xFF60A5FA), size: 20),
+                  icon: const Icon(Icons.sync_rounded, color: Color(0xFF4F46E5), size: 20),
                   label: const Text(
                     'I\'ve Installed on GitHub → Verify Connection',
                     style: TextStyle(
-                      color: Color(0xFF60A5FA),
+                      color: Color(0xFF4F46E5),
                       fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF2563EB)),
+                    side: const BorderSide(color: Color(0xFF4F46E5), width: 1.5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -546,21 +566,28 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF151C2C),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1E293B)),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Row(
                       children: [
-                        Icon(Icons.bolt_rounded, color: Color(0xFFFBBF24), size: 20),
+                        Icon(Icons.bolt_rounded, color: Color(0xFFF59E0B), size: 20),
                         SizedBox(width: 8),
                         Text(
                           'Direct Repository Link',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: Color(0xFF0F172A),
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                           ),
@@ -568,46 +595,54 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(
+                    const Text(
                       'If the app is already installed on your GitHub account, link your repository directly:',
-                      style: TextStyle(color: Colors.grey.shade400, fontSize: 12, height: 1.4),
+                      style: TextStyle(color: Color(0xFF64748B), fontSize: 12, height: 1.4),
                     ),
                     const SizedBox(height: 14),
                     TextField(
                       controller: _repoNameController,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14),
                       decoration: InputDecoration(
                         labelText: 'Repository (owner/repo)',
                         hintText: 'e.g. your-username/project-repo',
                         hintStyle: const TextStyle(color: Color(0xFFB0BEC5), fontSize: 13),
-                        labelStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                        labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
                         filled: true,
-                        fillColor: const Color(0xFF0B0F19),
+                        fillColor: const Color(0xFFF8FAFC),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFF334155)),
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFF334155)),
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                         ),
-                        prefixIcon: const Icon(Icons.code_rounded, color: Color(0xFF64748B), size: 18),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 1.5),
+                        ),
+                        prefixIcon: const Icon(Icons.code_rounded, color: Color(0xFF4F46E5), size: 18),
                       ),
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: _isLoading ? null : () => _linkDirectly(effectiveProjectId),
                         icon: const Icon(Icons.link_rounded, size: 18),
-                        label: const Text('Link Repository to Project'),
+                        label: const Text(
+                          'Link Repository to Project',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF10B981),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                       ),
@@ -619,16 +654,15 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
               const SizedBox(height: 16),
 
               // Disclaimer
-              Text(
+              const Text(
                 'Make sure your backend and ngrok tunnel are running during installation.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.grey.shade500,
+                  color: Color(0xFF94A3B8),
                   fontSize: 12,
                   height: 1.4,
                 ),
               ),
-
 
               const SizedBox(height: 24),
             ],
@@ -665,16 +699,16 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
               Text(
                 title,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF0F172A),
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 3),
               Text(
                 subtitle,
-                style: TextStyle(
-                  color: Colors.grey.shade400,
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
                   fontSize: 12.5,
                   height: 1.35,
                 ),
@@ -693,15 +727,15 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF151C2C),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFF2563EB).withValues(alpha: 0.4),
+          color: const Color(0xFF6366F1).withValues(alpha: 0.3),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+            color: const Color(0xFF4F46E5).withValues(alpha: 0.06),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -715,12 +749,12 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.2),
+                  color: const Color(0xFFEEF2FF),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
                   Icons.auto_awesome_rounded,
-                  color: Color(0xFF60A5FA),
+                  color: Color(0xFF4F46E5),
                   size: 18,
                 ),
               ),
@@ -732,16 +766,16 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                     Text(
                       'Your GitHub Repositories',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: Color(0xFF0F172A),
                         fontSize: 15,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     SizedBox(height: 2),
                     Text(
                       'Tap to connect directly to this project:',
                       style: TextStyle(
-                        color: Color(0xFF94A3B8),
+                        color: Color(0xFF64748B),
                         fontSize: 12,
                       ),
                     ),
@@ -756,22 +790,22 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF0B0F19),
+                color: const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF1E293B)),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: ListTile(
                 dense: true,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
                 leading: const Icon(
                   Icons.code_rounded,
-                  color: Color(0xFF60A5FA),
+                  color: Color(0xFF4F46E5),
                   size: 20,
                 ),
                 title: Text(
                   fullName,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: Color(0xFF0F172A),
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
                   ),
@@ -779,11 +813,12 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                 trailing: ElevatedButton(
                   onPressed: _isLoading ? null : () => _selectRepoDirectly(projectId, fullName),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
+                    backgroundColor: const Color(0xFF4F46E5),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),

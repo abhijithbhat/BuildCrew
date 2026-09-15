@@ -60,8 +60,11 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Successfully joined $projectName!'),
-          backgroundColor: Colors.green.shade700,
+          backgroundColor: const Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
 
@@ -75,7 +78,6 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
         Navigator.pop(context);
       }
     } catch (e) {
-
       if (mounted) {
         setState(() {
           _errorMessage = e.toString();
@@ -98,16 +100,22 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
     );
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
           'Join Project',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Color(0xFF0F172A),
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
         ),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        scrolledUnderElevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: const Color(0xFF0F172A),
       ),
       body: SafeArea(
         child: Center(
@@ -123,35 +131,52 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                   // Hero Icon Badge
                   Center(
                     child: Container(
-                      width: 80,
-                      height: 80,
+                      width: 68,
+                      height: 68,
                       decoration: BoxDecoration(
-                        color: Colors.blue.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xFF4F46E5),
+                            Color(0xFF6366F1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
                       ),
                       child: const Icon(
                         Icons.handshake_outlined,
-                        size: 44,
-                        color: Colors.blueAccent,
+                        size: 32,
+                        color: Colors.white,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  Text(
+                  const SizedBox(height: 24),
+                  const Text(
                     'Join a Project Crew',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
+                      color: Color(0xFF0F172A),
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
+                  const Text(
                     'Enter the shareable invite code provided by the project owner to collaborate.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Colors.grey.shade600,
+                      color: Color(0xFF64748B),
                       fontSize: 14,
+                      letterSpacing: -0.1,
                       height: 1.4,
                     ),
                   ),
@@ -160,22 +185,34 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                   // Error Message Banner
                   if (_errorMessage != null) ...[
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
-                        color: Colors.red.shade50,
+                        color: const Color(0xFFFEF2F2),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.red.shade200),
+                        border: Border.all(
+                          color: const Color(0xFFFECACA),
+                          width: 1,
+                        ),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            color: Color(0xFFDC2626),
+                            size: 20,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               _errorMessage!,
-                              style: TextStyle(
-                                color: Colors.red.shade800,
+                              style: const TextStyle(
+                                color: Color(0xFF991B1B),
                                 fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                height: 1.3,
                               ),
                             ),
                           ),
@@ -191,7 +228,17 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
+                      border: Border.all(
+                        color: const Color(0xFFE2E8F0),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,33 +249,75 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1.1,
-                            color: Colors.grey,
+                            color: Color(0xFF64748B),
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
                         TextFormField(
                           controller: _codeController,
                           textCapitalization: TextCapitalization.characters,
+                          enabled: !_isLoading,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 2.0,
+                            color: Color(0xFF0F172A),
                           ),
                           decoration: InputDecoration(
                             hintText: 'e.g., BC-X8KLHH',
                             hintStyle: hintStyle,
-                            prefixIcon: const Icon(Icons.tag_rounded),
+                            prefixIcon: const Icon(
+                              Icons.tag_rounded,
+                              color: Color(0xFF64748B),
+                            ),
                             suffixIcon: IconButton(
-                              icon: const Icon(Icons.paste_rounded, color: Colors.blueAccent),
+                              icon: const Icon(
+                                Icons.paste_rounded,
+                                color: Color(0xFF4F46E5),
+                              ),
                               tooltip: 'Paste from clipboard',
                               onPressed: _pasteFromClipboard,
                             ),
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE2E8F0),
+                                width: 1.2,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE2E8F0),
+                                width: 1.2,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF4F46E5),
+                                width: 1.8,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFEF4444),
+                                width: 1.2,
+                              ),
+                            ),
+                            focusedErrorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFDC2626),
+                                width: 1.8,
+                              ),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
-                              vertical: 14,
+                              vertical: 16,
                             ),
                           ),
                           validator: (val) {
@@ -241,18 +330,22 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
-                            const SizedBox(width: 6),
+                          children: const [
+                            Icon(
+                              Icons.info_outline,
+                              size: 14,
+                              color: Color(0xFF94A3B8),
+                            ),
+                            SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 'Invite codes are case-insensitive and valid for 7 days.',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: Colors.grey.shade600,
+                                  color: Color(0xFF64748B),
                                 ),
                               ),
                             ),
@@ -268,20 +361,23 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleJoinProject,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
+                      backgroundColor: const Color(0xFF4F46E5),
+                      disabledBackgroundColor:
+                          const Color(0xFF818CF8).withValues(alpha: 0.6),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
                       elevation: 2,
+                      shadowColor: const Color(0xFF4F46E5).withValues(alpha: 0.35),
                     ),
                     child: _isLoading
                         ? const SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
-                              strokeWidth: 2,
+                              strokeWidth: 2.2,
                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
@@ -293,8 +389,9 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                               Text(
                                 'Join Project',
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.3,
                                 ),
                               ),
                             ],

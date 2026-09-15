@@ -4,6 +4,7 @@ import '../models/project.dart';
 import '../models/role_agreement.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
+import '../widgets/empty_state_view.dart';
 import 'declare_role_screen.dart';
 
 class TeamRolesScreen extends StatefulWidget {
@@ -179,7 +180,6 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
     return null;
   }
 
-
   bool get _isLead {
     if (_currentUserId != null &&
         _projectCreatedBy != null &&
@@ -284,32 +284,48 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
         ),
         title: const Row(
           children: [
-            Icon(Icons.person_remove_outlined, color: Colors.red, size: 24),
+            Icon(Icons.person_remove_outlined, color: Color(0xFFE11D48), size: 24),
             SizedBox(width: 8),
-            Text('Remove Member?'),
+            Text(
+              'Remove Member?',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
+              ),
+            ),
           ],
         ),
         content: Text(
           'Are you sure you want to remove "${agreement.displayName}" from the project team? Their declared role will be deleted.',
-          style: const TextStyle(fontSize: 14, height: 1.4),
+          style: const TextStyle(fontSize: 14, height: 1.4, color: Color(0xFF475569)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: const Color(0xFFE11D48),
               foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: const Text('Yes, Remove'),
+            child: const Text('Yes, Remove', style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -322,8 +338,11 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('${agreement.displayName} removed from team.'),
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: const Color(0xFFE11D48),
               behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           );
           _fetchRoles();
@@ -333,8 +352,11 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to remove member: $e'),
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: const Color(0xFFE11D48),
               behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           );
         }
@@ -347,14 +369,16 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
         '🚀 BuildCrew Reminder: Please declare your project role and milestone deadlines for project "${_projectName ?? 'BuildCrew'}" on the BuildCrew app!';
     Clipboard.setData(ClipboardData(text: reminderText));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Copied reminder to clipboard! Share it with your team.'),
-        backgroundColor: Colors.blueAccent,
+      SnackBar(
+        content: const Text('Copied reminder to clipboard! Share it with your team.'),
+        backgroundColor: const Color(0xFF4F46E5),
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
       ),
     );
   }
-
 
   Widget _buildRoleCard(RoleAgreement agreement) {
     final isMe = _isUserRole(agreement);
@@ -381,16 +405,16 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isMe ? Colors.blueAccent.shade200 : Colors.grey.shade200,
+          color: isMe ? const Color(0xFF6366F1) : const Color(0xFFE2E8F0),
           width: isMe ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
             color: isMe
-                ? Colors.blue.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+                ? const Color(0xFF6366F1).withValues(alpha: 0.08)
+                : const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -399,25 +423,24 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Member info header with avatar, name, badges, and role badge
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 CircleAvatar(
                   radius: 22,
                   backgroundColor: isLead
-                      ? Colors.amber.shade100
+                      ? const Color(0xFFFEF3C7)
                       : (isMe
-                          ? Colors.blueAccent
-                          : Colors.blueAccent.shade100.withValues(alpha: 0.3)),
+                          ? const Color(0xFF4F46E5)
+                          : const Color(0xFFEEF2FF)),
                   child: Text(
                     displayedInitial,
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
                       color: isLead
-                          ? Colors.amber.shade900
-                          : (isMe ? Colors.white : Colors.blueAccent),
+                          ? const Color(0xFFB45309)
+                          : (isMe ? Colors.white : const Color(0xFF4F46E5)),
                     ),
                   ),
                 ),
@@ -433,8 +456,8 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                               displayedName,
                               style: const TextStyle(
                                 fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -447,22 +470,22 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.amber.shade50,
+                                color: const Color(0xFFFFFBEB),
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: Colors.amber.shade300),
+                                border: Border.all(color: const Color(0xFFFDE68A)),
                               ),
-                              child: Row(
+                              child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(Icons.stars_rounded,
-                                      size: 12, color: Colors.amber.shade800),
-                                  const SizedBox(width: 3),
+                                      size: 12, color: Color(0xFFD97706)),
+                                  SizedBox(width: 3),
                                   Text(
                                     'Team Lead',
                                     style: TextStyle(
                                       fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.amber.shade900,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFFB45309),
                                     ),
                                   ),
                                 ],
@@ -477,16 +500,16 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.green.shade50,
+                                color: const Color(0xFFECFDF5),
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: Colors.green.shade300),
+                                border: Border.all(color: const Color(0xFFA7F3D0)),
                               ),
-                              child: Text(
+                              child: const Text(
                                 'YOU',
                                 style: TextStyle(
                                   fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green.shade800,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF047857),
                                 ),
                               ),
                             ),
@@ -498,9 +521,9 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                         const SizedBox(height: 2),
                         Text(
                           displayedEmail,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade500,
+                            color: Color(0xFF64748B),
                             fontWeight: FontWeight.w400,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -514,23 +537,23 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: agreement.isDeclared
-                              ? Colors.blue.shade50
-                              : Colors.amber.shade50,
+                              ? const Color(0xFFEEF2FF)
+                              : const Color(0xFFFFFBEB),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: agreement.isDeclared
-                                ? Colors.blue.shade200
-                                : Colors.amber.shade300,
+                                ? const Color(0xFFC7D2FE)
+                                : const Color(0xFFFDE68A),
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (!agreement.isDeclared) ...[
-                              Icon(
+                              const Icon(
                                 Icons.hourglass_top_rounded,
                                 size: 12,
-                                color: Colors.amber.shade900,
+                                color: Color(0xFFB45309),
                               ),
                               const SizedBox(width: 4),
                             ],
@@ -542,8 +565,8 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: agreement.isDeclared
-                                    ? Colors.blue.shade800
-                                    : Colors.amber.shade900,
+                                    ? const Color(0xFF4338CA)
+                                    : const Color(0xFFB45309),
                               ),
                             ),
                           ],
@@ -556,17 +579,16 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                   IconButton(
                     onPressed: () => _navigateToEditRole(agreement),
                     icon: const Icon(Icons.edit_outlined,
-                        color: Colors.blueAccent, size: 20),
+                        color: Color(0xFF4F46E5), size: 20),
                     tooltip: 'Edit your declared role',
                   )
                 else if (_isLead && agreement.userId != _projectCreatedBy)
                   IconButton(
                     onPressed: () => _confirmRemoveMember(agreement),
-                    icon: Icon(Icons.person_remove_outlined,
-                        color: Colors.red.shade400, size: 20),
+                    icon: const Icon(Icons.person_remove_outlined,
+                        color: Color(0xFFEF4444), size: 20),
                     tooltip: 'Remove teammate from project',
                   ),
-
               ],
             ),
             const SizedBox(height: 14),
@@ -578,9 +600,9 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                 const Text(
                   'Responsibilities',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey,
+                    color: Color(0xFF64748B),
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -589,15 +611,15 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
+                    color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey.shade200),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: Text(
                     agreement.responsibilities!.trim(),
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13,
-                      color: Colors.grey.shade800,
+                      color: Color(0xFF334155),
                       height: 1.4,
                     ),
                   ),
@@ -615,7 +637,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                         const Icon(
                           Icons.event_available_rounded,
                           size: 16,
-                          color: Colors.deepPurpleAccent,
+                          color: Color(0xFF6366F1),
                         ),
                         const SizedBox(width: 6),
                         Text(
@@ -623,7 +645,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: Colors.deepPurpleAccent,
+                            color: Color(0xFF4F46E5),
                           ),
                         ),
                       ],
@@ -633,9 +655,9 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                   if (agreement.updatedAt != null || agreement.createdAt != null)
                     Text(
                       'Updated ${_formatDate(agreement.updatedAt ?? agreement.createdAt)}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 11,
-                        color: Colors.grey.shade500,
+                        color: Color(0xFF94A3B8),
                       ),
                     ),
                 ],
@@ -648,11 +670,15 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                   child: ElevatedButton.icon(
                     onPressed: _navigateToDeclareRole,
                     icon: const Icon(Icons.add_task_rounded, size: 16),
-                    label: const Text('Declare Your Role & Milestone Target'),
+                    label: const Text(
+                      'Declare Your Role & Milestone Target',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                    ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
+                      backgroundColor: const Color(0xFF4F46E5),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -665,21 +691,21 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Colors.amber.shade50.withValues(alpha: 0.5),
+                    color: const Color(0xFFFFFBEB),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.amber.shade200),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
                   ),
-                  child: Row(
+                  child: const Row(
                     children: [
                       Icon(Icons.info_outline_rounded,
-                          size: 16, color: Colors.amber.shade800),
-                      const SizedBox(width: 8),
+                          size: 16, color: Color(0xFFB45309)),
+                      SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Awaiting role & milestone deadline declaration.',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.amber.shade900,
+                            color: Color(0xFF92400E),
                             fontStyle: FontStyle.italic,
                           ),
                         ),
@@ -688,7 +714,6 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                   ),
                 ),
             ],
-
           ],
         ),
       ),
@@ -697,27 +722,49 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
 
   String _formatDate(DateTime? date) {
     if (date == null) return '';
-    return '${date.month}/${date.day}/${date.year}';
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(
           _projectName != null ? '$_projectName Roles' : 'Team Roles',
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            color: Color(0xFF0F172A),
+            letterSpacing: -0.3,
+          ),
         ),
         centerTitle: true,
         elevation: 0,
+        scrolledUnderElevation: 0,
         backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        foregroundColor: const Color(0xFF0F172A),
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
         actions: [
           IconButton(
             icon: Icon(_showSearchBar ? Icons.close : Icons.search_rounded,
-                color: Colors.blueAccent),
+                color: const Color(0xFF4F46E5)),
             tooltip: _showSearchBar ? 'Close Search' : 'Search Roles',
             onPressed: () {
               setState(() {
@@ -730,17 +777,16 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.blueAccent),
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF4F46E5)),
             tooltip: 'Refresh Roles',
             onPressed: _fetchRoles,
           ),
         ],
       ),
       body: SafeArea(
-
         child: RefreshIndicator(
           onRefresh: _fetchRoles,
-          color: Colors.blueAccent,
+          color: const Color(0xFF4F46E5),
           child: _buildBody(),
         ),
       ),
@@ -750,7 +796,9 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
   Widget _buildBody() {
     if (_isLoading) {
       return const Center(
-        child: CircularProgressIndicator(),
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5)),
+        ),
       );
     }
 
@@ -760,43 +808,43 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
         children: [
           const SizedBox(height: 40),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.red.shade200),
+              color: const Color(0xFFFFF1F2),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFFECDD3)),
             ),
             child: Column(
               children: [
-                Icon(Icons.error_outline_rounded,
-                    color: Colors.red.shade700, size: 36),
+                const Icon(Icons.error_outline_rounded,
+                    color: Color(0xFFE11D48), size: 36),
                 const SizedBox(height: 10),
-                Text(
+                const Text(
                   'Failed to load team roles',
                   style: TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red.shade900,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF9F1239),
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   _errorMessage!,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 13,
-                    color: Colors.red.shade800,
+                    color: Color(0xFFBE123C),
                   ),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
                   onPressed: _fetchRoles,
                   icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Try Again'),
+                  label: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(
-
-                    backgroundColor: Colors.red.shade700,
+                    backgroundColor: const Color(0xFFE11D48),
                     foregroundColor: Colors.white,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -816,37 +864,39 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
           const SizedBox(height: 60),
           Center(
             child: Container(
-              width: 90,
-              height: 90,
+              width: 84,
+              height: 84,
               decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.1),
+                color: const Color(0xFFEEF2FF),
                 shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFC7D2FE), width: 1.5),
               ),
               child: const Icon(
                 Icons.assignment_ind_outlined,
-                size: 48,
-                color: Colors.blueAccent,
+                size: 42,
+                color: Color(0xFF4F46E5),
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
           const Text(
             'No Roles Declared Yet',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF0F172A),
+              letterSpacing: -0.4,
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Be the first to declare your role, responsibilities, and target milestones for this project!',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey.shade600,
-              height: 1.4,
+              color: Color(0xFF64748B),
+              height: 1.5,
             ),
           ),
           const SizedBox(height: 28),
@@ -856,17 +906,17 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
               icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
               label: const Text(
                 'Declare Your Role',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
+                backgroundColor: const Color(0xFF4F46E5),
                 foregroundColor: Colors.white,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                elevation: 2,
+                elevation: 0,
               ),
             ),
           ),
@@ -879,7 +929,6 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
     final totalCount = _totalMembers > 0 ? _totalMembers : _roles.length;
     final declaredCount = _roles.where((r) => r.isDeclared).length;
 
-
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 80),
       itemCount: filteredRoles.length + 3,
@@ -888,12 +937,12 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
           // Header summary banner with declared vs total members
           return Container(
             margin: const EdgeInsets.only(bottom: 14),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [
-                  Colors.blueAccent.shade700,
-                  Colors.blueAccent.shade400,
+                  Color(0xFF4F46E5),
+                  Color(0xFF6366F1),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -901,9 +950,9 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.blueAccent.withValues(alpha: 0.25),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+                  color: const Color(0xFF4F46E5).withValues(alpha: 0.25),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
@@ -912,10 +961,17 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(
-                      Icons.groups_3_rounded,
-                      color: Colors.white,
-                      size: 32,
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.groups_3_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -926,24 +982,27 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                             '$declaredCount of $totalCount Members Declared',
                             style: const TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w800,
                               color: Colors.white,
+                              letterSpacing: -0.3,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           Text(
                             myRole != null
                                 ? 'Your declared role: ${myRole.declaredRole}'
                                 : 'Declare your role below to align with your crew.',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Colors.white70,
+                              color: Colors.white.withValues(alpha: 0.85),
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    if (myRole != null)
+                    if (myRole != null) ...[
+                      const SizedBox(width: 8),
                       TextButton.icon(
                         onPressed: () => _navigateToEditRole(myRole),
                         icon: const Icon(Icons.edit_note_rounded,
@@ -952,7 +1011,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                           'Edit',
                           style: TextStyle(
                             color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                             fontSize: 13,
                           ),
                         ),
@@ -966,21 +1025,22 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                               horizontal: 10, vertical: 6),
                         ),
                       ),
+                    ],
                   ],
                 ),
                 if (_isLead && declaredCount < totalCount) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   InkWell(
                     onTap: _copyReminderMessage,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.3)),
+                            color: Colors.white.withValues(alpha: 0.28)),
                       ),
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1014,13 +1074,18 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
             child: TextField(
               controller: _searchController,
               autofocus: true,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
               decoration: InputDecoration(
                 hintText: 'Search by name, email, or role...',
-                prefixIcon:
-                    const Icon(Icons.search, color: Colors.blueAccent, size: 20),
+                hintStyle: const TextStyle(
+                  color: Color(0xFFB0BEC5),
+                  fontSize: 13,
+                ),
+                prefixIcon: const Icon(Icons.search_rounded,
+                    color: Color(0xFF4F46E5), size: 20),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
+                        icon: const Icon(Icons.clear, size: 18, color: Color(0xFF64748B)),
                         onPressed: () {
                           setState(() {
                             _searchQuery = '';
@@ -1034,16 +1099,16 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                 contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16, vertical: 12),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.blueAccent),
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 1.5),
                 ),
               ),
               onChanged: (val) {
@@ -1070,20 +1135,22 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                 return ChoiceChip(
                   label: Text(cat),
                   selected: isSelected,
-                  selectedColor: Colors.blueAccent,
+                  selectedColor: const Color(0xFF4F46E5),
                   labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : Colors.grey.shade800,
+                    color: isSelected ? Colors.white : const Color(0xFF475569),
                     fontSize: 12,
                     fontWeight:
-                        isSelected ? FontWeight.bold : FontWeight.normal,
+                        isSelected ? FontWeight.w700 : FontWeight.w500,
                   ),
                   backgroundColor: Colors.white,
+                  elevation: 0,
+                  pressElevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                     side: BorderSide(
                       color: isSelected
-                          ? Colors.blueAccent
-                          : Colors.grey.shade300,
+                          ? const Color(0xFF4F46E5)
+                          : const Color(0xFFE2E8F0),
                     ),
                   ),
                   showCheckmark: false,
@@ -1102,22 +1169,30 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
 
         if (filteredRoles.isEmpty) {
           return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 40.0),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(Icons.filter_list_off_rounded,
-                      size: 40, color: Colors.grey.shade400),
-                  const SizedBox(height: 10),
-                  Text(
-                    'No roles found for "$_selectedCategory"',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.w500,
-                    ),
+            padding: const EdgeInsets.symmetric(
+                vertical: 24.0, horizontal: 16.0),
+            child: EmptyStateView(
+              icon: Icons.filter_list_off_rounded,
+              badgeSize: 68,
+              iconSize: 32,
+              title: 'No roles found for "$_selectedCategory"',
+              description:
+                  'No team members have declared agreements in this category yet. Select another category or view all roles.',
+              primaryAction: OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _selectedCategory = 'All';
+                  });
+                },
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Show All Categories'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF4F46E5),
+                  side: const BorderSide(color: Color(0xFFC7D2FE)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ],
+                ),
               ),
             ),
           );

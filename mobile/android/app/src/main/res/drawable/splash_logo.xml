@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Outer Glow / Background Ring -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M54,12 C77.196,12 96,30.804 96,54 C96,77.196 77.196,96 54,96 C30.804,96 12,77.196 12,54 C12,30.804 30.804,12 54,12 Z" />
+
+    <!-- Inner Soft Radial Ring -->
+    <path
+        android:fillColor="#283548"
+        android:pathData="M54,18 C73.882,18 90,34.118 90,54 C90,73.882 73.882,90 54,90 C34.118,90 18,73.882 18,54 C18,34.118 34.118,18 54,18 Z" />
+
+    <!-- Central Shield / Collaboration Base -->
+    <path
+        android:fillColor="#4F46E5"
+        android:pathData="M54,24 L78,36 L78,60 C78,74.4 67.8,84 54,88 C40.2,84 30,74.4 30,60 L30,36 Z" />
+
+    <!-- Left Crew Vertex & Connector -->
+    <path
+        android:fillColor="#818CF8"
+        android:pathData="M42,44 C42,41.79 43.79,40 46,40 C48.21,40 50,41.79 50,44 C50,46.21 48.21,48 46,48 C43.79,48 42,46.21 42,44 Z" />
+
+    <!-- Right Crew Vertex & Connector -->
+    <path
+        android:fillColor="#818CF8"
+        android:pathData="M58,44 C58,41.79 59.79,40 62,40 C64.21,40 66,41.79 66,44 C66,46.21 64.21,48 62,48 C59.79,48 58,46.21 58,44 Z" />
+
+    <!-- Lower Apex Hub Vertex -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,66 C50,63.79 51.79,62 54,62 C56.21,62 58,63.79 58,66 C58,68.21 56.21,70 54,70 C51.79,70 50,68.21 50,66 Z" />
+
+    <!-- Connecting Synergy Bridge Lines -->
+    <path
+        android:strokeColor="#EEF2FF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M46,44 L62,44 L54,66 Z" />
+
+    <!-- Center Core Emblem (Code Bracket Motif) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M48,52 L44,55 L48,58 M60,52 L64,55 L60,58" />
+</vector>

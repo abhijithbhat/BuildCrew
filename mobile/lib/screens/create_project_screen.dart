@@ -43,8 +43,11 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Project "${project.name}" created successfully!'),
-            backgroundColor: Colors.green.shade700,
+            backgroundColor: const Color(0xFF10B981),
             behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
         Navigator.pop(context, project);
@@ -64,7 +67,6 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     const hintStyle = TextStyle(
@@ -73,18 +75,27 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
     );
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
           'Create Project',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Color(0xFF0F172A),
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
         ),
         centerTitle: true,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: const Color(0xFF0F172A),
       ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
             child: Form(
               key: _formKey,
               autovalidateMode: AutovalidateMode.disabled,
@@ -92,37 +103,55 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Top Hero Icon / Header
+                  // Top Hero Icon Badge
                   Center(
                     child: Container(
-                      padding: const EdgeInsets.all(18.0),
+                      width: 68,
+                      height: 68,
                       decoration: BoxDecoration(
-                        color: Colors.blue.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xFF4F46E5),
+                            Color(0xFF6366F1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
                       ),
                       child: const Icon(
                         Icons.rocket_launch_rounded,
-                        size: 48,
-                        color: Colors.blueAccent,
+                        size: 32,
+                        color: Colors.white,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
+                  const SizedBox(height: 24),
+                  const Text(
                     'Start a New Project',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
+                      color: Color(0xFF0F172A),
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
+                  const Text(
                     'Assemble your crew and collaborate on exciting builds.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Colors.grey[600],
+                      color: Color(0xFF64748B),
                       fontSize: 14,
+                      letterSpacing: -0.1,
                     ),
                   ),
                   const SizedBox(height: 32),
@@ -130,43 +159,112 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                   // Error Message Banner
                   if (_errorMessage != null) ...[
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.red.shade200),
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFFFECACA),
+                          width: 1,
+                        ),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
-                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            color: Color(0xFFDC2626),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               _errorMessage!,
-                              style: TextStyle(color: Colors.red.shade800, fontSize: 13),
+                              style: const TextStyle(
+                                color: Color(0xFF991B1B),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                height: 1.3,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                   ],
 
                   // Project Name Field
                   TextFormField(
                     controller: _nameController,
                     textInputAction: TextInputAction.next,
+                    enabled: !_isLoading,
+                    style: const TextStyle(
+                      color: Color(0xFF0F172A),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
                     decoration: InputDecoration(
                       labelText: 'Project Name',
+                      labelStyle: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      floatingLabelStyle: const TextStyle(
+                        color: Color(0xFF4F46E5),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                       hintText: 'e.g., BuildCrew Mobile App',
                       hintStyle: hintStyle,
-                      prefixIcon: const Icon(Icons.drive_file_rename_outline),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      prefixIcon: const Icon(
+                        Icons.drive_file_rename_outline,
+                        color: Color(0xFF64748B),
+                        size: 20,
                       ),
+                      filled: true,
+                      fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
-                        vertical: 14,
+                        vertical: 16,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE2E8F0),
+                          width: 1.2,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE2E8F0),
+                          width: 1.2,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF4F46E5),
+                          width: 1.8,
+                        ),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFEF4444),
+                          width: 1.2,
+                        ),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFDC2626),
+                          width: 1.8,
+                        ),
                       ),
                     ),
                     validator: (value) {
@@ -179,7 +277,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
 
                   // Project Description Field
                   TextFormField(
@@ -187,21 +285,75 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                     minLines: 3,
                     maxLines: 5,
                     textInputAction: TextInputAction.newline,
+                    enabled: !_isLoading,
+                    style: const TextStyle(
+                      color: Color(0xFF0F172A),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
                     decoration: InputDecoration(
                       labelText: 'Project Description',
+                      labelStyle: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      floatingLabelStyle: const TextStyle(
+                        color: Color(0xFF4F46E5),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                       hintText: 'Describe the goals, tech stack, and roles needed...',
                       hintStyle: hintStyle,
                       alignLabelWithHint: true,
                       prefixIcon: const Padding(
                         padding: EdgeInsets.only(bottom: 50.0),
-                        child: Icon(Icons.description_outlined),
+                        child: Icon(
+                          Icons.description_outlined,
+                          color: Color(0xFF64748B),
+                          size: 20,
+                        ),
                       ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      filled: true,
+                      fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
-                        vertical: 14,
+                        vertical: 16,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE2E8F0),
+                          width: 1.2,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE2E8F0),
+                          width: 1.2,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF4F46E5),
+                          width: 1.8,
+                        ),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFEF4444),
+                          width: 1.2,
+                        ),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFDC2626),
+                          width: 1.8,
+                        ),
                       ),
                     ),
                     validator: (value) {
@@ -211,26 +363,29 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
 
                   // Create Project Primary Action Button
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleCreateProject,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
+                      backgroundColor: const Color(0xFF4F46E5),
+                      disabledBackgroundColor:
+                          const Color(0xFF818CF8).withValues(alpha: 0.6),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(14),
                       ),
                       elevation: 2,
+                      shadowColor: const Color(0xFF4F46E5).withValues(alpha: 0.35),
                     ),
                     child: _isLoading
                         ? const SizedBox(
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(
-                              strokeWidth: 2,
+                              strokeWidth: 2.2,
                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
@@ -242,8 +397,9 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                               Text(
                                 'Create Project',
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.3,
                                 ),
                               ),
                             ],

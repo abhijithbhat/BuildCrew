@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/contribution.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
+import '../widgets/empty_state_view.dart';
 
 class PendingConfirmationsScreen extends StatefulWidget {
   static const String routeName = '/pending-confirmations';
@@ -105,7 +106,7 @@ class _PendingConfirmationsScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to confirm: $e'),
-          backgroundColor: Colors.red.shade700,
+          backgroundColor: const Color(0xFFE11D48),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -119,19 +120,19 @@ class _PendingConfirmationsScreenState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF151C2C),
+        backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF1E293B)),
+          side: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
         title: const Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.amberAccent, size: 24),
+            Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 24),
             SizedBox(width: 8),
             Text(
               'Dispute Deliverable?',
               style: TextStyle(
-                color: Colors.white,
+                color: Color(0xFF0F172A),
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
               ),
@@ -142,7 +143,7 @@ class _PendingConfirmationsScreenState
           'Are you sure you want to dispute "${req.contributionTitle ?? 'this deliverable'}"?\n\n'
           'Its status will become "Needs Review" and visibility will be set to Private until the dispute is resolved.',
           style: const TextStyle(
-            color: Color(0xFF94A3B8),
+            color: Color(0xFF64748B),
             fontSize: 13,
             height: 1.4,
           ),
@@ -150,16 +151,18 @@ class _PendingConfirmationsScreenState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
           ),
           ElevatedButton(
             key: const Key('confirm_dispute_dialog_btn'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
+              backgroundColor: const Color(0xFFE11D48),
               foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Dispute'),
+            child: const Text('Dispute', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -208,7 +211,7 @@ class _PendingConfirmationsScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to dispute: $e'),
-          backgroundColor: Colors.red.shade700,
+          backgroundColor: const Color(0xFFE11D48),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -225,7 +228,7 @@ class _PendingConfirmationsScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Evidence Link: $url'),
-            backgroundColor: const Color(0xFF2563EB),
+            backgroundColor: const Color(0xFF4F46E5),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -252,23 +255,28 @@ class _PendingConfirmationsScreenState
     final filtered = _filteredRequests;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E1A),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
           'Pending Confirmations',
           style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+            color: Color(0xFF0F172A),
+            fontWeight: FontWeight.w700,
             fontSize: 18,
+            letterSpacing: -0.3,
           ),
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFF10162A),
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF0F172A),
         elevation: 0,
+        scrolledUnderElevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF4F46E5)),
             tooltip: 'Refresh',
             onPressed: _loadPendingConfirmations,
           ),
@@ -277,8 +285,8 @@ class _PendingConfirmationsScreenState
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _loadPendingConfirmations,
-          color: const Color(0xFF6366F1),
-          backgroundColor: const Color(0xFF1E293B),
+          color: const Color(0xFF4F46E5),
+          backgroundColor: Colors.white,
           child: Column(
             children: [
               // Header banner with count
@@ -287,22 +295,22 @@ class _PendingConfirmationsScreenState
                 padding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 decoration: const BoxDecoration(
-                  color: Color(0xFF10162A),
+                  color: Colors.white,
                   border: Border(
-                    bottom: BorderSide(color: Color(0xFF1E293B)),
+                    bottom: BorderSide(color: Color(0xFFE2E8F0)),
                   ),
                 ),
                 child: Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4F46E5).withAlpha(40),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEEF2FF),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
                         Icons.rate_review_outlined,
-                        color: Color(0xFF818CF8),
+                        color: Color(0xFF4F46E5),
                         size: 20,
                       ),
                     ),
@@ -314,16 +322,16 @@ class _PendingConfirmationsScreenState
                           const Text(
                             'Peer Verification Queue',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: Color(0xFF0F172A),
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Text(
+                          const Text(
                             'Review and confirm deliverables logged by teammates',
                             style: TextStyle(
-                              color: Colors.grey.shade400,
+                              color: Color(0xFF64748B),
                               fontSize: 12,
                             ),
                           ),
@@ -335,14 +343,14 @@ class _PendingConfirmationsScreenState
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: _requests.isNotEmpty
-                            ? const Color(0xFF6366F1)
-                            : Colors.grey.shade800,
+                            ? const Color(0xFF4F46E5)
+                            : const Color(0xFFE2E8F0),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         '${_requests.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: _requests.isNotEmpty ? Colors.white : const Color(0xFF64748B),
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                         ),
@@ -363,7 +371,7 @@ class _PendingConfirmationsScreenState
                         _searchQuery = val;
                       });
                     },
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14),
                     decoration: InputDecoration(
                       hintText: 'Search by title, teammate, or project...',
                       hintStyle: const TextStyle(
@@ -371,26 +379,26 @@ class _PendingConfirmationsScreenState
                         fontSize: 13,
                       ),
                       prefixIcon: const Icon(Icons.search,
-                          color: Color(0xFF94A3B8), size: 20),
+                          color: Color(0xFF4F46E5), size: 20),
                       isDense: true,
                       filled: true,
-                      fillColor: const Color(0xFF151C2C),
+                      fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 10),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide:
-                            const BorderSide(color: Color(0xFF1E293B)),
+                            const BorderSide(color: Color(0xFFE2E8F0)),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide:
-                            const BorderSide(color: Color(0xFF1E293B)),
+                            const BorderSide(color: Color(0xFFE2E8F0)),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide:
-                            const BorderSide(color: Color(0xFF6366F1)),
+                            const BorderSide(color: Color(0xFF4F46E5), width: 1.5),
                       ),
                     ),
                   ),
@@ -415,13 +423,13 @@ class _PendingConfirmationsScreenState
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(
-              color: Color(0xFF6366F1),
+              color: Color(0xFF4F46E5),
               strokeWidth: 2.5,
             ),
             SizedBox(height: 16),
             Text(
               'Loading pending confirmations...',
-              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+              style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
             ),
           ],
         ),
@@ -437,12 +445,12 @@ class _PendingConfirmationsScreenState
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.cloud_off_rounded,
-                  color: Colors.redAccent, size: 48),
+                  color: Color(0xFFE11D48), size: 48),
               const SizedBox(height: 16),
               const Text(
                 'Failed to load requests',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF0F172A),
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -451,7 +459,7 @@ class _PendingConfirmationsScreenState
               Text(
                 _errorMessage!,
                 style: const TextStyle(
-                  color: Color(0xFF94A3B8),
+                  color: Color(0xFF64748B),
                   fontSize: 12,
                 ),
                 textAlign: TextAlign.center,
@@ -461,6 +469,9 @@ class _PendingConfirmationsScreenState
                 onPressed: _loadPendingConfirmations,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4F46E5),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 child: const Text('Retry'),
               ),
@@ -471,48 +482,47 @@ class _PendingConfirmationsScreenState
     }
 
     if (filtered.isEmpty) {
-      return Center(
+      final isSearching = _requests.isNotEmpty && _searchQuery.trim().isNotEmpty;
+      return EmptyStateView(
         key: const Key('pending_confirmations_empty'),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF151C2C),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF1E293B)),
+        icon: isSearching
+            ? Icons.filter_list_off_rounded
+            : Icons.mark_email_read_outlined,
+        badgeColor: isSearching
+            ? const Color(0xFFEEF2FF)
+            : const Color(0xFFECFDF5),
+        badgeBorderColor: isSearching
+            ? const Color(0xFFC7D2FE)
+            : const Color(0xFFA7F3D0),
+        iconColor: isSearching
+            ? const Color(0xFF4F46E5)
+            : const Color(0xFF10B981),
+        badgeSize: 84,
+        iconSize: 42,
+        title: isSearching
+            ? 'No Matching Requests'
+            : 'All Caught Up!',
+        description: isSearching
+            ? 'No pending confirmations match "$_searchQuery". Try searching with another keyword.'
+            : 'You have no pending confirmations waiting for your review.\nWhen teammates ask you to verify their impact deliverables, they will appear here.',
+        primaryAction: isSearching
+            ? OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _searchQuery = '';
+                  });
+                },
+                icon: const Icon(Icons.clear_rounded, size: 16),
+                label: const Text('Clear Search'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF4F46E5),
+                  side: const BorderSide(color: Color(0xFFC7D2FE)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                child: const Icon(
-                  Icons.mark_email_read_outlined,
-                  color: Color(0xFF10B981),
-                  size: 48,
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'All Caught Up!',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'You have no pending confirmations waiting for your review.\nWhen teammates ask you to verify their impact deliverables, they will appear here.',
-                style: TextStyle(
-                  color: Color(0xFF94A3B8),
-                  fontSize: 13,
-                  height: 1.4,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
+              )
+            : null,
       );
     }
 
@@ -541,14 +551,14 @@ class _PendingConfirmationsScreenState
       key: Key('pending_card_${req.id}'),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF151C2C),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF1E293B), width: 1.2),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(50),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -578,7 +588,7 @@ class _PendingConfirmationsScreenState
                     Text(
                       contributorName,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: Color(0xFF0F172A),
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
@@ -588,9 +598,9 @@ class _PendingConfirmationsScreenState
                     Text(
                       'in $projectName',
                       style: const TextStyle(
-                        color: Color(0xFF818CF8),
+                        color: Color(0xFF4F46E5),
                         fontSize: 11,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -601,13 +611,13 @@ class _PendingConfirmationsScreenState
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF334155),
+                  color: const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   category.toUpperCase(),
                   style: const TextStyle(
-                    color: Color(0xFF94A3B8),
+                    color: Color(0xFF64748B),
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
@@ -621,7 +631,7 @@ class _PendingConfirmationsScreenState
           Text(
             title,
             style: const TextStyle(
-              color: Colors.white,
+              color: Color(0xFF0F172A),
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -633,7 +643,7 @@ class _PendingConfirmationsScreenState
             Text(
               req.description!,
               style: const TextStyle(
-                color: Color(0xFF94A3B8),
+                color: Color(0xFF475569),
                 fontSize: 13,
                 height: 1.4,
               ),
@@ -652,20 +662,20 @@ class _PendingConfirmationsScreenState
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF334155)),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: Row(
                   children: [
                     const Icon(Icons.link_rounded,
-                        color: Color(0xFF60A5FA), size: 16),
+                        color: Color(0xFF4F46E5), size: 16),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         req.evidenceLink!,
                         style: const TextStyle(
-                          color: Color(0xFF60A5FA),
+                          color: Color(0xFF4F46E5),
                           fontSize: 12,
                           decoration: TextDecoration.underline,
                         ),
@@ -675,7 +685,7 @@ class _PendingConfirmationsScreenState
                     ),
                     const SizedBox(width: 6),
                     const Icon(Icons.arrow_outward_rounded,
-                        color: Color(0xFF60A5FA), size: 14),
+                        color: Color(0xFF4F46E5), size: 14),
                   ],
                 ),
               ),
@@ -683,7 +693,7 @@ class _PendingConfirmationsScreenState
           ],
 
           const SizedBox(height: 14),
-          const Divider(height: 1, color: Color(0xFF1E293B)),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
           const SizedBox(height: 12),
 
           // Action Buttons: Confirm & Dispute
@@ -695,18 +705,18 @@ class _PendingConfirmationsScreenState
                   key: Key('dispute_btn_${req.id}'),
                   onPressed: isProcessing ? null : () => _disputeRequest(req),
                   icon: const Icon(Icons.close_rounded,
-                      color: Colors.redAccent, size: 16),
+                      color: Color(0xFFE11D48), size: 16),
                   label: const Text(
                     'Dispute',
                     style: TextStyle(
-                      color: Colors.redAccent,
+                      color: Color(0xFFE11D48),
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    side: BorderSide(
-                      color: Colors.redAccent.withAlpha(120),
+                    side: const BorderSide(
+                      color: Color(0xFFFECDD3),
                       width: 1.2,
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -744,6 +754,7 @@ class _PendingConfirmationsScreenState
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF10B981),
                     foregroundColor: Colors.white,
+                    elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),

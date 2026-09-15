@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/github_service.dart';
+import '../widgets/empty_state_view.dart';
 import 'connect_repository_screen.dart';
 
 class RepoStatusScreen extends StatefulWidget {
@@ -246,10 +247,15 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
 
             if (repos.isEmpty) {
               return const Padding(
-                padding: EdgeInsets.all(24.0),
-                child: Text(
-                  'No repositories found under this installation.',
-                  style: TextStyle(color: Colors.white70),
+                padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+                child: EmptyStateView(
+                  isDark: true,
+                  icon: Icons.folder_open_rounded,
+                  badgeSize: 64,
+                  iconSize: 32,
+                  title: 'No Repositories Found',
+                  description:
+                      'No repositories found under this installation. Please verify repository access permissions in your GitHub App settings.',
                 ),
               );
             }
@@ -499,83 +505,47 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
   }
 
   Widget _buildUnconnectedState(String projectId, String projectName) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 20),
-        Center(
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: const Color(0xFF151C2C),
-              shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF1E293B), width: 2),
-            ),
-            child: const Center(
-              child: Icon(
-                Icons.link_off_rounded,
-                size: 38,
-                color: Color(0xFF64748B),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        const Text(
-          'No Repository Connected',
-          textAlign: TextAlign.center,
+    return EmptyStateView(
+      isDark: true,
+      icon: Icons.link_off_rounded,
+      badgeSize: 84,
+      iconSize: 40,
+      title: 'No Repository Connected',
+      description:
+          'Connect a GitHub repository to track commits, review pull requests, and view issues directly inside "$projectName".',
+      primaryAction: ElevatedButton.icon(
+        onPressed: () async {
+          final result = await Navigator.pushNamed(
+            context,
+            ConnectRepositoryScreen.routeName,
+            arguments: {
+              'projectId': projectId,
+              'projectName': projectName,
+            },
+          );
+          if (result == true || mounted) {
+            _loadInstallationStatus();
+          }
+        },
+        icon: const Icon(Icons.link_rounded, color: Colors.white, size: 20),
+        label: const Text(
+          'Connect with GitHub',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 10),
-        Text(
-          'Connect a GitHub repository to track commits, review pull requests, and view issues directly inside "$projectName".',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Color(0xFF94A3B8),
-            fontSize: 14,
-            height: 1.45,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2563EB),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
+          elevation: 4,
         ),
-        const SizedBox(height: 32),
-        ElevatedButton.icon(
-          onPressed: () async {
-            final result = await Navigator.pushNamed(
-              context,
-              ConnectRepositoryScreen.routeName,
-              arguments: {
-                'projectId': projectId,
-                'projectName': projectName,
-              },
-            );
-            if (result == true || mounted) {
-              _loadInstallationStatus();
-            }
-          },
-          icon: const Icon(Icons.link_rounded, color: Colors.white, size: 20),
-          label: const Text(
-            'Connect with GitHub',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF2563EB),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 4,
-          ),
-        ),
-      ],
+      ),
     );
   }
 

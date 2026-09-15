@@ -5,6 +5,7 @@ import '../models/project.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/contribution_card.dart';
+import '../widgets/empty_state_view.dart';
 import '../widgets/request_confirmation_modal.dart';
 import 'add_contribution_screen.dart';
 import 'my_contributions_screen.dart';
@@ -764,6 +765,17 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     }
   }
 
+  Future<void> _openAddContributionScreen(Project project) async {
+    final result = await Navigator.pushNamed(
+      context,
+      AddContributionScreen.routeName,
+      arguments: {'projectId': project.id},
+    );
+    if (result != null) {
+      _loadContributions(project.id);
+    }
+  }
+
   Future<void> _openRequestConfirmationModal(
       Contribution c, Project project) async {
     final targetProjectId =
@@ -1006,9 +1018,30 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
     if (project == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Project Detail')),
-        body: const Center(
-          child: Text('No project selected.'),
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          title: const Text('Project Detail'),
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF0F172A),
+          elevation: 0,
+        ),
+        body: EmptyStateView(
+          icon: Icons.folder_off_outlined,
+          title: 'No project selected.',
+          description:
+              'Could not load project details. Please select a valid project from your workspace.',
+          primaryAction: ElevatedButton.icon(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_rounded, size: 18),
+            label: const Text('Back to My Projects'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4F46E5),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
         ),
       );
     }
@@ -1046,6 +1079,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 arguments: {
                   'projectId': project.id,
                   'projectName': project.name,
+                  'userId': _currentUserId,
                 },
               );
             },
@@ -1451,16 +1485,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   // Add Impact Action Button
                   InkWell(
                     key: const Key('project_detail_add_contribution_btn'),
-                    onTap: () async {
-                      final result = await Navigator.pushNamed(
-                        context,
-                        AddContributionScreen.routeName,
-                        arguments: {'projectId': project.id},
-                      );
-                      if (result != null) {
-                        _loadContributions(project.id);
-                      }
-                    },
+                    onTap: () => _openAddContributionScreen(project),
                     borderRadius: BorderRadius.circular(20),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
@@ -1568,39 +1593,38 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 ),
               )
             else if (filteredContributions.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Column(
-                  children: [
-                    Icon(Icons.auto_awesome_motion_outlined, color: Colors.grey.shade400, size: 40),
-                    const SizedBox(height: 10),
-                    Text(
-                      _selectedFilter == 'all'
-                          ? 'No contributions imported yet'
-                          : 'No ${_selectedFilter.replaceAll('-', ' ')} contributions found',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade800,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Tap "Generate Contribution Draft" above to automatically pull and match GitHub activity.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
+              EmptyStateView(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 12),
+                icon: _selectedFilter == 'all'
+                    ? Icons.auto_awesome_motion_outlined
+                    : Icons.filter_alt_off_outlined,
+                badgeSize: 48,
+                iconSize: 24,
+                title: _selectedFilter == 'all'
+                    ? 'No contributions imported yet'
+                    : 'No ${_selectedFilter.replaceAll('-', ' ')} contributions found',
+                description: _selectedFilter == 'all'
+                    ? 'Tap "Generate Contribution Draft" above to automatically pull and match GitHub activity.'
+                    : 'No deliverables match the "$_selectedFilter" filter.',
+                primaryAction: _selectedFilter != 'all'
+                    ? OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _selectedFilter = 'all';
+                          });
+                        },
+                        icon: const Icon(Icons.refresh_rounded, size: 16),
+                        label: const Text('View All Contributions'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF4F46E5),
+                          side: const BorderSide(color: Color(0xFFC7D2FE)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      )
+                    : null,
               )
             else
               ...filteredContributions.map(

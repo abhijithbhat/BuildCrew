@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/contribution.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
+import '../widgets/empty_state_view.dart';
 
 /// Screen allowing builders to select which of their confirmed deliverables
 /// should be visible on their public BuildCrew Passport.
@@ -10,6 +13,7 @@ class PublishSelectionScreen extends StatefulWidget {
 
   final String? projectId;
   final String? projectName;
+  final String? userId;
   final List<Contribution>? initialContributions;
   final ProjectService? projectService;
   final StorageService? storageService;
@@ -20,6 +24,7 @@ class PublishSelectionScreen extends StatefulWidget {
     super.key,
     this.projectId,
     this.projectName,
+    this.userId,
     this.initialContributions,
     this.projectService,
     this.storageService,
@@ -34,6 +39,7 @@ class PublishSelectionScreen extends StatefulWidget {
 class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
   late final ProjectService _projectService;
   late final StorageService _storageService;
+  ScaffoldMessengerState? _scaffoldMessenger;
 
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _selectedIds = {};
@@ -51,6 +57,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
   @override
   void initState() {
     super.initState();
+    _currentUserId = widget.userId;
     _resolvedProjectId = widget.projectId;
     _resolvedProjectName = widget.projectName;
     _projectService = widget.projectService ?? ProjectService();
@@ -62,9 +69,11 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
   }
 
   Future<void> _initAndLoad() async {
-    try {
-      _currentUserId = await _storageService.getUserId();
-    } catch (_) {}
+    if (_currentUserId == null || _currentUserId!.isEmpty) {
+      try {
+        _currentUserId = await _storageService.getUserId();
+      } catch (_) {}
+    }
 
     if (widget.initialContributions == null &&
         _resolvedProjectId != null &&
@@ -76,9 +85,13 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _scaffoldMessenger = ScaffoldMessenger.of(context);
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is Map<String, dynamic>) {
       bool shouldFetch = false;
+      if (args['userId'] != null && _currentUserId == null) {
+        _currentUserId = args['userId']?.toString();
+      }
       if (args['projectId'] != null && _resolvedProjectId == null) {
         _resolvedProjectId = args['projectId']?.toString();
         shouldFetch = true;
@@ -92,17 +105,31 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
         _loadItems(passedList);
         shouldFetch = false;
       }
-      if (shouldFetch && widget.initialContributions == null && _confirmedContributions.isEmpty) {
+      if (shouldFetch &&
+          widget.initialContributions == null &&
+          _confirmedContributions.isEmpty) {
         _fetchContributions();
       }
     }
   }
 
+  @override
+  void deactivate() {
+    _scaffoldMessenger?.hideCurrentSnackBar();
+    super.deactivate();
+  }
+
   void _loadItems(List<Contribution> list) {
-    // Only confirmed deliverables that are NOT disputed or needing review
-    final confirmed = list
-        .where((c) => c.isConfirmed && !c.needsReview && !c.isDisputed)
-        .toList();
+    // Strictly isolate to THIS user's confirmed deliverables that are NOT disputed or needing review.
+    final confirmed = list.where((c) {
+      final matchesUser = _currentUserId == null ||
+          _currentUserId!.isEmpty ||
+          c.contributor == _currentUserId ||
+          (c.contributorProfile != null &&
+              (c.contributorProfile!['user_id'] == _currentUserId ||
+                  c.contributorProfile!['id'] == _currentUserId));
+      return matchesUser && c.isConfirmed && !c.needsReview && !c.isDisputed;
+    }).toList();
 
     setState(() {
       _confirmedContributions = confirmed;
@@ -117,6 +144,13 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
 
   Future<void> _fetchContributions() async {
     if (_resolvedProjectId == null || _resolvedProjectId!.isEmpty) return;
+
+    // Ensure _currentUserId is loaded so we never fetch other users' contributions
+    if (_currentUserId == null || _currentUserId!.isEmpty) {
+      try {
+        _currentUserId = await _storageService.getUserId();
+      } catch (_) {}
+    }
 
     setState(() {
       _isLoading = true;
@@ -202,12 +236,16 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
 
     try {
       final toPublish = _confirmedContributions
-          .where((c) => _selectedIds.contains(c.id) && c.visibility.toLowerCase() != 'public')
+          .where((c) =>
+              _selectedIds.contains(c.id) &&
+              c.visibility.toLowerCase() != 'public')
           .map((c) => c.id)
           .toList();
 
       final toUnpublish = _confirmedContributions
-          .where((c) => !_selectedIds.contains(c.id) && c.visibility.toLowerCase() == 'public')
+          .where((c) =>
+              !_selectedIds.contains(c.id) &&
+              c.visibility.toLowerCase() == 'public')
           .map((c) => c.id)
           .toList();
 
@@ -231,11 +269,15 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
       widget.onSave?.call();
 
       final totalSelected = _selectedIds.length;
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+      _scaffoldMessenger?.hideCurrentSnackBar();
+      _scaffoldMessenger?.showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 4),
           content: Row(
             children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              const Icon(Icons.check_circle_rounded,
+                  color: Colors.white, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -246,22 +288,30 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
           ),
           backgroundColor: const Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'Copy Link',
+            textColor: Colors.white,
+            onPressed: _sharePassportLink,
+          ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      _scaffoldMessenger?.hideCurrentSnackBar();
+      _scaffoldMessenger?.showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 4),
           content: Row(
             children: [
-              const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+              const Icon(Icons.error_outline_rounded,
+                  color: Colors.white, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(e.toString()),
               ),
             ],
           ),
-          backgroundColor: Colors.red.shade700,
+          backgroundColor: const Color(0xFFE11D48),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -274,9 +324,52 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
     }
   }
 
+  String _getPassportUrl() {
+    final uid = _currentUserId ?? 'user';
+    final pid = _resolvedProjectId ?? 'project';
+    return 'http://127.0.0.1:8000/passport/$uid/$pid';
+  }
+
+  Future<void> _sharePassportLink() async {
+    final url = _getPassportUrl();
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!mounted) return;
+    _scaffoldMessenger?.hideCurrentSnackBar();
+    _scaffoldMessenger?.showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 3),
+        content: Row(
+          children: [
+            const Icon(Icons.link_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Public passport link copied:\n$url',
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF4F46E5),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'Open',
+          textColor: Colors.white,
+          onPressed: () async {
+            final uri = Uri.parse(url);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
   void _updateContributionInList(Contribution updated) {
     setState(() {
-      final index = _confirmedContributions.indexWhere((c) => c.id == updated.id);
+      final index =
+          _confirmedContributions.indexWhere((c) => c.id == updated.id);
       if (index != -1) {
         _confirmedContributions[index] = updated;
       }
@@ -333,16 +426,30 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
     final isAllSelected = filtered.isNotEmpty &&
         filtered.every((c) => _selectedIds.contains(c.id));
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B0F19),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF151C2C),
-        elevation: 0,
-        leading: IconButton(
-          key: const Key('publish_back_button'),
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          _scaffoldMessenger?.hideCurrentSnackBar();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          shape: const Border(
+            bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          ),
+          leading: IconButton(
+            key: const Key('publish_back_button'),
+            icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A)),
+            onPressed: () {
+              _scaffoldMessenger?.hideCurrentSnackBar();
+              Navigator.of(context).pop();
+            },
+          ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -351,7 +458,8 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: Color(0xFF0F172A),
+                letterSpacing: -0.3,
               ),
             ),
             Text(
@@ -360,12 +468,19 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                   : 'Passport Visibility Controls',
               style: const TextStyle(
                 fontSize: 12,
-                color: Color(0xFF94A3B8),
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w400,
               ),
             ),
           ],
         ),
         actions: [
+          IconButton(
+            key: const Key('publish_share_passport_btn'),
+            tooltip: 'Share Passport Link',
+            icon: const Icon(Icons.share_outlined, color: Color(0xFF4F46E5), size: 20),
+            onPressed: _sharePassportLink,
+          ),
           if (filtered.isNotEmpty)
             TextButton(
               key: const Key('publish_toggle_all_btn'),
@@ -373,9 +488,9 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
               child: Text(
                 isAllSelected ? 'Deselect All' : 'Select All',
                 style: const TextStyle(
-                  color: Color(0xFF60A5FA),
+                  color: Color(0xFF4F46E5),
                   fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
@@ -383,8 +498,8 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _fetchContributions,
-        color: const Color(0xFF2563EB),
-        backgroundColor: const Color(0xFF151C2C),
+        color: const Color(0xFF4F46E5),
+        backgroundColor: Colors.white,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -398,13 +513,16 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                     margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF334155)),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -415,15 +533,12 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF2563EB).withAlpha(40),
+                                color: const Color(0xFFEEF2FF),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: const Color(0xFF3B82F6).withAlpha(80),
-                                ),
                               ),
                               child: const Icon(
                                 Icons.verified_user_rounded,
-                                color: Color(0xFF60A5FA),
+                                color: Color(0xFF4F46E5),
                                 size: 24,
                               ),
                             ),
@@ -437,7 +552,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                                     style: TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.white,
+                                      color: Color(0xFF0F172A),
                                     ),
                                   ),
                                   SizedBox(height: 4),
@@ -445,7 +560,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                                     'Choose which confirmed deliverables are featured on your public passport profile. Unchecked items remain private to your team.',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: Color(0xFF94A3B8),
+                                      color: Color(0xFF64748B),
                                       height: 1.4,
                                     ),
                                   ),
@@ -477,7 +592,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                             _buildStatBadge(
                               label: 'Confirmed',
                               count: totalConfirmed,
-                              color: const Color(0xFF3B82F6),
+                              color: const Color(0xFF4F46E5),
                               icon: Icons.check_circle_outline_rounded,
                             ),
                           ],
@@ -497,10 +612,11 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                           _searchQuery = val;
                         });
                       },
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      style: const TextStyle(
+                          color: Color(0xFF0F172A), fontSize: 14),
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: const Color(0xFF151C2C),
+                        fillColor: Colors.white,
                         hintText: 'Search confirmed deliverables...',
                         hintStyle: const TextStyle(
                           color: Color(0xFFB0BEC5),
@@ -508,13 +624,13 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                         ),
                         prefixIcon: const Icon(
                           Icons.search_rounded,
-                          color: Color(0xFF94A3B8),
+                          color: Color(0xFF4F46E5),
                           size: 20,
                         ),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear_rounded,
-                                    color: Color(0xFF94A3B8), size: 18),
+                                    color: Color(0xFF64748B), size: 18),
                                 onPressed: () {
                                   _searchController.clear();
                                   setState(() {
@@ -523,18 +639,22 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                                 },
                               )
                             : null,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 12),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF1E293B)),
+                          borderSide:
+                              const BorderSide(color: Color(0xFFE2E8F0)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF1E293B)),
+                          borderSide:
+                              const BorderSide(color: Color(0xFFE2E8F0)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF2563EB)),
+                          borderSide:
+                              const BorderSide(color: Color(0xFF4F46E5), width: 1.5),
                         ),
                       ),
                     ),
@@ -548,24 +668,28 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.red.withAlpha(25),
+                        color: const Color(0xFFFFF1F2),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.red.withAlpha(70)),
+                        border: Border.all(color: const Color(0xFFFECDD3)),
                       ),
                       child: Row(
                         children: [
                           const Icon(Icons.error_outline_rounded,
-                              color: Colors.redAccent, size: 20),
+                              color: Color(0xFFE11D48), size: 20),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               _errorMessage!,
-                              style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                              style: const TextStyle(
+                                  color: Color(0xFFBE123C), fontSize: 13),
                             ),
                           ),
                           TextButton(
                             onPressed: _fetchContributions,
-                            child: const Text('Retry', style: TextStyle(color: Colors.redAccent)),
+                            child: const Text('Retry',
+                                style: TextStyle(
+                                    color: Color(0xFFE11D48),
+                                    fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ),
@@ -579,7 +703,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                   padding: EdgeInsets.symmetric(vertical: 48),
                   child: Center(
                     child: CircularProgressIndicator(
-                      color: Color(0xFF2563EB),
+                      color: Color(0xFF4F46E5),
                     ),
                   ),
                 ),
@@ -614,13 +738,13 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF151C2C),
+          color: Colors.white,
           border: const Border(
-            top: BorderSide(color: Color(0xFF1E293B)),
+            top: BorderSide(color: Color(0xFFE2E8F0)),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha(80),
+              color: const Color(0xFF0F172A).withValues(alpha: 0.05),
               offset: const Offset(0, -4),
               blurRadius: 12,
             ),
@@ -639,7 +763,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: Color(0xFF0F172A),
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -649,7 +773,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                           : '$totalSelected deliverables visible on passport',
                       style: const TextStyle(
                         fontSize: 11,
-                        color: Color(0xFF94A3B8),
+                        color: Color(0xFF64748B),
                       ),
                     ),
                   ],
@@ -660,8 +784,9 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                 key: const Key('publish_save_button'),
                 onPressed: _isSaving ? null : _savePassport,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
+                  backgroundColor: const Color(0xFF4F46E5),
                   foregroundColor: Colors.white,
+                  elevation: 0,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -680,15 +805,17 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                     : const Icon(Icons.check_rounded, size: 18),
                 label: Text(
                   _isSaving ? 'Saving...' : 'Save Passport',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildStatBadge({
     required String label,
@@ -700,9 +827,9 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withAlpha(20),
+          color: color.withAlpha(16),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withAlpha(60)),
+          border: Border.all(color: color.withAlpha(50)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -715,7 +842,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                 style: TextStyle(
                   color: color,
                   fontSize: 11,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -737,14 +864,23 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isSelected
-            ? const Color(0xFF151C2C)
-            : const Color(0xFF111827).withAlpha(160),
+        color: isSelected ? Colors.white : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isSelected ? const Color(0xFF3B82F6) : const Color(0xFF1E293B),
+          color: isSelected
+              ? const Color(0xFF4F46E5)
+              : const Color(0xFFE2E8F0),
           width: isSelected ? 1.5 : 1.0,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: isSelected
+                ? const Color(0xFF4F46E5).withValues(alpha: 0.06)
+                : const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
@@ -756,7 +892,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Custom checkbox or in-flight spinner
+                // Checkbox or in-flight spinner
                 Padding(
                   padding: const EdgeInsets.only(top: 2, right: 12),
                   child: SizedBox(
@@ -769,23 +905,24 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Color(0xFF3B82F6),
+                                color: Color(0xFF4F46E5),
                               ),
                             ),
                           )
                         : Checkbox(
                             key: Key('publish_checkbox_${item.id}'),
                             value: isSelected,
-                            onChanged: isUpdating ? null : (_) => _toggleItem(item),
-                            activeColor: const Color(0xFF2563EB),
+                            onChanged:
+                                isUpdating ? null : (_) => _toggleItem(item),
+                            activeColor: const Color(0xFF4F46E5),
                             checkColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(6),
                             ),
                             side: BorderSide(
                               color: isSelected
-                                  ? const Color(0xFF3B82F6)
-                                  : const Color(0xFF64748B),
+                                  ? const Color(0xFF4F46E5)
+                                  : const Color(0xFF94A3B8),
                               width: 1.5,
                             ),
                           ),
@@ -805,9 +942,10 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: catColor.withAlpha(25),
+                              color: catColor.withAlpha(20),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: catColor.withAlpha(80)),
+                              border:
+                                  Border.all(color: catColor.withAlpha(70)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -832,10 +970,10 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withAlpha(25),
+                              color: const Color(0xFFECFDF5),
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                color: const Color(0xFF10B981).withAlpha(80),
+                                color: const Color(0xFFA7F3D0),
                               ),
                             ),
                             child: const Row(
@@ -843,14 +981,14 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                               children: [
                                 Icon(
                                   Icons.verified_rounded,
-                                  color: Color(0xFF10B981),
+                                  color: Color(0xFF059669),
                                   size: 12,
                                 ),
                                 SizedBox(width: 4),
                                 Text(
                                   'CONFIRMED',
                                   style: TextStyle(
-                                    color: Color(0xFF10B981),
+                                    color: Color(0xFF059669),
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -867,8 +1005,8 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? const Color(0xFF10B981).withAlpha(20)
-                                  : const Color(0xFF64748B).withAlpha(20),
+                                  ? const Color(0xFFECFDF5)
+                                  : const Color(0xFFF1F5F9),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Row(
@@ -880,8 +1018,8 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: isSelected
-                                        ? const Color(0xFF10B981)
-                                        : const Color(0xFF64748B),
+                                        ? const Color(0xFF059669)
+                                        : const Color(0xFF94A3B8),
                                   ),
                                 ),
                                 const SizedBox(width: 4),
@@ -889,8 +1027,8 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                                   isSelected ? 'Public' : 'Private',
                                   style: TextStyle(
                                     color: isSelected
-                                        ? const Color(0xFF10B981)
-                                        : const Color(0xFF94A3B8),
+                                        ? const Color(0xFF059669)
+                                        : const Color(0xFF64748B),
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -909,7 +1047,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Color(0xFF0F172A),
                           height: 1.3,
                         ),
                       ),
@@ -923,7 +1061,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF94A3B8),
+                            color: Color(0xFF64748B),
                             height: 1.3,
                           ),
                         ),
@@ -937,7 +1075,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                             const Icon(
                               Icons.calendar_today_outlined,
                               size: 11,
-                              color: Color(0xFF64748B),
+                              color: Color(0xFF94A3B8),
                             ),
                             const SizedBox(width: 4),
                             Text(
@@ -962,69 +1100,35 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 36),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: const Color(0xFF151C2C),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF1E293B)),
-              ),
-              child: const Icon(
-                Icons.fact_check_outlined,
-                size: 48,
-                color: Color(0xFF64748B),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'No Confirmed Deliverables',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _searchQuery.isNotEmpty
-                  ? 'No confirmed deliverables match "$_searchQuery". Try clearing your search.'
-                  : 'Only deliverables confirmed by your team peers can be featured on your passport. Submit or request confirmations for your work to publish them.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF94A3B8),
-                height: 1.4,
-              ),
-            ),
-            if (_searchQuery.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              OutlinedButton(
-                onPressed: () {
-                  _searchController.clear();
-                  setState(() {
-                    _searchQuery = '';
-                  });
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF60A5FA),
-                  side: const BorderSide(color: Color(0xFF2563EB)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+    return EmptyStateView(
+      icon: _searchQuery.isNotEmpty
+          ? Icons.search_off_rounded
+          : Icons.fact_check_outlined,
+      badgeSize: 84,
+      iconSize: 42,
+      title: 'No Confirmed Deliverables',
+      description: _searchQuery.isNotEmpty
+          ? 'No confirmed deliverables match "$_searchQuery". Try clearing your search.'
+          : 'Only deliverables confirmed by your team peers can be featured on your passport. Submit or request confirmations for your work to publish them.',
+      primaryAction: _searchQuery.isNotEmpty
+          ? OutlinedButton.icon(
+              onPressed: () {
+                _searchController.clear();
+                setState(() {
+                  _searchQuery = '';
+                });
+              },
+              icon: const Icon(Icons.clear_rounded, size: 16),
+              label: const Text('Clear Search'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF4F46E5),
+                side: const BorderSide(color: Color(0xFF4F46E5)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Text('Clear Search'),
               ),
-            ],
-          ],
-        ),
-      ),
+            )
+          : null,
     );
   }
 }

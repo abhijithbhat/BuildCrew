@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#0F172A</color>
+    <color name="splash_background">#0F172A</color>
+    <color name="primary_indigo">#4F46E5</color>
+    <color name="accent_indigo">#6366F1</color>
+    <color name="slate_dark">#0F172A</color>
+    <color name="slate_card">#1E293B</color>
+</resources>

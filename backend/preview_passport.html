@@ -3,25 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ passport.display_name or 'Builder' }} — {{ passport.project_name or 'Project' }} Passport</title>
-    <meta name="description" content="Verified Proof-of-Work Contribution Passport for {{ passport.display_name or 'Builder' }} on {{ passport.project_name or 'Project' }}. Featuring {{ passport.confirmed_count }} peer-confirmed deliverable{{ 's' if passport.confirmed_count != 1 else '' }}.">
+    <title>Abhijithhubli — Development Passport</title>
+    <meta name="description" content="Verified Proof-of-Work Contribution Passport for Abhijithhubli on Development. Featuring 0 peer-confirmed deliverables.">
 
     <!-- Open Graph Meta Tags (WhatsApp, LinkedIn, Facebook) -->
     <meta property="og:type" content="profile">
-    <meta property="og:title" content="{{ passport.display_name or 'Builder' }} — {{ passport.role or 'Contributor' }} on {{ passport.project_name or 'Project' }}">
-    <meta property="og:description" content="Verified Proof-of-Work Contribution Passport: {{ passport.confirmed_count }} peer-confirmed deliverable{{ 's' if passport.confirmed_count != 1 else '' }} on {{ passport.project_name or 'Project' }}. Verified via BuildCrew.">
+    <meta property="og:title" content="Abhijithhubli — Team Lead on Development">
+    <meta property="og:description" content="Verified Proof-of-Work Contribution Passport: 0 peer-confirmed deliverables on Development. Verified via BuildCrew.">
     <meta property="og:site_name" content="BuildCrew">
-    {% if passport.avatar_url %}
-    <meta property="og:image" content="{{ passport.avatar_url }}">
-    {% endif %}
+    
 
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="{{ passport.display_name or 'Builder' }} — {{ passport.role or 'Contributor' }} on {{ passport.project_name or 'Project' }}">
-    <meta name="twitter:description" content="Verified Proof-of-Work Contribution Passport: {{ passport.confirmed_count }} peer-confirmed deliverable{{ 's' if passport.confirmed_count != 1 else '' }} on {{ passport.project_name or 'Project' }}.">
-    {% if passport.avatar_url %}
-    <meta name="twitter:image" content="{{ passport.avatar_url }}">
-    {% endif %}
+    <meta name="twitter:title" content="Abhijithhubli — Team Lead on Development">
+    <meta name="twitter:description" content="Verified Proof-of-Work Contribution Passport: 0 peer-confirmed deliverables on Development.">
+    
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1140,11 +1136,9 @@
         <header class="passport-header">
             <div class="profile-info">
                 <div class="avatar-wrapper">
-                    {% if passport.avatar_url %}
-                    <img src="{{ passport.avatar_url }}" alt="{{ passport.display_name or 'Avatar' }}" class="avatar">
-                    {% else %}
-                    <div class="avatar-placeholder">{{ (passport.display_name or 'U')[0] | upper }}</div>
-                    {% endif %}
+                    
+                    <div class="avatar-placeholder">A</div>
+                    
                     <div class="avatar-verified-badge" title="Verified Contributor">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="20 6 9 17 4 12"></polyline>
@@ -1153,7 +1147,7 @@
                 </div>
                 <div class="header-text">
                     <div class="name-wrapper">
-                        <h1 class="builder-name">{{ passport.display_name or 'Anonymous Builder' }}</h1>
+                        <h1 class="builder-name">Abhijithhubli</h1>
                     </div>
                     <p class="builder-role">
                         <span class="role-badge">
@@ -1161,32 +1155,25 @@
                                 <circle cx="12" cy="8" r="5"></circle>
                                 <path d="M20 21a8 8 0 0 0-16 0"></path>
                             </svg>
-                            {{ passport.role or 'Contributor' }}
+                            Team Lead
                         </span>
-                        <span>on project <strong class="project-highlight">{{ passport.project_name or 'Project' }}</strong></span>
+                        <span>on project <strong class="project-highlight">Development</strong></span>
                     </p>
                     <div class="meta-badges-row">
-                        {% if passport.github_username %}
-                        <div class="github-handle">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"></path>
-                            </svg>
-                            <span>GitHub: <a href="https://github.com/{{ passport.github_username }}" target="_blank" rel="noopener noreferrer">@{{ passport.github_username }}</a></span>
-                        </div>
-                        {% endif %}
-                        <span class="timestamp-badge">PID: {{ (passport.project_id or '0000')[:8] }}</span>
+                        
+                        <span class="timestamp-badge">PID: demo-pro</span>
                     </div>
                 </div>
             </div>
             
             <div class="stats-summary">
                 <div class="stat-card stat-card-highlight">
-                    <span class="stat-value">{{ passport.confirmed_count }}</span>
+                    <span class="stat-value">0</span>
                     <span class="stat-label">Verified Deliverables</span>
                     <span class="stat-subtext">100% Peer Approved</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-value">{{ passport.total_contributions }}</span>
+                    <span class="stat-value">0</span>
                     <span class="stat-label">Total Logged</span>
                     <span class="stat-subtext">Published Milestones</span>
                 </div>
@@ -1208,97 +1195,7 @@
                 </div>
             </div>
             
-            {% if passport.contributions and passport.contributions | length > 0 %}
-            <div class="contributions-list">
-                {% for item in passport.contributions %}
-                <article class="contribution-card" id="contribution-{{ item.id }}">
-                    <div class="contribution-header">
-                        <div class="header-tags">
-                            {% set cat = (item.category or item.source_type or 'General') | lower %}
-                            <span class="category-badge {% if cat in ['code', 'engineering', 'backend', 'frontend'] %}badge-code{% elif cat in ['design', 'ui/ux', 'ui', 'ux'] %}badge-design{% elif cat in ['docs', 'documentation', 'architecture'] %}badge-docs{% elif cat in ['ops', 'devops', 'infra'] %}badge-ops{% endif %}">
-                                {% if cat in ['code', 'engineering', 'backend', 'frontend'] %}
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="16 18 22 12 16 6"></polyline>
-                                    <polyline points="8 6 2 12 8 18"></polyline>
-                                </svg>
-                                {% elif cat in ['design', 'ui/ux', 'ui', 'ux'] %}
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                    <path d="M12 2a4.5 4.5 0 0 0 0 9 4.5 4.5 0 0 1 0 9 4.5 4.5 0 0 1 0-9 4.5 4.5 0 0 0 0-9z"></path>
-                                </svg>
-                                {% else %}
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-                                    <polyline points="2 17 12 22 22 17"></polyline>
-                                    <polyline points="2 12 12 17 22 12"></polyline>
-                                </svg>
-                                {% endif %}
-                                {{ item.category or item.source_type or 'Deliverable' }}
-                            </span>
-                        </div>
-                        
-                        {% if item.verification_status in ['confirmed', 'peer-confirmed'] %}
-                        <span class="verification-badge badge-peer-confirmed">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                            </svg>
-                            <span>Peer Confirmed</span>
-                        </span>
-                        {% elif item.verification_status == 'source-verified' %}
-                        <span class="verification-badge badge-source-verified">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="4"></circle>
-                                <line x1="1.05" y1="12" x2="7" y2="12"></line>
-                                <line x1="17.01" y1="12" x2="22.96" y2="12"></line>
-                            </svg>
-                            <span>Source Verified</span>
-                        </span>
-                        {% else %}
-                        <span class="verification-badge badge-confirmed">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
-                            <span>Confirmed</span>
-                        </span>
-                        {% endif %}
-                    </div>
-
-                    <h3 class="contribution-title">{{ item.title }}</h3>
-
-                    {% if item.description %}
-                    <p class="contribution-description">{{ item.description }}</p>
-                    {% endif %}
-
-                    {% if item.evidence_link %}
-                    <div class="evidence-section">
-                        <a href="{{ item.evidence_link }}" class="evidence-link" target="_blank" rel="noopener noreferrer">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                            </svg>
-                            <span>View Verified Deliverable Evidence</span>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;">
-                                <line x1="7" y1="17" x2="17" y2="7"></line>
-                                <polyline points="7 7 17 7 17 17"></polyline>
-                            </svg>
-                        </a>
-                    </div>
-                    {% endif %}
-
-                    <div class="contribution-footer">
-                        <div class="verifier-info">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                            </svg>
-                            <span>Verified by BuildCrew Team Consensus</span>
-                        </div>
-                        <span class="date-text">Logged: {{ item.created_at[:10] if item.created_at else 'Recent' }}</span>
-                    </div>
-                </article>
-                {% endfor %}
-            </div>
-            {% else %}
+            
             <div class="empty-state">
                 <div class="empty-icon">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1312,7 +1209,7 @@
                 <h4 class="empty-title">No published contributions yet</h4>
                 <p class="empty-desc">This builder has not yet published any confirmed deliverables for this project.</p>
             </div>
-            {% endif %}
+            
 
             <!-- Recruiter Architecture Explainer -->
             <section class="verification-explainer">
@@ -1369,7 +1266,7 @@
         <!-- Footer -->
         <footer class="passport-footer">
             <p>Verified via <strong class="footer-brand">BuildCrew</strong> — Peer-Confirmed Proof-of-Work Platform</p>
-            <p class="footer-security-note">PASSPORT ID: {{ (user_id or '')[:8] }}-{{ (project_id or '')[:8] }} // IMMUTABLE RECORD</p>
+            <p class="footer-security-note">PASSPORT ID: demo-bui-demo-pro // IMMUTABLE RECORD</p>
         </footer>
     </div>
 

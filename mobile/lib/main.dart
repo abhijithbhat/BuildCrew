@@ -17,6 +17,7 @@ import 'screens/project_detail_screen.dart';
 import 'screens/publish_selection_screen.dart';
 import 'screens/repo_status_screen.dart';
 import 'screens/signup_screen.dart';
+import 'screens/splash_screen.dart';
 import 'screens/team_roles_screen.dart';
 import 'services/api_client.dart';
 import 'services/storage_service.dart';
@@ -57,6 +58,7 @@ class MyApp extends StatelessWidget {
         MyContributionsScreen.routeName: (context) => const MyContributionsScreen(),
         PendingConfirmationsScreen.routeName: (context) => const PendingConfirmationsScreen(),
         PublishSelectionScreen.routeName: (context) => const PublishSelectionScreen(),
+        SplashScreen.routeName: (context) => const SplashScreen(),
       },
     );
   }
@@ -131,40 +133,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF0B0F19),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.group_work_rounded,
-              size: 56,
-              color: Color(0xFF2563EB),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'BuildCrew',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                letterSpacing: 0.5,
-              ),
-            ),
-            SizedBox(height: 24),
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return const SplashScreen(message: 'Verifying session...');
   }
 }
 

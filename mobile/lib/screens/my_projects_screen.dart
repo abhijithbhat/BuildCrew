@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/project.dart';
-
 import '../services/project_service.dart';
+import '../widgets/empty_state_view.dart';
 import '../widgets/project_card.dart';
 import 'create_project_screen.dart';
 import 'invite_teammate_screen.dart';
 import 'join_project_screen.dart';
-
 
 class MyProjectsScreen extends StatefulWidget {
   static const String routeName = '/projects';
@@ -108,24 +107,43 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
     final displayProjects = _filteredProjects;
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
           'My Projects',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Color(0xFF0F172A),
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
         ),
         centerTitle: true,
         elevation: 0,
+        scrolledUnderElevation: 0,
         backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        foregroundColor: const Color(0xFF0F172A),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(
+            color: const Color(0xFFE2E8F0),
+            height: 1.0,
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.group_add_outlined, color: Colors.blueAccent),
+            icon: const Icon(
+              Icons.group_add_outlined,
+              color: Color(0xFF4F46E5),
+            ),
             tooltip: 'Join with Code',
             onPressed: _openJoinProjectScreen,
           ),
           IconButton(
-            icon: const Icon(Icons.add_circle_outline, color: Colors.blueAccent),
+            icon: const Icon(
+              Icons.add_circle_outline,
+              color: Color(0xFF4F46E5),
+            ),
             tooltip: 'Create Project',
             onPressed: () async {
               final result = await Navigator.pushNamed(
@@ -139,14 +157,21 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
           ),
         ],
       ),
-
       body: SafeArea(
         child: Column(
           children: [
             // Search and Filter Header Container
             Container(
-              color: Colors.white,
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Color(0xFFE2E8F0),
+                    width: 1.0,
+                  ),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
               child: Column(
                 children: [
                   // Search TextField
@@ -157,16 +182,28 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                         _searchQuery = val.trim();
                       });
                     },
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF0F172A),
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Search projects by name or keywords...',
-                      hintStyle: TextStyle(
-                        color: Colors.grey.shade400,
+                      hintStyle: const TextStyle(
+                        color: Color(0xFF94A3B8),
                         fontSize: 13,
                       ),
-                      prefixIcon: Icon(Icons.search, color: Colors.grey.shade400, size: 20),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: Color(0xFF64748B),
+                        size: 20,
+                      ),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.clear, size: 18),
+                              icon: const Icon(
+                                Icons.clear,
+                                size: 18,
+                                color: Color(0xFF64748B),
+                              ),
                               onPressed: () {
                                 _searchController.clear();
                                 setState(() {
@@ -176,20 +213,37 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                             )
                           : null,
                       filled: true,
-                      fillColor: Colors.grey.shade100,
+                      fillColor: const Color(0xFFF8FAFC),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
-                        vertical: 10,
+                        vertical: 12,
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE2E8F0),
+                          width: 1.0,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE2E8F0),
+                          width: 1.0,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF4F46E5),
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
 
-                  // Filter Chips
+                  // Filter ChoiceChips
                   Row(
                     children: ['All', 'Owned', 'Joined'].map((filter) {
                       final isSelected = _selectedFilter == filter;
@@ -198,13 +252,15 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                         child: ChoiceChip(
                           label: Text(filter),
                           selected: isSelected,
-                          selectedColor: Colors.blueAccent,
+                          selectedColor: const Color(0xFF4F46E5),
                           labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black87,
+                            color: isSelected ? Colors.white : const Color(0xFF475569),
                             fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
                           ),
-                          backgroundColor: Colors.grey.shade100,
+                          backgroundColor: const Color(0xFFF1F5F9),
                           side: BorderSide.none,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
@@ -224,13 +280,16 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
 
             // Content Area: Loading / Error / Empty / List
             Expanded(
               child: _isLoading
                   ? const Center(
-                      child: CircularProgressIndicator(),
+                      child: CircularProgressIndicator(
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5)),
+                      ),
                     )
                   : _errorMessage != null
                       ? Center(
@@ -239,37 +298,47 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
-                                  Icons.error_outline,
-                                  size: 48,
-                                  color: Colors.red.shade400,
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFFEF2F2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.error_outline_rounded,
+                                    size: 40,
+                                    color: Color(0xFFDC2626),
+                                  ),
                                 ),
                                 const SizedBox(height: 16),
-                                Text(
+                                const Text(
                                   'Failed to load projects',
                                   style: TextStyle(
                                     fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey.shade800,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
                                   ),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
                                   _errorMessage!,
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 13,
-                                    color: Colors.grey.shade600,
+                                    color: Color(0xFF64748B),
                                   ),
                                 ),
                                 const SizedBox(height: 20),
                                 ElevatedButton.icon(
                                   onPressed: _fetchProjects,
-                                  icon: const Icon(Icons.refresh),
+                                  icon: const Icon(Icons.refresh, size: 18),
                                   label: const Text('Retry'),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blueAccent,
+                                    backgroundColor: const Color(0xFF4F46E5),
                                     foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -277,99 +346,108 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                           ),
                         )
                       : displayProjects.isEmpty
-                          ? Center(
-                              child: SingleChildScrollView(
-                                padding: const EdgeInsets.all(32),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(20),
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue.shade50,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        Icons.folder_open_rounded,
-                                        size: 56,
-                                        color: Colors.blue.shade400,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 20),
-                                    const Text(
-                                      'No Projects Found',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      _searchQuery.isNotEmpty
-                                          ? 'No projects match "$_searchQuery". Try another keyword.'
-                                          : 'You haven\'t created or joined any projects yet.',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 24),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        ElevatedButton.icon(
-                                          onPressed: () async {
-                                            final res = await Navigator.pushNamed(
-                                              context,
-                                              CreateProjectScreen.routeName,
-                                            );
-                                            if (res != null || mounted) {
-                                              _fetchProjects();
-                                            }
-                                          },
-                                          icon: const Icon(Icons.add, size: 18),
-                                          label: const Text('Create Project'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.blueAccent,
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 12,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
+                          ? SingleChildScrollView(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 24),
+                              child: EmptyStateView(
+                                icon: _searchQuery.isNotEmpty
+                                    ? Icons.search_off_rounded
+                                    : Icons.folder_open_rounded,
+                                title: 'No Projects Found',
+                                description: _searchQuery.isNotEmpty
+                                    ? 'No projects match "$_searchQuery". Try another keyword.'
+                                    : 'You haven\'t created or joined any projects yet. Start building with your team today!',
+                                primaryAction: _searchQuery.isNotEmpty
+                                    ? OutlinedButton.icon(
+                                         onPressed: () {
+                                           _searchController.clear();
+                                           setState(() {
+                                             _searchQuery = '';
+                                           });
+                                         },
+                                        icon: const Icon(Icons.clear_rounded,
+                                            size: 16),
+                                        label: const Text('Clear Search'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor:
+                                              const Color(0xFF4F46E5),
+                                          side: const BorderSide(
+                                              color: Color(0xFFC7D2FE)),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
-                                        OutlinedButton.icon(
-                                          onPressed: _openJoinProjectScreen,
-                                          icon: const Icon(Icons.group_add_outlined, size: 18),
-                                          label: const Text('Join with Code'),
-                                          style: OutlinedButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 12,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
+                                      )
+                                    : ElevatedButton.icon(
+                                        onPressed: () async {
+                                          final res =
+                                              await Navigator.pushNamed(
+                                            context,
+                                            CreateProjectScreen.routeName,
+                                          );
+                                          if (res != null || mounted) {
+                                            _fetchProjects();
+                                          }
+                                        },
+                                        icon: const Icon(Icons.add, size: 18),
+                                        label: const Text('Create Project'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              const Color(0xFF4F46E5),
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 18,
+                                            vertical: 12,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
                                           ),
                                         ),
-
-                                      ],
-                                    ),
-                                  ],
-                                ),
+                                      ),
+                                secondaryAction: _searchQuery.isNotEmpty
+                                    ? null
+                                    : OutlinedButton.icon(
+                                        onPressed: _openJoinProjectScreen,
+                                        icon: const Icon(
+                                          Icons.group_add_outlined,
+                                          size: 18,
+                                          color: Color(0xFF0F172A),
+                                        ),
+                                        label: const Text(
+                                          'Join with Code',
+                                          style: TextStyle(
+                                            color: Color(0xFF0F172A),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          side: const BorderSide(
+                                            color: Color(0xFFCBD5E1),
+                                            width: 1.2,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 12,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                        ),
+                                      ),
                               ),
                             )
                           : RefreshIndicator(
+                              color: const Color(0xFF4F46E5),
                               onRefresh: _fetchProjects,
                               child: ListView.builder(
                                 itemCount: displayProjects.length,
-                                padding: const EdgeInsets.only(bottom: 80, top: 4),
+                                padding: const EdgeInsets.only(
+                                  bottom: 80,
+                                  top: 6,
+                                ),
                                 itemBuilder: (context, index) {
                                   final project = displayProjects[index];
                                   return ProjectCard(
@@ -400,13 +478,16 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
             _fetchProjects();
           }
         },
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: const Color(0xFF4F46E5),
         foregroundColor: Colors.white,
         elevation: 3,
         icon: const Icon(Icons.add),
         label: const Text(
           'New Project',
-          style: TextStyle(fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
         ),
       ),
     );

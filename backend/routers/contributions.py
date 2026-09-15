@@ -1751,6 +1751,31 @@ async def get_project_passport_route(
     return await get_project_passport(user_id, project_id)
 
 
+def _format_clean_display_name(raw_name: Optional[str], profile: Optional[dict] = None) -> str:
+    """
+    Format a builder's name cleanly for the public passport and recruiter PDF.
+    If only an email address was stored, converts username to clean capitalized name.
+    """
+    if profile:
+        full_name = profile.get("full_name")
+        if full_name and "@" not in full_name and len(full_name.strip()) > 1:
+            return full_name.strip()
+    
+    if not raw_name:
+        return "Anonymous Builder"
+    
+    clean = raw_name.strip()
+    if "@" in clean:
+        username = clean.split("@")[0]
+        parts = username.replace(".", " ").replace("_", " ").replace("-", " ").split()
+        capitalized = [p.capitalize() for p in parts if p]
+        if capitalized:
+            return " ".join(capitalized)
+        return "Builder"
+    
+    return clean
+
+
 async def get_project_passport(
     user_id: str,
     project_id: str,
@@ -1845,7 +1870,7 @@ async def get_project_passport(
         ]
 
         now_iso = datetime.now(timezone.utc).isoformat()
-        display_name = profile.get("display_name") or f"User {user_id[:8]}"
+        display_name = _format_clean_display_name(profile.get("full_name") or profile.get("display_name"), profile)
         for c in valid_items:
             c["contributor_name"] = display_name
             c["contributor_profile"] = profile or None
@@ -1877,7 +1902,7 @@ async def get_project_passport(
         err_msg = str(e)
         if _is_dev_fallback_error(err_msg):
             # Local Dev Fallback
-            display_name = DEV_USER_NAMES_DB.get(user_id, f"User {user_id[:8]}")
+            display_name = _format_clean_display_name(DEV_USER_NAMES_DB.get(user_id, f"User {user_id[:8]}"))
             dev_project = DEV_PROJECTS_DB.get(project_id, {})
             project_name = dev_project.get("name", "Project")
 
