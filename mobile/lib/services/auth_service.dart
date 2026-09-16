@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'api_client.dart';
 import 'storage_service.dart';
 
 class AuthService {
@@ -36,7 +37,9 @@ class AuthService {
       try {
         _dio.options.baseUrl = baseUrl;
         debugPrint('ATTEMPTING REQUEST to $baseUrl$path');
-        return await _dio.post(path, data: data);
+        final response = await _dio.post(path, data: data);
+        ApiClient.activeBaseUrl = baseUrl;
+        return response;
       } on DioException catch (e) {
         lastException = e;
         // Only fallback on connection failures, not 4xx/5xx HTTP response errors

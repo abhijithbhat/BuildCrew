@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/contribution.dart';
+import '../services/api_client.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/empty_state_view.dart';
@@ -327,7 +328,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
   String _getPassportUrl() {
     final uid = _currentUserId ?? 'user';
     final pid = _resolvedProjectId ?? 'project';
-    return 'http://127.0.0.1:8000/passport/$uid/$pid';
+    return '${ApiClient.activeBaseUrl}/passport/$uid/$pid';
   }
 
   Future<void> _sharePassportLink() async {

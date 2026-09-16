@@ -255,4 +255,32 @@ def test_public_passport_renders_jinja2_html_template_when_accept_html():
     assert 'Verified Proof-of-Work Contribution Passport' in html
 
 
+def test_format_clean_display_name_resolves_profile_names_and_email_fallbacks():
+    from routers.contributions import _format_clean_display_name
 
+    # 1. Profile display_name takes highest precedence
+    assert _format_clean_display_name(
+        "raw_prefix",
+        {"display_name": "Abhijith Hubli", "full_name": "Abhijith M Bhat"},
+    ) == "Abhijith Hubli"
+
+    # 2. Profile full_name used when display_name is absent
+    assert _format_clean_display_name(
+        "raw_prefix",
+        {"full_name": "Abhijith M Bhat"},
+    ) == "Abhijith M Bhat"
+
+    # 3. If display_name and full_name are emails, falls back to cleaned email prefix
+    assert _format_clean_display_name(
+        "abhijithhubli@gmail.com",
+        {"display_name": "abhijithhubli@gmail.com"},
+    ) == "Abhijithhubli"
+
+    # 4. Standard email parsing when no profile is present
+    assert _format_clean_display_name("john.doe_dev@domain.com") == "John Doe Dev"
+
+    # 5. Raw name with no email
+    assert _format_clean_display_name("Sarah Connor") == "Sarah Connor"
+
+    # 6. None or empty falls back to Anonymous Builder
+    assert _format_clean_display_name(None) == "Anonymous Builder"

@@ -1757,14 +1757,19 @@ def _format_clean_display_name(raw_name: Optional[str], profile: Optional[dict] 
     If only an email address was stored, converts username to clean capitalized name.
     """
     if profile:
+        disp_name = profile.get("display_name")
+        if disp_name and "@" not in str(disp_name) and len(str(disp_name).strip()) > 1:
+            return str(disp_name).strip()
         full_name = profile.get("full_name")
-        if full_name and "@" not in full_name and len(full_name.strip()) > 1:
-            return full_name.strip()
-    
+        if full_name and "@" not in str(full_name) and len(str(full_name).strip()) > 1:
+            return str(full_name).strip()
+        if not raw_name:
+            raw_name = disp_name or full_name
+
     if not raw_name:
         return "Anonymous Builder"
     
-    clean = raw_name.strip()
+    clean = str(raw_name).strip()
     if "@" in clean:
         username = clean.split("@")[0]
         parts = username.replace(".", " ").replace("_", " ").replace("-", " ").split()
@@ -1870,7 +1875,7 @@ async def get_project_passport(
         ]
 
         now_iso = datetime.now(timezone.utc).isoformat()
-        display_name = _format_clean_display_name(profile.get("full_name") or profile.get("display_name"), profile)
+        display_name = _format_clean_display_name(profile.get("display_name") or profile.get("full_name"), profile)
         for c in valid_items:
             c["contributor_name"] = display_name
             c["contributor_profile"] = profile or None

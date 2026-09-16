@@ -16,8 +16,7 @@ app = FastAPI(title="BuildCrew Backend API")
 # Configure CORS Middleware for Flutter Web, Desktop & Mobile
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^https?://.*$",  # Compliant with allow_credentials=True across all local/web origins
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

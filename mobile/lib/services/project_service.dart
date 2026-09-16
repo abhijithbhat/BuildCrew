@@ -84,7 +84,9 @@ class ProjectService {
       try {
         _dio.options.baseUrl = baseUrl;
         debugPrint('ProjectService: Attempting POST to $baseUrl$path');
-        return await _dio.post(path, data: data, options: options);
+        final response = await _dio.post(path, data: data, options: options);
+        ApiClient.activeBaseUrl = baseUrl;
+        return response;
       } on DioException catch (e) {
         lastException = e;
         final isConnError = e.type == DioExceptionType.connectionError ||
@@ -114,7 +116,9 @@ class ProjectService {
       try {
         _dio.options.baseUrl = baseUrl;
         debugPrint('ProjectService: Attempting GET to $baseUrl$path');
-        return await _dio.get(path, options: options);
+        final response = await _dio.get(path, options: options);
+        ApiClient.activeBaseUrl = baseUrl;
+        return response;
       } on DioException catch (e) {
         lastException = e;
         final isConnError = e.type == DioExceptionType.connectionError ||
@@ -303,7 +307,9 @@ class ProjectService {
       try {
         _dio.options.baseUrl = baseUrl;
         debugPrint('ProjectService: Attempting DELETE to $baseUrl$path');
-        return await _dio.delete(path, options: options);
+        final response = await _dio.delete(path, options: options);
+        ApiClient.activeBaseUrl = baseUrl;
+        return response;
       } on DioException catch (e) {
         lastException = e;
         final isConnError = e.type == DioExceptionType.connectionError ||

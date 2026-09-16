@@ -30,6 +30,14 @@ void main() {
     expect(ApiClient.fallbackBaseUrls.first, contains('8000'));
   });
 
+  test('ApiClient activeBaseUrl provides dynamic base URL and allows updates', () {
+    expect(ApiClient.activeBaseUrl, equals(ApiClient.fallbackBaseUrls.first));
+    ApiClient.activeBaseUrl = 'http://192.168.0.112:8000';
+    expect(ApiClient.activeBaseUrl, equals('http://192.168.0.112:8000'));
+    ApiClient.setInstance(null);
+    expect(ApiClient.activeBaseUrl, equals(ApiClient.fallbackBaseUrls.first));
+  });
+
   test('ApiClient handles force logout correctly', () async {
     await storageService.saveTokens(
       accessToken: 'token-to-be-cleared',

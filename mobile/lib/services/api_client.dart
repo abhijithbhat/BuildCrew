@@ -53,10 +53,33 @@ class ApiClient {
     this.dio.interceptors.add(_AuthRefreshInterceptor(this));
   }
 
+  static String? _activeBaseUrl;
+
   /// Override or reset instance for unit testing.
   @visibleForTesting
   static void setInstance(ApiClient? client) {
     _instance = client;
+    _activeBaseUrl = null;
+  }
+
+  /// Current active base URL or last successful fallback URL.
+  static String get activeBaseUrl {
+    if (_activeBaseUrl != null && _activeBaseUrl!.trim().isNotEmpty) {
+      return _activeBaseUrl!.trim();
+    }
+    if (_instance != null && _instance!.dio.options.baseUrl.trim().isNotEmpty) {
+      return _instance!.dio.options.baseUrl.trim();
+    }
+    return fallbackBaseUrls.first;
+  }
+
+  static set activeBaseUrl(String url) {
+    if (url.trim().isNotEmpty) {
+      _activeBaseUrl = url.trim();
+      if (_instance != null) {
+        _instance!.dio.options.baseUrl = url.trim();
+      }
+    }
   }
 
   /// Base URLs with multi-endpoint fallback across ADB USB, Wi-Fi, and Emulator.
@@ -121,6 +144,7 @@ class ApiClient {
         );
 
         if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+          activeBaseUrl = baseUrl;
           final data = response.data as Map<String, dynamic>;
           final newAccessToken = data['access_token']?.toString();
           final newRefreshToken = data['refresh_token']?.toString();
