@@ -4,6 +4,7 @@ import '../models/contribution.dart';
 import '../models/project.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
+import '../theme/app_colors.dart';
 import '../widgets/contribution_card.dart';
 import '../widgets/empty_state_view.dart';
 import '../widgets/request_confirmation_modal.dart';
@@ -499,12 +500,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                  color: AppColors.emeraldInk.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
                   Icons.auto_awesome_rounded,
-                  color: Color(0xFF2563EB),
+                  color: AppColors.emeraldInk,
                   size: 22,
                 ),
               ),
@@ -569,8 +570,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   _loadContributions(project.id);
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
-                  foregroundColor: Colors.white,
+                  backgroundColor: AppColors.emeraldInk,
+                  foregroundColor: AppColors.champagne,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -674,7 +675,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Row(
             children: [
-              Icon(Icons.info_outline_rounded, color: Color(0xFF2563EB), size: 22),
+              Icon(Icons.info_outline_rounded, color: AppColors.emeraldInk, size: 22),
               SizedBox(width: 8),
               Text('GitHub Contribution', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ],
@@ -686,7 +687,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
+              child: const Text('OK', style: TextStyle(color: AppColors.emeraldInk, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -968,16 +969,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF2563EB) : Colors.white,
+          color: isSelected ? AppColors.emeraldInk : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? const Color(0xFF2563EB) : Colors.grey.shade300,
+            color: isSelected ? AppColors.emeraldInk : AppColors.inputBorder,
             width: 1.2,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                    color: AppColors.emeraldInk.withValues(alpha: 0.25),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -989,7 +990,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           style: TextStyle(
             fontSize: 12,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            color: isSelected ? Colors.white : Colors.grey.shade700,
+            color: isSelected ? AppColors.champagne : AppColors.bodyText,
           ),
         ),
       ),
@@ -1003,14 +1004,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
     if (_isLoadingProject) {
       return Scaffold(
-        backgroundColor: const Color(0xFF0B0F19),
+        backgroundColor: AppColors.champagne,
         appBar: AppBar(
-          backgroundColor: const Color(0xFF0B0F19),
-          title: const Text('Loading Project...'),
+          backgroundColor: AppColors.champagne,
+          foregroundColor: AppColors.emeraldInk,
+          shape: const Border(
+            bottom: BorderSide(color: AppColors.inputBorder, width: 1),
+          ),
+          title: const Text('Loading Project...', style: TextStyle(color: AppColors.emeraldInk, fontWeight: FontWeight.bold)),
         ),
         body: const Center(
           child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.emeraldInk),
           ),
         ),
       );
@@ -1018,12 +1023,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
     if (project == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: AppColors.champagne,
         appBar: AppBar(
-          title: const Text('Project Detail'),
-          backgroundColor: Colors.white,
-          foregroundColor: const Color(0xFF0F172A),
+          title: const Text('Project Detail', style: TextStyle(color: AppColors.emeraldInk, fontWeight: FontWeight.bold)),
+          backgroundColor: AppColors.champagne,
+          foregroundColor: AppColors.emeraldInk,
           elevation: 0,
+          shape: const Border(
+            bottom: BorderSide(color: AppColors.inputBorder, width: 1),
+          ),
         ),
         body: EmptyStateView(
           icon: Icons.folder_off_outlined,
@@ -1032,11 +1040,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               'Could not load project details. Please select a valid project from your workspace.',
           primaryAction: ElevatedButton.icon(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_rounded, size: 18),
-            label: const Text('Back to My Projects'),
+            icon: const Icon(Icons.arrow_back_rounded, color: AppColors.champagne, size: 18),
+            label: const Text('Back to My Projects', style: TextStyle(color: AppColors.champagne)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4F46E5),
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.emeraldInk,
+              foregroundColor: AppColors.champagne,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -1057,20 +1065,23 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     }).toList();
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: AppColors.champagne,
       appBar: AppBar(
         title: Text(
           project.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.emeraldInk),
         ),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        backgroundColor: AppColors.champagne,
+        foregroundColor: AppColors.emeraldInk,
+        shape: const Border(
+          bottom: BorderSide(color: AppColors.inputBorder, width: 1),
+        ),
         actions: [
           IconButton(
             key: const Key('project_detail_publish_selection_btn'),
-            icon: const Icon(Icons.verified_user_outlined, color: Colors.blueAccent),
+            icon: const Icon(Icons.verified_user_outlined, color: AppColors.emeraldInk),
             tooltip: 'Select for Passport',
             onPressed: () {
               Navigator.pushNamed(
@@ -1089,9 +1100,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.emeraldInk),
                   )
-                : const Icon(Icons.share_outlined, color: Colors.blueAccent),
+                : const Icon(Icons.share_outlined, color: AppColors.emeraldInk),
             tooltip: 'Invite Members',
             onPressed: () => _shareInvite(project),
           ),
@@ -1107,10 +1118,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(color: AppColors.inputBorder),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
+                    color: AppColors.emeraldInk.withValues(alpha: 0.04),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -1219,19 +1230,21 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     arguments: project,
                   );
                 },
-                icon: const Icon(Icons.badge_outlined, color: Colors.blueAccent),
+                icon: const Icon(Icons.badge_outlined, color: AppColors.emeraldInk),
                 label: const Text(
                   'View Team Roles & Responsibilities',
                   style: TextStyle(
-                    color: Colors.blueAccent,
+                    color: AppColors.emeraldInk,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.emeraldInk,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: Colors.blueAccent),
+                  side: const BorderSide(color: AppColors.emeraldInk, width: 1.2),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),
@@ -1253,19 +1266,21 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     },
                   );
                 },
-                icon: const Icon(Icons.code_rounded, color: Color(0xFF2563EB)),
+                icon: const Icon(Icons.code_rounded, color: AppColors.emeraldInk),
                 label: const Text(
                   'GitHub Integration & Status',
                   style: TextStyle(
-                    color: Color(0xFF2563EB),
+                    color: AppColors.emeraldInk,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.emeraldInk,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: Color(0xFF2563EB)),
+                  side: const BorderSide(color: AppColors.emeraldInk, width: 1.2),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),
@@ -1275,7 +1290,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             // Generate Contribution Draft Button
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
+              child: OutlinedButton.icon(
                 onPressed: _isGeneratingDraft ? null : () => _generateContributionDraft(project),
                 icon: _isGeneratingDraft
                     ? const SizedBox(
@@ -1283,25 +1298,26 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: AppColors.emeraldInk,
                         ),
                       )
-                    : const Icon(Icons.auto_awesome_rounded, color: Colors.white),
+                    : const Icon(Icons.auto_awesome_rounded, color: AppColors.emeraldInk),
                 label: Text(
                   _isGeneratingDraft ? 'Syncing GitHub Activity...' : 'Generate Contribution Draft',
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     fontSize: 14,
-                    color: Colors.white,
+                    color: AppColors.emeraldInk,
                   ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
-                  foregroundColor: Colors.white,
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.emeraldInk,
+                  disabledForegroundColor: AppColors.emeraldInk.withValues(alpha: 0.5),
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  elevation: 2,
+                  side: const BorderSide(color: AppColors.emeraldInk, width: 1.2),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),
@@ -1320,19 +1336,21 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     arguments: {'projectId': project.id, 'project': project},
                   );
                 },
-                icon: const Icon(Icons.person_pin_outlined, color: Color(0xFF10B981)),
+                icon: const Icon(Icons.person_pin_outlined, color: AppColors.emeraldInk),
                 label: const Text(
                   'My Contributions & Impact Log',
                   style: TextStyle(
-                    color: Color(0xFF10B981),
+                    color: AppColors.emeraldInk,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.emeraldInk,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: Color(0xFF10B981)),
+                  side: const BorderSide(color: AppColors.emeraldInk, width: 1.2),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),
@@ -1350,19 +1368,21 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     '/pending-confirmations',
                   );
                 },
-                icon: const Icon(Icons.rate_review_outlined, color: Color(0xFF6366F1)),
+                icon: const Icon(Icons.rate_review_outlined, color: AppColors.emeraldInk),
                 label: const Text(
                   'Pending Peer Confirmations',
                   style: TextStyle(
-                    color: Color(0xFF6366F1),
+                    color: AppColors.emeraldInk,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.emeraldInk,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: Color(0xFF6366F1)),
+                  side: const BorderSide(color: AppColors.emeraldInk, width: 1.2),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),
@@ -1374,16 +1394,19 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _isGeneratingInvite ? null : () => _shareInvite(project, isOwner: isOwner),
-                icon: const Icon(Icons.person_add_alt_1_outlined, color: Colors.blueAccent),
+                icon: const Icon(Icons.person_add_alt_1_outlined, color: AppColors.emeraldInk),
                 label: const Text(
                   'Generate Team Invite Code',
-                  style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: AppColors.emeraldInk, fontWeight: FontWeight.w600),
                 ),
                 style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.emeraldInk,
+                  disabledForegroundColor: AppColors.emeraldInk.withValues(alpha: 0.5),
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: Colors.blueAccent),
+                  side: const BorderSide(color: AppColors.emeraldInk, width: 1.2),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),
@@ -1401,21 +1424,21 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Copied team reminder message to clipboard!'),
-                        backgroundColor: Colors.blueAccent,
+                        backgroundColor: AppColors.emeraldInk,
                         behavior: SnackBarBehavior.floating,
                       ),
                     );
                   },
-                  icon: const Icon(Icons.campaign_outlined, color: Colors.indigo),
+                  icon: const Icon(Icons.campaign_outlined, color: AppColors.emeraldInk),
                   label: const Text(
                     'Remind Teammates to Declare Roles',
                     style: TextStyle(
-                      color: Colors.indigo,
+                      color: AppColors.emeraldInk,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   style: TextButton.styleFrom(
-                    backgroundColor: Colors.indigo.shade50,
+                    backgroundColor: AppColors.champagne,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -1436,7 +1459,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.history_edu_rounded, color: Color(0xFF2563EB), size: 22),
+                      const Icon(Icons.history_edu_rounded, color: AppColors.emeraldInk, size: 22),
                       const SizedBox(width: 8),
                       const Flexible(
                         child: Text(
@@ -1453,7 +1476,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                          color: AppColors.emeraldInk.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
@@ -1461,7 +1484,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF2563EB),
+                            color: AppColors.emeraldInk,
                           ),
                         ),
                       ),
@@ -1469,7 +1492,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.refresh_rounded, size: 20, color: Colors.blueAccent),
+                  icon: const Icon(Icons.refresh_rounded, size: 20, color: AppColors.emeraldInk),
                   tooltip: 'Refresh Contributions',
                   onPressed: _isLoadingContributions ? null : () => _loadContributions(project.id),
                 ),
@@ -1490,11 +1513,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB),
+                        color: AppColors.emeraldInk,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                            color: AppColors.emeraldInk.withValues(alpha: 0.25),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -1506,13 +1529,13 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                           Icon(
                             Icons.add_circle_outline_rounded,
                             size: 15,
-                            color: Colors.white,
+                            color: AppColors.champagne,
                           ),
                           SizedBox(width: 6),
                           Text(
                             'Add Impact',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: AppColors.champagne,
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
                             ),
@@ -1617,8 +1640,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         icon: const Icon(Icons.refresh_rounded, size: 16),
                         label: const Text('View All Contributions'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF4F46E5),
-                          side: const BorderSide(color: Color(0xFFC7D2FE)),
+                          foregroundColor: AppColors.emeraldInk,
+                          side: const BorderSide(color: AppColors.inputBorder),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -1659,7 +1682,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Evidence: ${c.evidenceLink}'),
-                            backgroundColor: const Color(0xFF2563EB),
+                            backgroundColor: AppColors.emeraldInk,
                             behavior: SnackBarBehavior.floating,
                           ),
                         );

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
+import '../theme/app_colors.dart';
 
 class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key});
@@ -81,7 +82,6 @@ class _OtpScreenState extends State<OtpScreen> {
           arguments: displayName,
         );
       }
-
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -98,7 +98,7 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   @override
-  Widget build(BuildContext meContext) {
+  Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments;
     String email = 'your email';
     String displayName = 'User';
@@ -112,197 +112,307 @@ class _OtpScreenState extends State<OtpScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('Email Verification'),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        foregroundColor: Colors.black,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 20),
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withAlpha(25),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.mark_email_read_outlined,
-                  size: 40,
-                  color: Theme.of(context).primaryColor,
+      backgroundColor: AppColors.champagne,
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Solid emeraldInk curved header
+            Container(
+              decoration: const BoxDecoration(
+                color: AppColors.emeraldInk,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(32),
+                  bottomRight: Radius.circular(32),
                 ),
               ),
-              const SizedBox(height: 24),
-              const Text(
-                'Verify Your Email',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'We have sent a 6-digit verification code to\n$email',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.black54,
-                  height: 1.4,
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Error Banner
-              if (_errorMessage != null) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200),
-                  ),
-                  child: Row(
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                  child: Column(
                     children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _errorMessage!,
-                          style: const TextStyle(color: Colors.red, fontSize: 13),
+                      // Navigation Bar Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (Navigator.canPop(context))
+                            IconButton(
+                              icon: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: AppColors.champagne,
+                                size: 20,
+                              ),
+                              onPressed: () => Navigator.pop(context),
+                            )
+                          else
+                            const SizedBox(width: 40),
+                          const Text(
+                            'Email Verification',
+                            style: TextStyle(
+                              color: AppColors.champagne,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(width: 40),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      // App Mark Emblem in Champagne
+                      Container(
+                        width: 68,
+                        height: 68,
+                        decoration: BoxDecoration(
+                          color: AppColors.champagne.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppColors.champagne,
+                            width: 2.0,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.mark_email_read_outlined,
+                            size: 38,
+                            color: AppColors.champagne,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Screen Heading in Champagne
+                      const Text(
+                        'Verify Your Email',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.6,
+                          color: AppColors.champagne,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'We have sent a 6-digit verification code to\n$email',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: AppColors.champagne.withValues(alpha: 0.85),
+                          letterSpacing: -0.1,
+                          height: 1.4,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
-              ],
-
-              // 6-digit OTP Inputs
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (index) {
-                  return SizedBox(
-                    width: 46,
-                    height: 56,
-                    child: TextField(
-                      controller: _controllers[index],
-                      focusNode: _focusNodes[index],
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      textAlignVertical: TextAlignVertical.center,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(1),
-                      ],
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                      decoration: InputDecoration(
-                        counterText: '',
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).primaryColor,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                      onChanged: (value) {
-                        if (value.isNotEmpty && index < 5) {
-                          _focusNodes[index + 1].requestFocus();
-                        } else if (value.isEmpty && index > 0) {
-                          _focusNodes[index - 1].requestFocus();
-                        }
-                        if (_otpCode.length == 6) {
-                          _handleVerify(email, displayName);
-                        }
-                      },
-                    ),
-                  );
-                }),
               ),
+            ),
 
-              const SizedBox(height: 32),
+            // Champagne Body with 6 individual champagne-bordered digit boxes
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 28.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Error Banner
+                  if (_errorMessage != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFECACA)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline_rounded,
+                              color: Color(0xFFDC2626), size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(
+                                color: Color(0xFF991B1B),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
-              // Verify Button
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed:
-                      _isLoading ? null : () => _handleVerify(email, displayName),
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  // 6 Individual Champagne-Bordered Digit Boxes in a Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: List.generate(6, (index) {
+                      return Container(
+                        width: 48,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.emeraldInk.withValues(alpha: 0.08),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: TextField(
+                          controller: _controllers[index],
+                          focusNode: _focusNodes[index],
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          textAlignVertical: TextAlignVertical.center,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(1),
+                          ],
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.emeraldInk,
+                          ),
+                          decoration: InputDecoration(
+                            counterText: '',
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(
+                                color: AppColors.champagne,
+                                width: 2.0,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(
+                                color: AppColors.champagne,
+                                width: 2.0,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(
+                                color: AppColors.emeraldInk,
+                                width: 2.2,
+                              ),
+                            ),
+                          ),
+                          onChanged: (value) {
+                            if (value.isNotEmpty && index < 5) {
+                              _focusNodes[index + 1].requestFocus();
+                            } else if (value.isEmpty && index > 0) {
+                              _focusNodes[index - 1].requestFocus();
+                            }
+                            if (_otpCode.length == 6) {
+                              _handleVerify(email, displayName);
+                            }
+                          },
+                        ),
+                      );
+                    }),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Full-width Emerald Button with Champagne Text
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading
+                          ? null
+                          : () => _handleVerify(email, displayName),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.emeraldInk,
+                        disabledBackgroundColor:
+                            AppColors.emeraldInk.withValues(alpha: 0.6),
+                        foregroundColor: AppColors.champagne,
+                        elevation: 2,
+                        shadowColor:
+                            AppColors.emeraldInk.withValues(alpha: 0.35),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                color: AppColors.champagne,
+                              ),
+                            )
+                          : const Text(
+                              'Verify Code',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                                color: AppColors.champagne,
+                              ),
+                            ),
                     ),
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'Verify Code',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 24),
+                  const SizedBox(height: 20),
 
-              // Resend Code Timer
-              TextButton(
-                onPressed: _resendCountdown == 0
-                    ? () {
-                        _startResendTimer();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('A new verification code has been sent.'),
-                          ),
-                        );
-                      }
-                    : null,
-                child: Text(
-                  _resendCountdown > 0
-                      ? 'Resend Code in ${_resendCountdown}s'
-                      : 'Resend Verification Code',
-                  style: TextStyle(
-                    color: _resendCountdown > 0
-                        ? Colors.grey
-                        : Theme.of(context).primaryColor,
-                    fontWeight: FontWeight.w600,
+                  // Resend Code Timer
+                  Center(
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.emeraldInk,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                      ),
+                      onPressed: _resendCountdown == 0
+                          ? () {
+                              _startResendTimer();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'A new verification code has been sent.'),
+                                ),
+                              );
+                            }
+                          : null,
+                      child: Text(
+                        _resendCountdown > 0
+                            ? 'Resend Code in ${_resendCountdown}s'
+                            : 'Resend Verification Code',
+                        style: TextStyle(
+                          color: _resendCountdown > 0
+                              ? const Color(0xFF94A3B8)
+                              : AppColors.emeraldInk,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

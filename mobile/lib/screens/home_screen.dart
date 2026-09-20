@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/role_agreement.dart';
 import '../services/auth_service.dart';
-import '../services/health_service.dart';
 import '../services/storage_service.dart';
-
+import '../theme/app_colors.dart';
 
 class HomeScreen extends StatefulWidget {
   static const String routeName = '/home';
@@ -45,7 +44,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return RoleAgreement.formatEmailToHumanName(input);
   }
 
-
   @override
   Widget build(BuildContext context) {
     final routeArg = ModalRoute.of(context)?.settings.arguments as String?;
@@ -57,12 +55,25 @@ class _HomeScreenState extends State<HomeScreen> {
     final String displayName = _formatDisplayName(rawInput);
 
     return Scaffold(
+      backgroundColor: AppColors.champagne,
       appBar: AppBar(
-        title: const Text('Home'),
+        title: const Text(
+          'Home',
+          style: TextStyle(
+            color: AppColors.emeraldInk,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
         centerTitle: true,
+        backgroundColor: AppColors.champagne,
+        foregroundColor: AppColors.emeraldInk,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, color: AppColors.emeraldInk),
             tooltip: 'Logout',
             onPressed: () async {
               await AuthService(storageService: _storageService).logout();
@@ -82,11 +93,11 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const CircleAvatar(
                   radius: 40,
-                  backgroundColor: Colors.blueAccent,
+                  backgroundColor: AppColors.emeraldInk,
                   child: Icon(
                     Icons.person,
                     size: 48,
-                    color: Colors.white,
+                    color: AppColors.champagne,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -94,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   'Welcome, $displayName',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: AppColors.emeraldInk,
                       ),
                   textAlign: TextAlign.center,
                 ),
@@ -102,106 +113,135 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(
                   'You are successfully logged in.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey[600],
+                        color: AppColors.bodyText.withValues(alpha: 0.7),
                       ),
                 ),
                 const SizedBox(height: 40),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.favorite),
-                  label: const Text('Check Backend Health'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.folder_shared_outlined, color: AppColors.emeraldInk),
+                    label: const Text(
+                      'My Projects',
+                      style: TextStyle(
+                        color: AppColors.emeraldInk,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppColors.emeraldInk,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      side: const BorderSide(color: AppColors.emeraldInk, width: 1.2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () =>
+                        Navigator.pushNamed(context, '/projects'),
                   ),
-                  onPressed: () async {
-                    try {
-                      final result = await HealthService().checkHealth();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: Colors.green,
-                            content:
-                                Text('Backend Connected: ${result?["status"]}'),
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: Colors.red,
-                            content: Text('Connection Failed: $e'),
-                          ),
-                        );
-                      }
-                    }
-                  },
                 ),
                 const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.folder_shared_outlined),
-                  label: const Text('My Projects'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    key: const Key('home_pending_confirmations_btn'),
+                    icon: const Icon(Icons.rate_review_outlined, color: AppColors.emeraldInk),
+                    label: const Text(
+                      'Pending Confirmations',
+                      style: TextStyle(
+                        color: AppColors.emeraldInk,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppColors.emeraldInk,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      side: const BorderSide(color: AppColors.emeraldInk, width: 1.2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () =>
+                        Navigator.pushNamed(context, '/pending-confirmations'),
                   ),
-                  onPressed: () =>
-                      Navigator.pushNamed(context, '/projects'),
                 ),
                 const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  key: const Key('home_pending_confirmations_btn'),
-                  icon: const Icon(Icons.rate_review_outlined),
-                  label: const Text('Pending Confirmations'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.group_add_outlined, color: AppColors.emeraldInk),
+                    label: const Text(
+                      'Join Project with Code',
+                      style: TextStyle(
+                        color: AppColors.emeraldInk,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppColors.emeraldInk,
+                      side: const BorderSide(color: AppColors.emeraldInk, width: 1.2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () =>
+                        Navigator.pushNamed(context, '/join-project'),
                   ),
-                  onPressed: () =>
-                      Navigator.pushNamed(context, '/pending-confirmations'),
                 ),
                 const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.group_add_outlined),
-                  label: const Text('Join Project with Code'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.add_circle_outline, color: AppColors.emeraldInk),
+                    label: const Text(
+                      'Create New Project',
+                      style: TextStyle(
+                        color: AppColors.emeraldInk,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
-                  ),
-                  onPressed: () =>
-                      Navigator.pushNamed(context, '/join-project'),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.add_circle_outline),
-                  label: const Text('Create New Project'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppColors.emeraldInk,
+                      side: const BorderSide(color: AppColors.emeraldInk, width: 1.2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
+                    onPressed: () =>
+                        Navigator.pushNamed(context, '/create-project'),
                   ),
-                  onPressed: () =>
-                      Navigator.pushNamed(context, '/create-project'),
                 ),
                 const SizedBox(height: 24),
                 TextButton.icon(
-                  icon: const Icon(Icons.logout, color: Colors.red),
+                  icon: const Icon(Icons.logout, color: Color(0xFFDC2626)),
                   label: const Text(
                     'Logout',
-                    style: TextStyle(color: Colors.red),
+                    style: TextStyle(
+                      color: Color(0xFFDC2626),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   onPressed: () async {
                     await AuthService(storageService: _storageService).logout();

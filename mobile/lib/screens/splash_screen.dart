@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 
 /// A production-quality splash screen for BuildCrew.
 /// Matches the native Android launch theme seamlessly with deep slate background,
@@ -16,50 +17,10 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.emeraldInk,
       body: SafeArea(
         child: Stack(
           children: [
-            // Ambient Radial Glow in the background
-            Positioned(
-              top: -60,
-              right: -60,
-              child: Container(
-                width: 240,
-                height: 240,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF4F46E5).withValues(alpha: 0.12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF4F46E5).withValues(alpha: 0.12),
-                      blurRadius: 100,
-                      spreadRadius: 40,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: -40,
-              left: -40,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.08),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF6366F1).withValues(alpha: 0.08),
-                      blurRadius: 90,
-                      spreadRadius: 30,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
             // Main Centered Brand Content
             Center(
               child: Padding(
@@ -67,29 +28,27 @@ class SplashScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Brand Logo Emblem Container
+                    // Brand Logo Emblem (App Mark in Champagne)
                     Container(
-                      width: 92,
-                      height: 92,
+                      width: 96,
+                      height: 96,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFF1E293B),
-                            Color(0xFF0F172A),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(24),
+                        color: AppColors.champagne.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(26),
                         border: Border.all(
-                          color: const Color(0xFF6366F1).withValues(alpha: 0.4),
-                          width: 1.8,
+                          color: AppColors.champagne,
+                          width: 2.0,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF4F46E5).withValues(alpha: 0.25),
-                            blurRadius: 28,
-                            offset: const Offset(0, 10),
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
+                          ),
+                          BoxShadow(
+                            color: AppColors.champagne.withValues(alpha: 0.15),
+                            blurRadius: 20,
+                            spreadRadius: 1,
                           ),
                         ],
                       ),
@@ -98,17 +57,17 @@ class SplashScreen extends StatelessWidget {
                           alignment: Alignment.center,
                           children: [
                             Container(
-                              width: 54,
-                              height: 54,
+                              width: 56,
+                              height: 56,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: const Color(0xFF4F46E5).withValues(alpha: 0.25),
+                                color: AppColors.champagne.withValues(alpha: 0.18),
                               ),
                             ),
                             const Icon(
                               Icons.groups_rounded,
-                              size: 46,
-                              color: Color(0xFF818CF8),
+                              size: 48,
+                              color: AppColors.champagne,
                             ),
                           ],
                         ),
@@ -122,7 +81,7 @@ class SplashScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 30,
                         fontWeight: FontWeight.w800,
-                        color: Colors.white,
+                        color: AppColors.champagne,
                         letterSpacing: -0.6,
                       ),
                     ),
@@ -133,10 +92,10 @@ class SplashScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                        color: AppColors.champagne.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: const Color(0xFF6366F1).withValues(alpha: 0.25),
+                          color: AppColors.champagne.withValues(alpha: 0.35),
                           width: 1,
                         ),
                       ),
@@ -145,7 +104,7 @@ class SplashScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFFA5B4FC),
+                          color: AppColors.champagne,
                           letterSpacing: 1.3,
                         ),
                       ),
@@ -159,7 +118,7 @@ class SplashScreen extends StatelessWidget {
                       child: CircularProgressIndicator(
                         strokeWidth: 2.6,
                         valueColor:
-                            AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+                            AlwaysStoppedAnimation<Color>(AppColors.champagne),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -168,9 +127,9 @@ class SplashScreen extends StatelessWidget {
                     Text(
                       message ?? 'Initializing workspace...',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
-                        color: Color(0xFF64748B),
+                        color: AppColors.champagne.withValues(alpha: 0.8),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -189,28 +148,28 @@ class SplashScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.shield_outlined,
                         size: 13,
-                        color: Color(0xFF475569),
+                        color: AppColors.champagne.withValues(alpha: 0.6),
                       ),
                       const SizedBox(width: 6),
-                      const Text(
+                      Text(
                         'Peer-Verified Deliverables • Cryptographic Trust',
                         style: TextStyle(
                           fontSize: 11,
-                          color: Color(0xFF475569),
+                          color: AppColors.champagne.withValues(alpha: 0.6),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     'v1.0.0',
                     style: TextStyle(
                       fontSize: 10,
-                      color: Color(0xFF334155),
+                      color: AppColors.champagne.withValues(alpha: 0.4),
                       fontWeight: FontWeight.w600,
                     ),
                   ),

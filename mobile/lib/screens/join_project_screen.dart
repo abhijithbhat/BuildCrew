@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/project.dart';
 import '../services/project_service.dart';
+import '../theme/app_colors.dart';
 import 'project_detail_screen.dart';
 
 class JoinProjectScreen extends StatefulWidget {
@@ -100,12 +101,12 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.champagne,
       appBar: AppBar(
         title: const Text(
           'Join Project',
           style: TextStyle(
-            color: Color(0xFF0F172A),
+            color: AppColors.emeraldInk,
             fontSize: 18,
             fontWeight: FontWeight.w700,
             letterSpacing: -0.3,
@@ -115,7 +116,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         backgroundColor: Colors.transparent,
-        foregroundColor: const Color(0xFF0F172A),
+        foregroundColor: AppColors.emeraldInk,
       ),
       body: SafeArea(
         child: Center(
@@ -138,14 +139,14 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Color(0xFF4F46E5),
-                            Color(0xFF6366F1),
+                            AppColors.emeraldInk,
+                            AppColors.emeraldInk,
                           ],
                         ),
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                            color: AppColors.emeraldInk.withValues(alpha: 0.35),
                             blurRadius: 18,
                             offset: const Offset(0, 8),
                           ),
@@ -154,7 +155,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                       child: const Icon(
                         Icons.handshake_outlined,
                         size: 32,
-                        color: Colors.white,
+                        color: AppColors.champagne,
                       ),
                     ),
                   ),
@@ -166,7 +167,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                       fontSize: 26,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.6,
-                      color: Color(0xFF0F172A),
+                      color: AppColors.emeraldInk,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -229,12 +230,12 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFFE2E8F0),
+                        color: AppColors.inputBorder,
                         width: 1.2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          color: AppColors.emeraldInk.withValues(alpha: 0.04),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                         ),
@@ -261,7 +262,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 2.0,
-                            color: Color(0xFF0F172A),
+                            color: AppColors.emeraldInk,
                           ),
                           decoration: InputDecoration(
                             hintText: 'e.g., BC-X8KLHH',
@@ -273,13 +274,13 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                             suffixIcon: IconButton(
                               icon: const Icon(
                                 Icons.paste_rounded,
-                                color: Color(0xFF4F46E5),
+                                color: AppColors.emeraldInk,
                               ),
                               tooltip: 'Paste from clipboard',
                               onPressed: _pasteFromClipboard,
                             ),
                             filled: true,
-                            fillColor: const Color(0xFFF8FAFC),
+                            fillColor: AppColors.champagne,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
@@ -297,7 +298,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
-                                color: Color(0xFF4F46E5),
+                                color: AppColors.emeraldInk,
                                 width: 1.8,
                               ),
                             ),
@@ -361,16 +362,16 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleJoinProject,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4F46E5),
+                      backgroundColor: AppColors.emeraldInk,
                       disabledBackgroundColor:
-                          const Color(0xFF818CF8).withValues(alpha: 0.6),
-                      foregroundColor: Colors.white,
+                          AppColors.emeraldInk.withValues(alpha: 0.6),
+                      foregroundColor: AppColors.champagne,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
                       elevation: 2,
-                      shadowColor: const Color(0xFF4F46E5).withValues(alpha: 0.35),
+                      shadowColor: AppColors.emeraldInk.withValues(alpha: 0.35),
                     ),
                     child: _isLoading
                         ? const SizedBox(
@@ -378,7 +379,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2.2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.champagne),
                             ),
                           )
                         : const Row(

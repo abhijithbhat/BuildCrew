@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/project.dart';
 import '../services/project_service.dart';
+import '../theme/app_colors.dart';
 
 class DeclareRoleScreen extends StatefulWidget {
   static const String routeName = '/declare-role';
@@ -93,9 +94,9 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Color(0xFF4F46E5),
+              primary: AppColors.emeraldInk,
               onPrimary: Colors.white,
-              onSurface: Color(0xFF0F172A),
+              onSurface: AppColors.emeraldInk,
             ),
           ),
           child: child!,
@@ -219,12 +220,12 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.champagne,
       appBar: AppBar(
         title: Text(
           _isEditing ? 'Update Your Role' : 'Declare Your Role',
           style: const TextStyle(
-            color: Color(0xFF0F172A),
+            color: AppColors.emeraldInk,
             fontSize: 18,
             fontWeight: FontWeight.w700,
             letterSpacing: -0.3,
@@ -234,7 +235,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         backgroundColor: Colors.transparent,
-        foregroundColor: const Color(0xFF0F172A),
+        foregroundColor: AppColors.emeraldInk,
       ),
       body: SafeArea(
         child: Center(
@@ -256,14 +257,14 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Color(0xFF4F46E5),
-                            Color(0xFF6366F1),
+                            AppColors.emeraldInk,
+                            AppColors.emeraldInk,
                           ],
                         ),
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                            color: AppColors.emeraldInk.withValues(alpha: 0.35),
                             blurRadius: 18,
                             offset: const Offset(0, 8),
                           ),
@@ -274,7 +275,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                             ? Icons.edit_note_rounded
                             : Icons.badge_outlined,
                         size: 32,
-                        color: Colors.white,
+                        color: AppColors.champagne,
                       ),
                     ),
                   ),
@@ -288,7 +289,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                       fontSize: 26,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.6,
-                      color: Color(0xFF0F172A),
+                      color: AppColors.emeraldInk,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -358,7 +359,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          color: AppColors.emeraldInk.withValues(alpha: 0.04),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                         ),
@@ -384,7 +385,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF0F172A),
+                            color: AppColors.emeraldInk,
                           ),
                           decoration: InputDecoration(
                             hintText:
@@ -396,7 +397,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                               size: 20,
                             ),
                             filled: true,
-                            fillColor: const Color(0xFFF8FAFC),
+                            fillColor: AppColors.champagne,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 16,
@@ -418,7 +419,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
-                                color: Color(0xFF4F46E5),
+                                color: AppColors.emeraldInk,
                                 width: 1.8,
                               ),
                             ),
@@ -464,7 +465,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          color: AppColors.emeraldInk.withValues(alpha: 0.04),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                         ),
@@ -492,7 +493,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF0F172A),
+                            color: AppColors.emeraldInk,
                             height: 1.45,
                           ),
                           decoration: InputDecoration(
@@ -509,7 +510,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                               ),
                             ),
                             filled: true,
-                            fillColor: const Color(0xFFF8FAFC),
+                            fillColor: AppColors.champagne,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 16,
@@ -531,7 +532,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
-                                color: Color(0xFF4F46E5),
+                                color: AppColors.emeraldInk,
                                 width: 1.8,
                               ),
                             ),
@@ -574,7 +575,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          color: AppColors.emeraldInk.withValues(alpha: 0.04),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                         ),
@@ -615,7 +616,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                               vertical: 14,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
+                              color: AppColors.champagne,
                               border: Border.all(
                                 color: const Color(0xFFE2E8F0),
                                 width: 1.2,
@@ -626,7 +627,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                               children: [
                                 const Icon(
                                   Icons.event_available_rounded,
-                                  color: Color(0xFF4F46E5),
+                                  color: AppColors.emeraldInk,
                                   size: 20,
                                 ),
                                 const SizedBox(width: 12),
@@ -639,7 +640,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                                         ? const TextStyle(
                                             fontSize: 14,
                                             fontWeight: FontWeight.w600,
-                                            color: Color(0xFF0F172A),
+                                            color: AppColors.emeraldInk,
                                           )
                                         : hintStyle,
                                   ),
@@ -674,16 +675,16 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleFormSubmit,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4F46E5),
+                      backgroundColor: AppColors.emeraldInk,
                       disabledBackgroundColor:
-                          const Color(0xFF818CF8).withValues(alpha: 0.6),
-                      foregroundColor: Colors.white,
+                          AppColors.emeraldInk.withValues(alpha: 0.6),
+                      foregroundColor: AppColors.champagne,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
                       elevation: 2,
-                      shadowColor: const Color(0xFF4F46E5).withValues(alpha: 0.35),
+                      shadowColor: AppColors.emeraldInk.withValues(alpha: 0.35),
                     ),
                     child: _isLoading
                         ? const SizedBox(
@@ -692,7 +693,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                             child: CircularProgressIndicator(
                               strokeWidth: 2.2,
                               valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                                  AlwaysStoppedAnimation<Color>(AppColors.champagne),
                             ),
                           )
                         : Row(

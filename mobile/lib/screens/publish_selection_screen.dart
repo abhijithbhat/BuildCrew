@@ -5,6 +5,7 @@ import '../models/contribution.dart';
 import '../services/api_client.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
+import '../theme/app_colors.dart';
 import '../widgets/empty_state_view.dart';
 
 /// Screen allowing builders to select which of their confirmed deliverables
@@ -351,7 +352,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF4F46E5),
+        backgroundColor: AppColors.emeraldInk,
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
           label: 'Open',
@@ -435,17 +436,17 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: AppColors.champagne,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.champagne,
           elevation: 0,
           scrolledUnderElevation: 0,
           shape: const Border(
-            bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+            bottom: BorderSide(color: AppColors.inputBorder, width: 1),
           ),
           leading: IconButton(
             key: const Key('publish_back_button'),
-            icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A)),
+            icon: const Icon(Icons.arrow_back_rounded, color: AppColors.emeraldInk),
             onPressed: () {
               _scaffoldMessenger?.hideCurrentSnackBar();
               Navigator.of(context).pop();
@@ -459,7 +460,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF0F172A),
+                color: AppColors.emeraldInk,
                 letterSpacing: -0.3,
               ),
             ),
@@ -467,9 +468,9 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
               _resolvedProjectName != null && _resolvedProjectName!.isNotEmpty
                   ? 'Passport Visibility • $_resolvedProjectName'
                   : 'Passport Visibility Controls',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
-                color: Color(0xFF64748B),
+                color: AppColors.bodyText.withValues(alpha: 0.7),
                 fontWeight: FontWeight.w400,
               ),
             ),
@@ -479,7 +480,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
           IconButton(
             key: const Key('publish_share_passport_btn'),
             tooltip: 'Share Passport Link',
-            icon: const Icon(Icons.share_outlined, color: Color(0xFF4F46E5), size: 20),
+            icon: const Icon(Icons.share_outlined, color: AppColors.emeraldInk, size: 20),
             onPressed: _sharePassportLink,
           ),
           if (filtered.isNotEmpty)
@@ -489,7 +490,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
               child: Text(
                 isAllSelected ? 'Deselect All' : 'Select All',
                 style: const TextStyle(
-                  color: Color(0xFF4F46E5),
+                  color: AppColors.emeraldInk,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),
@@ -499,7 +500,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _fetchContributions,
-        color: const Color(0xFF4F46E5),
+        color: AppColors.emeraldInk,
         backgroundColor: Colors.white,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -519,7 +520,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          color: AppColors.emeraldInk.withValues(alpha: 0.04),
                           blurRadius: 10,
                           offset: const Offset(0, 3),
                         ),
@@ -539,7 +540,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                               ),
                               child: const Icon(
                                 Icons.verified_user_rounded,
-                                color: Color(0xFF4F46E5),
+                                color: AppColors.emeraldInk,
                                 size: 24,
                               ),
                             ),
@@ -553,7 +554,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                                     style: TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
-                                      color: Color(0xFF0F172A),
+                                      color: AppColors.emeraldInk,
                                     ),
                                   ),
                                   SizedBox(height: 4),
@@ -593,7 +594,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                             _buildStatBadge(
                               label: 'Confirmed',
                               count: totalConfirmed,
-                              color: const Color(0xFF4F46E5),
+                              color: AppColors.emeraldInk,
                               icon: Icons.check_circle_outline_rounded,
                             ),
                           ],
@@ -614,7 +615,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                         });
                       },
                       style: const TextStyle(
-                          color: Color(0xFF0F172A), fontSize: 14),
+                          color: AppColors.emeraldInk, fontSize: 14),
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: Colors.white,
@@ -625,7 +626,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                         ),
                         prefixIcon: const Icon(
                           Icons.search_rounded,
-                          color: Color(0xFF4F46E5),
+                          color: AppColors.emeraldInk,
                           size: 20,
                         ),
                         suffixIcon: _searchQuery.isNotEmpty
@@ -655,7 +656,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide:
-                              const BorderSide(color: Color(0xFF4F46E5), width: 1.5),
+                              const BorderSide(color: AppColors.emeraldInk, width: 1.5),
                         ),
                       ),
                     ),
@@ -704,7 +705,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                   padding: EdgeInsets.symmetric(vertical: 48),
                   child: Center(
                     child: CircularProgressIndicator(
-                      color: Color(0xFF4F46E5),
+                      color: AppColors.emeraldInk,
                     ),
                   ),
                 ),
@@ -741,11 +742,11 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           border: const Border(
-            top: BorderSide(color: Color(0xFFE2E8F0)),
+            top: BorderSide(color: AppColors.inputBorder),
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+              color: AppColors.emeraldInk.withValues(alpha: 0.05),
               offset: const Offset(0, -4),
               blurRadius: 12,
             ),
@@ -764,7 +765,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF0F172A),
+                        color: AppColors.emeraldInk,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -785,8 +786,10 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                 key: const Key('publish_save_button'),
                 onPressed: _isSaving ? null : _savePassport,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4F46E5),
-                  foregroundColor: Colors.white,
+                  backgroundColor: AppColors.emeraldInk,
+                  foregroundColor: AppColors.champagne,
+                  disabledBackgroundColor:
+                      AppColors.emeraldInk.withValues(alpha: 0.6),
                   elevation: 0,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -800,14 +803,16 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: AppColors.champagne,
                         ),
                       )
-                    : const Icon(Icons.check_rounded, size: 18),
+                    : const Icon(Icons.check_rounded, color: AppColors.champagne, size: 18),
                 label: Text(
                   _isSaving ? 'Saving...' : 'Save Passport',
                   style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold),
+                      color: AppColors.champagne,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -865,19 +870,19 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.white : const Color(0xFFF8FAFC),
+        color: isSelected ? Colors.white : AppColors.champagne,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isSelected
-              ? const Color(0xFF4F46E5)
+              ? AppColors.emeraldInk
               : const Color(0xFFE2E8F0),
           width: isSelected ? 1.5 : 1.0,
         ),
         boxShadow: [
           BoxShadow(
             color: isSelected
-                ? const Color(0xFF4F46E5).withValues(alpha: 0.06)
-                : const Color(0xFF0F172A).withValues(alpha: 0.03),
+                ? AppColors.emeraldInk.withValues(alpha: 0.06)
+                : AppColors.emeraldInk.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -906,7 +911,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Color(0xFF4F46E5),
+                                color: AppColors.emeraldInk,
                               ),
                             ),
                           )
@@ -915,14 +920,14 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                             value: isSelected,
                             onChanged:
                                 isUpdating ? null : (_) => _toggleItem(item),
-                            activeColor: const Color(0xFF4F46E5),
+                            activeColor: AppColors.emeraldInk,
                             checkColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(6),
                             ),
                             side: BorderSide(
                               color: isSelected
-                                  ? const Color(0xFF4F46E5)
+                                  ? AppColors.emeraldInk
                                   : const Color(0xFF94A3B8),
                               width: 1.5,
                             ),
@@ -1048,7 +1053,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
+                          color: AppColors.emeraldInk,
                           height: 1.3,
                         ),
                       ),
@@ -1122,8 +1127,8 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
               icon: const Icon(Icons.clear_rounded, size: 16),
               label: const Text('Clear Search'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF4F46E5),
-                side: const BorderSide(color: Color(0xFF4F46E5)),
+                foregroundColor: AppColors.emeraldInk,
+                side: const BorderSide(color: AppColors.emeraldInk),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),

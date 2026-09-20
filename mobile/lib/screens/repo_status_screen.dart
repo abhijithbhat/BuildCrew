@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/github_service.dart';
+import '../theme/app_colors.dart';
 import '../widgets/empty_state_view.dart';
 import 'connect_repository_screen.dart';
 
@@ -100,6 +101,11 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
       if (mounted) {
         setState(() {
           _errorMessage = e.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
           _isLoading = false;
         });
       }
@@ -129,10 +135,10 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF151C2C),
+        backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF1E293B)),
+          side: const BorderSide(color: AppColors.inputBorder),
         ),
         title: const Row(
           children: [
@@ -140,18 +146,18 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
             SizedBox(width: 10),
             Text(
               'Disconnect Repository?',
-              style: TextStyle(color: Colors.white, fontSize: 18),
+              style: TextStyle(color: AppColors.bodyText, fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
         ),
         content: const Text(
           'Disconnecting will unlink commit tracking, pull request reviews, and issue sync for this project. You can reconnect at any time.',
-          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14, height: 1.4),
+          style: TextStyle(color: AppColors.bodyText, fontSize: 14, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.bodyText)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -205,7 +211,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
   Future<void> _showRepositorySelectorDialog(String projectId) async {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF151C2C),
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -217,7 +223,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 40),
                 child: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+                  child: CircularProgressIndicator(color: AppColors.emeraldInk),
                 ),
               );
             }
@@ -233,7 +239,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                     Text(
                       'Failed to fetch repositories: ${snapshot.error ?? "No data"}',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      style: const TextStyle(color: AppColors.bodyText, fontSize: 13),
                     ),
                   ],
                 ),
@@ -249,7 +255,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
               return const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
                 child: EmptyStateView(
-                  isDark: true,
+                  isDark: false,
                   icon: Icons.folder_open_rounded,
                   badgeSize: 64,
                   iconSize: 32,
@@ -271,16 +277,16 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2563EB).withValues(alpha: 0.2),
+                          color: AppColors.emeraldInk.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.swap_horiz_rounded, color: Color(0xFF60A5FA), size: 20),
+                        child: const Icon(Icons.swap_horiz_rounded, color: AppColors.emeraldInk, size: 20),
                       ),
                       const SizedBox(width: 12),
                       const Text(
                         'Select Repository',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.emeraldInk,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -288,9 +294,9 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                     ],
                   ),
                   const SizedBox(height: 6),
-                  const Text(
+                  Text(
                     'Choose which repository to link to this project from your GitHub App installation:',
-                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                    style: TextStyle(color: AppColors.bodyText.withValues(alpha: 0.7), fontSize: 13),
                   ),
                   const SizedBox(height: 16),
                   Flexible(
@@ -306,31 +312,31 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                         return Container(
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF2563EB).withValues(alpha: 0.15)
-                                : const Color(0xFF0B0F19),
+                                ? AppColors.champagne
+                                : Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: isSelected
-                                  ? const Color(0xFF2563EB)
-                                  : const Color(0xFF1E293B),
+                                  ? AppColors.emeraldInk
+                                  : AppColors.inputBorder,
                               width: isSelected ? 1.5 : 1,
                             ),
                           ),
                           child: ListTile(
                             leading: Icon(
                               Icons.code_rounded,
-                              color: isSelected ? const Color(0xFF60A5FA) : const Color(0xFF94A3B8),
+                              color: isSelected ? AppColors.emeraldInk : AppColors.bodyText.withValues(alpha: 0.5),
                             ),
                             title: Text(
                               fullRepoName,
                               style: TextStyle(
-                                color: isSelected ? Colors.white : const Color(0xFFE2E8F0),
+                                color: isSelected ? AppColors.emeraldInk : AppColors.bodyText,
                                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                                 fontSize: 14,
                               ),
                             ),
                             trailing: isSelected
-                                ? const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981))
+                                ? const Icon(Icons.check_circle_rounded, color: AppColors.emeraldInk)
                                 : null,
                             onTap: () async {
                               Navigator.pop(ctx);
@@ -361,7 +367,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Switched to "$newRepoFullName" successfully!'),
-            backgroundColor: const Color(0xFF10B981),
+            backgroundColor: AppColors.emeraldInk,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -371,6 +377,11 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
       if (mounted) {
         setState(() {
           _errorMessage = 'Failed to switch repository: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
           _isLoading = false;
         });
       }
@@ -384,19 +395,22 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
     final isOwner = _getEffectiveIsOwner();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0F19),
+      backgroundColor: AppColors.champagne,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF111827),
+        backgroundColor: AppColors.champagne,
         elevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: AppColors.inputBorder, width: 1),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white, size: 20),
+              color: AppColors.emeraldInk, size: 20),
           onPressed: () => Navigator.pop(context, true),
         ),
         title: const Text(
           'GitHub Integration',
           style: TextStyle(
-            color: Colors.white,
+            color: AppColors.emeraldInk,
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
@@ -404,7 +418,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.emeraldInk),
             tooltip: 'Refresh Status',
             onPressed: _isLoading ? null : _loadInstallationStatus,
           ),
@@ -412,8 +426,8 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
       ),
       body: SafeArea(
         child: RefreshIndicator(
-          color: const Color(0xFF2563EB),
-          backgroundColor: const Color(0xFF151C2C),
+          color: AppColors.emeraldInk,
+          backgroundColor: AppColors.champagne,
           onRefresh: _loadInstallationStatus,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -434,13 +448,13 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
           child: Column(
             children: [
               CircularProgressIndicator(
-                color: Color(0xFF2563EB),
+                color: AppColors.emeraldInk,
                 strokeWidth: 3,
               ),
               SizedBox(height: 20),
               Text(
                 'Checking repository link...',
-                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                style: TextStyle(color: AppColors.bodyText, fontSize: 14),
               ),
             ],
           ),
@@ -467,7 +481,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
               const Text(
                 'Could not load repository status',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.bodyText,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -476,16 +490,19 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
               Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                style: TextStyle(color: AppColors.bodyText.withValues(alpha: 0.8), fontSize: 13),
               ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: _loadInstallationStatus,
-                icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('Try Again'),
+                icon: const Icon(Icons.refresh_rounded, color: AppColors.champagne, size: 18),
+                label: const Text(
+                  'Try Again',
+                  style: TextStyle(color: AppColors.champagne, fontWeight: FontWeight.bold),
+                ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
-                  foregroundColor: Colors.white,
+                  backgroundColor: AppColors.emeraldInk,
+                  foregroundColor: AppColors.champagne,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -506,7 +523,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
 
   Widget _buildUnconnectedState(String projectId, String projectName) {
     return EmptyStateView(
-      isDark: true,
+      isDark: false,
       icon: Icons.link_off_rounded,
       badgeSize: 84,
       iconSize: 40,
@@ -527,23 +544,23 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
             _loadInstallationStatus();
           }
         },
-        icon: const Icon(Icons.link_rounded, color: Colors.white, size: 20),
+        icon: const Icon(Icons.link_rounded, color: AppColors.champagne, size: 20),
         label: const Text(
           'Connect with GitHub',
           style: TextStyle(
-            color: Colors.white,
+            color: AppColors.champagne,
             fontSize: 15,
             fontWeight: FontWeight.bold,
           ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF2563EB),
-          foregroundColor: Colors.white,
+          backgroundColor: AppColors.emeraldInk,
+          foregroundColor: AppColors.champagne,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          elevation: 4,
+          elevation: 2,
         ),
       ),
     );
@@ -568,22 +585,30 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                  color: AppColors.emeraldInk,
+                  width: 1.2,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.emeraldInk.withValues(alpha: 0.05),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.check_circle_rounded,
-                      color: Color(0xFF10B981), size: 14),
+                      color: AppColors.emeraldInk, size: 14),
                   SizedBox(width: 6),
                   Text(
                     'Connected & Active',
                     style: TextStyle(
-                      color: Color(0xFF10B981),
+                      color: AppColors.emeraldInk,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
@@ -598,8 +623,8 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                 textAlign: TextAlign.end,
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
-                style: const TextStyle(
-                  color: Color(0xFF94A3B8),
+                style: TextStyle(
+                  color: AppColors.bodyText.withValues(alpha: 0.7),
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -614,19 +639,15 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF151C2C), Color(0xFF1E293B)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: const Color(0xFF2563EB).withValues(alpha: 0.3),
+              color: AppColors.inputBorder,
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                color: AppColors.emeraldInk.withValues(alpha: 0.06),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -641,13 +662,13 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0B0F19),
+                      color: AppColors.champagne,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFF334155)),
+                      border: Border.all(color: AppColors.inputBorder),
                     ),
                     child: const Icon(
                       Icons.code_rounded,
-                      color: Colors.white,
+                      color: AppColors.emeraldInk,
                       size: 24,
                     ),
                   ),
@@ -659,7 +680,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                         const Text(
                           'GITHUB REPOSITORY',
                           style: TextStyle(
-                            color: Color(0xFF60A5FA),
+                            color: AppColors.emeraldInk,
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1.1,
@@ -671,7 +692,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: AppColors.bodyText,
                             fontSize: 17,
                             fontWeight: FontWeight.w800,
                             letterSpacing: -0.3,
@@ -697,7 +718,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Color(0xFF60A5FA),
+                            color: AppColors.emeraldInk,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
@@ -706,7 +727,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                       const SizedBox(width: 6),
                       const Icon(
                         Icons.open_in_new_rounded,
-                        color: Color(0xFF60A5FA),
+                        color: AppColors.emeraldInk,
                         size: 14,
                       ),
                     ],
@@ -723,9 +744,9 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: const Color(0xFF151C2C),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF1E293B)),
+            border: Border.all(color: AppColors.inputBorder),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -733,7 +754,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
               const Text(
                 'Integration Details',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.bodyText,
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
@@ -744,7 +765,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                 label: 'Installation ID',
                 value: '#$installationId',
               ),
-              const Divider(color: Color(0xFF1E293B), height: 20),
+              const Divider(color: AppColors.inputBorder, height: 20),
               _buildDetailRow(
                 icon: Icons.calendar_today_rounded,
                 label: 'Connected Since',
@@ -752,13 +773,13 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                     ? connectedAt.split('T')[0]
                     : connectedAt,
               ),
-              const Divider(color: Color(0xFF1E293B), height: 20),
+              const Divider(color: AppColors.inputBorder, height: 20),
               _buildDetailRow(
                 icon: Icons.security_rounded,
                 label: 'Access Level',
                 value: 'Read-Only (Secure RS256)',
               ),
-              const Divider(color: Color(0xFF1E293B), height: 20),
+              const Divider(color: AppColors.inputBorder, height: 20),
               _buildDetailRow(
                 icon: Icons.sync_rounded,
                 label: 'Sync Status',
@@ -776,18 +797,18 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: _isLoading ? null : () => _showRepositorySelectorDialog(projectId),
-              icon: const Icon(Icons.swap_horiz_rounded, color: Colors.white, size: 20),
+              icon: const Icon(Icons.swap_horiz_rounded, color: AppColors.champagne, size: 20),
               label: const Text(
                 'Switch / Change Repository',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.champagne,
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.emeraldInk,
+                foregroundColor: AppColors.champagne,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -832,10 +853,10 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             'Only Team Leads can unlink connected repositories.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+            style: TextStyle(color: AppColors.bodyText.withValues(alpha: 0.6), fontSize: 12),
           ),
         ],
       ],
@@ -849,12 +870,12 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
   }) {
     return Row(
       children: [
-        Icon(icon, color: const Color(0xFF64748B), size: 18),
+        Icon(icon, color: AppColors.emeraldInk.withValues(alpha: 0.7), size: 18),
         const SizedBox(width: 10),
         Text(
           label,
-          style: const TextStyle(
-            color: Color(0xFF94A3B8),
+          style: TextStyle(
+            color: AppColors.bodyText.withValues(alpha: 0.7),
             fontSize: 13,
           ),
         ),
@@ -866,7 +887,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.bodyText,
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),

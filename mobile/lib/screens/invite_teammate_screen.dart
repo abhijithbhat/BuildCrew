@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/project.dart';
 import '../services/project_service.dart';
+import '../theme/app_colors.dart';
 
 class InviteTeammateScreen extends StatefulWidget {
   static const String routeName = '/invite-teammate';
@@ -74,7 +75,7 @@ class _InviteTeammateScreenState extends State<InviteTeammateScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.blueAccent.shade700,
+        backgroundColor: AppColors.emeraldInk,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
@@ -94,16 +95,22 @@ class _InviteTeammateScreenState extends State<InviteTeammateScreen> {
     final projectName = _project?.name ?? 'BuildCrew Project';
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: AppColors.champagne,
       appBar: AppBar(
         title: const Text(
           'Invite Teammates',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColors.emeraldInk,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
         ),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        scrolledUnderElevation: 0,
+        backgroundColor: AppColors.champagne,
+        foregroundColor: AppColors.emeraldInk,
       ),
       body: SafeArea(
         child: _isLoading
@@ -262,10 +269,10 @@ class _InviteTeammateScreenState extends State<InviteTeammateScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.blue.shade100, width: 1.5),
+                            border: Border.all(color: AppColors.inputBorder, width: 1.5),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.blue.shade50.withValues(alpha: 0.5),
+                                color: AppColors.emeraldInk.withValues(alpha: 0.05),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -282,12 +289,12 @@ class _InviteTeammateScreenState extends State<InviteTeammateScreen> {
                                       fontSize: 26,
                                       fontWeight: FontWeight.w800,
                                       letterSpacing: 3.5,
-                                      color: Colors.blueAccent,
+                                      color: AppColors.emeraldInk,
                                     ),
                                   ),
                                   const SizedBox(width: 12),
                                   IconButton(
-                                    icon: const Icon(Icons.copy_rounded, color: Colors.blueAccent),
+                                    icon: const Icon(Icons.copy_rounded, color: AppColors.emeraldInk),
                                     tooltip: 'Copy Invite Code',
                                     onPressed: () => _copyToClipboard(
                                       _inviteCode,
@@ -375,8 +382,8 @@ class _InviteTeammateScreenState extends State<InviteTeammateScreen> {
                             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blueAccent,
-                            foregroundColor: Colors.white,
+                            backgroundColor: AppColors.emeraldInk,
+                            foregroundColor: AppColors.champagne,
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
@@ -392,11 +399,12 @@ class _InviteTeammateScreenState extends State<InviteTeammateScreen> {
                           icon: const Icon(Icons.refresh, size: 18),
                           label: const Text('Generate New Code'),
                           style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.emeraldInk,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
-                            side: BorderSide(color: Colors.grey.shade300),
+                            side: const BorderSide(color: AppColors.inputBorder, width: 1.5),
                           ),
                         ),
                       ],

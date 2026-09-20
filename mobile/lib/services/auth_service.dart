@@ -1,11 +1,19 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'api_client.dart';
 import 'storage_service.dart';
 
 class AuthService {
   final Dio _dio;
   final StorageService _storageService;
+  final SupabaseClient? supabaseClient;
+  StreamSubscription<AuthState>? _authSubscription;
+
+  SupabaseClient get supabase => supabaseClient ?? Supabase.instance.client;
 
   static List<String> get fallbackBaseUrls {
     if (kIsWeb) return ['http://localhost:8000'];
@@ -19,8 +27,11 @@ class AuthService {
     return ['http://localhost:8000', 'http://127.0.0.1:8000'];
   }
 
-  AuthService({Dio? dio, StorageService? storageService})
-      : _dio = dio ??
+  AuthService({
+    Dio? dio,
+    StorageService? storageService,
+    this.supabaseClient,
+  })  : _dio = dio ??
             Dio(
               BaseOptions(
                 connectTimeout: const Duration(seconds: 10),
@@ -28,7 +39,67 @@ class AuthService {
                 headers: {'Content-Type': 'application/json'},
               ),
             ),
-        _storageService = storageService ?? StorageService();
+        _storageService = storageService ?? StorageService() {
+    _initAuthStateListener();
+  }
+
+  /// Sets up onAuthStateChange listener that saves credentials and navigates
+  /// to the home screen once a session is established.
+  void _initAuthStateListener() {
+    try {
+      _authSubscription = supabase.auth.onAuthStateChange.listen((data) async {
+        final session = data.session;
+        if (data.event == AuthChangeEvent.signedIn && session != null) {
+          debugPrint('Supabase Auth session established: ${session.user.id}');
+          final accessToken = session.accessToken;
+          final refreshToken = session.refreshToken ?? '';
+          await _storageService.saveTokens(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+          );
+
+          final user = session.user;
+          final email = user.email ?? '';
+          final name = (user.userMetadata?['full_name'] as String?) ??
+              (user.userMetadata?['name'] as String?) ??
+              (user.userMetadata?['user_name'] as String?) ??
+              (email.isNotEmpty ? email : 'User');
+
+          await _storageService.saveUserInfo(
+            userId: user.id,
+            email: email,
+            name: name,
+          );
+
+          ApiClient.navigatorKey.currentState?.pushNamedAndRemoveUntil(
+            '/home',
+            (route) => false,
+            arguments: name,
+          );
+        }
+      });
+    } catch (e) {
+      debugPrint('Supabase onAuthStateChange listener initialization skipped: $e');
+    }
+  }
+
+  /// Signs in using Google OAuth via Supabase.
+  Future<bool> signInWithGoogle() async {
+    return await supabase.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: 'com.abhijithbhat.buildcrew://login-callback',
+      authScreenLaunchMode: LaunchMode.externalApplication,
+    );
+  }
+
+  /// Signs in using GitHub OAuth via Supabase.
+  Future<bool> signInWithGitHub() async {
+    return await supabase.auth.signInWithOAuth(
+      OAuthProvider.github,
+      redirectTo: 'com.abhijithbhat.buildcrew://login-callback',
+      authScreenLaunchMode: LaunchMode.externalApplication,
+    );
+  }
 
   /// Execute POST with automatic fallback across available network interfaces.
   Future<Response> _postWithFallback(String path, Map<String, dynamic> data) async {
@@ -333,7 +404,15 @@ class AuthService {
 
   /// Clear tokens securely from storage on logout.
   Future<void> logout() async {
+    try {
+      await supabase.auth.signOut();
+    } catch (_) {}
     await _storageService.clearTokens();
+  }
+
+  /// Cancels any active Supabase auth state subscription.
+  void dispose() {
+    _authSubscription?.cancel();
   }
 }
 

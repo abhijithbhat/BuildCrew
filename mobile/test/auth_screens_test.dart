@@ -185,7 +185,6 @@ void main() {
 
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Welcome, Alice Developer'), findsOneWidget);
-      expect(find.text('Check Backend Health'), findsOneWidget);
       expect(find.text('My Projects'), findsOneWidget);
       expect(find.text('Join Project with Code'), findsOneWidget);
       expect(find.text('Create New Project'), findsOneWidget);

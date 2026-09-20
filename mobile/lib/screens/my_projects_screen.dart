@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/project.dart';
 import '../services/project_service.dart';
+import '../theme/app_colors.dart';
 import '../widgets/empty_state_view.dart';
 import '../widgets/project_card.dart';
 import 'create_project_screen.dart';
@@ -107,12 +108,12 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
     final displayProjects = _filteredProjects;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.champagne,
       appBar: AppBar(
         title: const Text(
           'My Projects',
           style: TextStyle(
-            color: Color(0xFF0F172A),
+            color: AppColors.emeraldInk,
             fontSize: 18,
             fontWeight: FontWeight.w700,
             letterSpacing: -0.3,
@@ -121,12 +122,12 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppColors.champagne,
+        foregroundColor: AppColors.emeraldInk,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
           child: Container(
-            color: const Color(0xFFE2E8F0),
+            color: AppColors.inputBorder,
             height: 1.0,
           ),
         ),
@@ -134,7 +135,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
           IconButton(
             icon: const Icon(
               Icons.group_add_outlined,
-              color: Color(0xFF4F46E5),
+              color: AppColors.emeraldInk,
             ),
             tooltip: 'Join with Code',
             onPressed: _openJoinProjectScreen,
@@ -142,7 +143,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
           IconButton(
             icon: const Icon(
               Icons.add_circle_outline,
-              color: Color(0xFF4F46E5),
+              color: AppColors.emeraldInk,
             ),
             tooltip: 'Create Project',
             onPressed: () async {
@@ -184,7 +185,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                     },
                     style: const TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF0F172A),
+                      color: AppColors.emeraldInk,
                     ),
                     decoration: InputDecoration(
                       hintText: 'Search projects by name or keywords...',
@@ -213,7 +214,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                             )
                           : null,
                       filled: true,
-                      fillColor: const Color(0xFFF8FAFC),
+                      fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 12,
@@ -221,21 +222,21 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(
-                          color: Color(0xFFE2E8F0),
+                          color: AppColors.inputBorder,
                           width: 1.0,
                         ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(
-                          color: Color(0xFFE2E8F0),
+                          color: AppColors.inputBorder,
                           width: 1.0,
                         ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(
-                          color: Color(0xFF4F46E5),
+                          color: AppColors.emeraldInk,
                           width: 1.5,
                         ),
                       ),
@@ -252,16 +253,19 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                         child: ChoiceChip(
                           label: Text(filter),
                           selected: isSelected,
-                          selectedColor: const Color(0xFF4F46E5),
+                          selectedColor: AppColors.emeraldInk,
+                          checkmarkColor: AppColors.champagne,
                           labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : const Color(0xFF475569),
+                            color: isSelected ? AppColors.champagne : AppColors.bodyText,
                             fontSize: 12,
                             fontWeight: isSelected
                                 ? FontWeight.w600
                                 : FontWeight.w500,
                           ),
-                          backgroundColor: const Color(0xFFF1F5F9),
-                          side: BorderSide.none,
+                          backgroundColor: Colors.white,
+                          side: BorderSide(
+                            color: isSelected ? AppColors.emeraldInk : AppColors.inputBorder,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                           ),
@@ -288,7 +292,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                   ? const Center(
                       child: CircularProgressIndicator(
                         valueColor:
-                            AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5)),
+                            AlwaysStoppedAnimation<Color>(AppColors.emeraldInk),
                       ),
                     )
                   : _errorMessage != null
@@ -316,7 +320,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
-                                    color: Color(0xFF0F172A),
+                                    color: AppColors.emeraldInk,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -334,7 +338,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                                   icon: const Icon(Icons.refresh, size: 18),
                                   label: const Text('Retry'),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF4F46E5),
+                                    backgroundColor: AppColors.emeraldInk,
                                     foregroundColor: Colors.white,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
@@ -370,7 +374,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                                         label: const Text('Clear Search'),
                                         style: OutlinedButton.styleFrom(
                                           foregroundColor:
-                                              const Color(0xFF4F46E5),
+                                              AppColors.emeraldInk,
                                           side: const BorderSide(
                                               color: Color(0xFFC7D2FE)),
                                           shape: RoundedRectangleBorder(
@@ -394,7 +398,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                                         label: const Text('Create Project'),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor:
-                                              const Color(0xFF4F46E5),
+                                              AppColors.emeraldInk,
                                           foregroundColor: Colors.white,
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 18,
@@ -413,12 +417,12 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                                         icon: const Icon(
                                           Icons.group_add_outlined,
                                           size: 18,
-                                          color: Color(0xFF0F172A),
+                                          color: AppColors.emeraldInk,
                                         ),
                                         label: const Text(
                                           'Join with Code',
                                           style: TextStyle(
-                                            color: Color(0xFF0F172A),
+                                            color: AppColors.emeraldInk,
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
@@ -440,7 +444,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                               ),
                             )
                           : RefreshIndicator(
-                              color: const Color(0xFF4F46E5),
+                              color: AppColors.emeraldInk,
                               onRefresh: _fetchProjects,
                               child: ListView.builder(
                                 itemCount: displayProjects.length,
@@ -478,8 +482,8 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
             _fetchProjects();
           }
         },
-        backgroundColor: const Color(0xFF4F46E5),
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.emeraldInk,
+        foregroundColor: AppColors.champagne,
         elevation: 3,
         icon: const Icon(Icons.add),
         label: const Text(

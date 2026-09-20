@@ -4,6 +4,7 @@ import '../models/project.dart';
 import '../models/role_agreement.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
+import '../theme/app_colors.dart';
 import '../widgets/empty_state_view.dart';
 import 'declare_role_screen.dart';
 
@@ -298,7 +299,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
+                color: AppColors.emeraldInk,
               ),
             ),
           ],
@@ -371,7 +372,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Copied reminder to clipboard! Share it with your team.'),
-        backgroundColor: const Color(0xFF4F46E5),
+        backgroundColor: AppColors.emeraldInk,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
@@ -405,14 +406,14 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isMe ? const Color(0xFF6366F1) : const Color(0xFFE2E8F0),
+          color: isMe ? AppColors.emeraldInk : const Color(0xFFE2E8F0),
           width: isMe ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
             color: isMe
-                ? const Color(0xFF6366F1).withValues(alpha: 0.08)
-                : const Color(0xFF0F172A).withValues(alpha: 0.04),
+                ? AppColors.emeraldInk.withValues(alpha: 0.08)
+                : AppColors.emeraldInk.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -431,7 +432,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                   backgroundColor: isLead
                       ? const Color(0xFFFEF3C7)
                       : (isMe
-                          ? const Color(0xFF4F46E5)
+                          ? AppColors.emeraldInk
                           : const Color(0xFFEEF2FF)),
                   child: Text(
                     displayedInitial,
@@ -440,7 +441,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                       fontWeight: FontWeight.w700,
                       color: isLead
                           ? const Color(0xFFB45309)
-                          : (isMe ? Colors.white : const Color(0xFF4F46E5)),
+                          : (isMe ? Colors.white : AppColors.emeraldInk),
                     ),
                   ),
                 ),
@@ -457,7 +458,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF0F172A),
+                                color: AppColors.emeraldInk,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -579,7 +580,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                   IconButton(
                     onPressed: () => _navigateToEditRole(agreement),
                     icon: const Icon(Icons.edit_outlined,
-                        color: Color(0xFF4F46E5), size: 20),
+                        color: AppColors.emeraldInk, size: 20),
                     tooltip: 'Edit your declared role',
                   )
                 else if (_isLead && agreement.userId != _projectCreatedBy)
@@ -611,7 +612,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
+                    color: AppColors.champagne,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
@@ -637,7 +638,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                         const Icon(
                           Icons.event_available_rounded,
                           size: 16,
-                          color: Color(0xFF6366F1),
+                          color: AppColors.emeraldInk,
                         ),
                         const SizedBox(width: 6),
                         Text(
@@ -645,7 +646,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF4F46E5),
+                            color: AppColors.emeraldInk,
                           ),
                         ),
                       ],
@@ -675,7 +676,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4F46E5),
+                      backgroundColor: AppColors.emeraldInk,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -742,29 +743,29 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.champagne,
       appBar: AppBar(
         title: Text(
           _projectName != null ? '$_projectName Roles' : 'Team Roles',
           style: const TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 18,
-            color: Color(0xFF0F172A),
+            color: AppColors.emeraldInk,
             letterSpacing: -0.3,
           ),
         ),
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppColors.champagne,
+        foregroundColor: AppColors.emeraldInk,
         shape: const Border(
-          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          bottom: BorderSide(color: AppColors.inputBorder, width: 1),
         ),
         actions: [
           IconButton(
             icon: Icon(_showSearchBar ? Icons.close : Icons.search_rounded,
-                color: const Color(0xFF4F46E5)),
+                color: AppColors.emeraldInk),
             tooltip: _showSearchBar ? 'Close Search' : 'Search Roles',
             onPressed: () {
               setState(() {
@@ -777,7 +778,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF4F46E5)),
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.emeraldInk),
             tooltip: 'Refresh Roles',
             onPressed: _fetchRoles,
           ),
@@ -786,7 +787,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _fetchRoles,
-          color: const Color(0xFF4F46E5),
+          color: AppColors.emeraldInk,
           child: _buildBody(),
         ),
       ),
@@ -797,7 +798,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5)),
+          valueColor: AlwaysStoppedAnimation<Color>(AppColors.emeraldInk),
         ),
       );
     }
@@ -874,7 +875,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
               child: const Icon(
                 Icons.assignment_ind_outlined,
                 size: 42,
-                color: Color(0xFF4F46E5),
+                color: AppColors.emeraldInk,
               ),
             ),
           ),
@@ -885,7 +886,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF0F172A),
+              color: AppColors.emeraldInk,
               letterSpacing: -0.4,
             ),
           ),
@@ -909,8 +910,8 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4F46E5),
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.emeraldInk,
+                foregroundColor: AppColors.champagne,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
                 shape: RoundedRectangleBorder(
@@ -941,8 +942,8 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [
-                  Color(0xFF4F46E5),
-                  Color(0xFF6366F1),
+                  AppColors.emeraldInk,
+                  AppColors.emeraldInk,
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -950,7 +951,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF4F46E5).withValues(alpha: 0.25),
+                  color: AppColors.emeraldInk.withValues(alpha: 0.25),
                   blurRadius: 14,
                   offset: const Offset(0, 6),
                 ),
@@ -1074,7 +1075,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
             child: TextField(
               controller: _searchController,
               autofocus: true,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
+              style: const TextStyle(fontSize: 14, color: AppColors.emeraldInk),
               decoration: InputDecoration(
                 hintText: 'Search by name, email, or role...',
                 hintStyle: const TextStyle(
@@ -1082,7 +1083,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                   fontSize: 13,
                 ),
                 prefixIcon: const Icon(Icons.search_rounded,
-                    color: Color(0xFF4F46E5), size: 20),
+                    color: AppColors.emeraldInk, size: 20),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear, size: 18, color: Color(0xFF64748B)),
@@ -1108,7 +1109,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 1.5),
+                  borderSide: const BorderSide(color: AppColors.emeraldInk, width: 1.5),
                 ),
               ),
               onChanged: (val) {
@@ -1135,7 +1136,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                 return ChoiceChip(
                   label: Text(cat),
                   selected: isSelected,
-                  selectedColor: const Color(0xFF4F46E5),
+                  selectedColor: AppColors.emeraldInk,
                   labelStyle: TextStyle(
                     color: isSelected ? Colors.white : const Color(0xFF475569),
                     fontSize: 12,
@@ -1149,7 +1150,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                     borderRadius: BorderRadius.circular(20),
                     side: BorderSide(
                       color: isSelected
-                          ? const Color(0xFF4F46E5)
+                          ? AppColors.emeraldInk
                           : const Color(0xFFE2E8F0),
                     ),
                   ),
@@ -1187,7 +1188,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                 icon: const Icon(Icons.refresh_rounded, size: 16),
                 label: const Text('Show All Categories'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF4F46E5),
+                  foregroundColor: AppColors.emeraldInk,
                   side: const BorderSide(color: Color(0xFFC7D2FE)),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

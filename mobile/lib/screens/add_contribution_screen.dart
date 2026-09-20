@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
+import '../theme/app_colors.dart';
 
 class AddContributionScreen extends StatefulWidget {
   static const String routeName = '/add-contribution';
@@ -100,7 +101,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
       'id': 'code',
       'label': 'Custom Code & Scripts',
       'icon': Icons.code_rounded,
-      'color': Color(0xFF6366F1),
+      'color': AppColors.emeraldInk,
       'examples': 'Utility scripts, data processing, external integrations',
     },
     {
@@ -340,10 +341,10 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Color(0xFF4F46E5),
+              primary: AppColors.emeraldInk,
               onPrimary: Colors.white,
               surface: Colors.white,
-              onSurface: Color(0xFF0F172A),
+              onSurface: AppColors.emeraldInk,
             ),
           ),
           child: child!,
@@ -391,7 +392,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
+                      color: AppColors.emeraldInk,
                       letterSpacing: -0.3,
                     ),
                   ),
@@ -425,7 +426,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                 title: const Text(
                   'Upload PDF / Specification Document',
                   style: TextStyle(
-                    color: Color(0xFF0F172A),
+                    color: AppColors.emeraldInk,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -459,7 +460,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                 title: const Text(
                   'Upload Presentation Slides (PPT / PPTX / PDF)',
                   style: TextStyle(
-                    color: Color(0xFF0F172A),
+                    color: AppColors.emeraldInk,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -493,7 +494,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                 title: const Text(
                   'Upload Screenshot / Image (Photo Gallery)',
                   style: TextStyle(
-                    color: Color(0xFF0F172A),
+                    color: AppColors.emeraldInk,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -523,7 +524,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                 title: const Text(
                   'Browse All Device Files',
                   style: TextStyle(
-                    color: Color(0xFF0F172A),
+                    color: AppColors.emeraldInk,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -557,7 +558,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                 title: const Text(
                   'Take Photo with Camera',
                   style: TextStyle(
-                    color: Color(0xFF0F172A),
+                    color: AppColors.emeraldInk,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -662,23 +663,23 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: AppColors.champagne,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.champagne,
           elevation: 0,
           scrolledUnderElevation: 0,
           shape: const Border(
-            bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+            bottom: BorderSide(color: AppColors.inputBorder, width: 1),
           ),
           centerTitle: false,
           title: const Row(
             children: [
-              Icon(Icons.add_task_rounded, color: Color(0xFF4F46E5), size: 22),
+              Icon(Icons.add_task_rounded, color: AppColors.emeraldInk, size: 22),
               SizedBox(width: 10),
               Text(
                 'Add Contribution',
                 style: TextStyle(
-                  color: Color(0xFF0F172A),
+                  color: AppColors.emeraldInk,
                   fontWeight: FontWeight.w700,
                   fontSize: 18,
                   letterSpacing: -0.3,
@@ -688,7 +689,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+              icon: const Icon(Icons.close_rounded, color: AppColors.emeraldInk),
               onPressed: () => Navigator.of(context).maybePop(),
             ),
           ],
@@ -748,7 +749,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                       boxShadow: [
                         BoxShadow(
                           color:
-                              const Color(0xFF0F172A).withValues(alpha: 0.04),
+                              AppColors.emeraldInk.withValues(alpha: 0.04),
                           blurRadius: 10,
                           offset: const Offset(0, 3),
                         ),
@@ -765,7 +766,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                           ),
                           child: const Icon(
                             Icons.verified_user_outlined,
-                            color: Color(0xFF4F46E5),
+                            color: AppColors.emeraldInk,
                             size: 20,
                           ),
                         ),
@@ -777,7 +778,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                               Text(
                                 'Manual Impact Logging',
                                 style: TextStyle(
-                                  color: Color(0xFF0F172A),
+                                  color: AppColors.emeraldInk,
                                   fontWeight: FontWeight.w700,
                                   fontSize: 14,
                                 ),
@@ -803,7 +804,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                   const Text(
                     'Contribution Category *',
                     style: TextStyle(
-                      color: Color(0xFF0F172A),
+                      color: AppColors.emeraldInk,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.2,
@@ -840,7 +841,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                                 Text(
                                   cat['label'] as String,
                                   style: const TextStyle(
-                                    color: Color(0xFF0F172A),
+                                    color: AppColors.emeraldInk,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -863,7 +864,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                   const Text(
                     'Contribution Title *',
                     style: TextStyle(
-                      color: Color(0xFF0F172A),
+                      color: AppColors.emeraldInk,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.2,
@@ -874,7 +875,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                     key: const Key('add_contribution_title_input'),
                     controller: _titleController,
                     style:
-                        const TextStyle(color: Color(0xFF0F172A), fontSize: 14),
+                        const TextStyle(color: AppColors.emeraldInk, fontSize: 14),
                     decoration: InputDecoration(
                       hintText:
                           'e.g. Created high-fidelity Figma mockups for mobile onboarding',
@@ -885,7 +886,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                       filled: true,
                       fillColor: Colors.white,
                       prefixIcon: const Icon(Icons.title_rounded,
-                          color: Color(0xFF4F46E5), size: 20),
+                          color: AppColors.emeraldInk, size: 20),
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 14),
                       enabledBorder: OutlineInputBorder(
@@ -895,7 +896,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(
-                            color: Color(0xFF4F46E5), width: 1.5),
+                            color: AppColors.emeraldInk, width: 1.5),
                       ),
                       errorBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -920,7 +921,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                   const Text(
                     'Description & Deliverables',
                     style: TextStyle(
-                      color: Color(0xFF0F172A),
+                      color: AppColors.emeraldInk,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.2,
@@ -931,7 +932,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                     key: const Key('add_contribution_description_input'),
                     controller: _descriptionController,
                     style:
-                        const TextStyle(color: Color(0xFF0F172A), fontSize: 14),
+                        const TextStyle(color: AppColors.emeraldInk, fontSize: 14),
                     minLines: 3,
                     maxLines: 6,
                     decoration: InputDecoration(
@@ -952,7 +953,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(
-                            color: Color(0xFF4F46E5), width: 1.5),
+                            color: AppColors.emeraldInk, width: 1.5),
                       ),
                     ),
                   ),
@@ -962,7 +963,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                   const Text(
                     'Evidence Link or Attachment',
                     style: TextStyle(
-                      color: Color(0xFF0F172A),
+                      color: AppColors.emeraldInk,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.2,
@@ -975,7 +976,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                     key: const Key('add_contribution_link_input'),
                     controller: _linkController,
                     style:
-                        const TextStyle(color: Color(0xFF0F172A), fontSize: 14),
+                        const TextStyle(color: AppColors.emeraldInk, fontSize: 14),
                     keyboardType: TextInputType.url,
                     decoration: InputDecoration(
                       hintText:
@@ -987,7 +988,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                       filled: true,
                       fillColor: Colors.white,
                       prefixIcon: const Icon(Icons.link_rounded,
-                          color: Color(0xFF4F46E5), size: 20),
+                          color: AppColors.emeraldInk, size: 20),
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 14),
                       enabledBorder: OutlineInputBorder(
@@ -997,7 +998,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(
-                            color: Color(0xFF4F46E5), width: 1.5),
+                            color: AppColors.emeraldInk, width: 1.5),
                       ),
                     ),
                   ),
@@ -1017,7 +1018,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: _attachedFileName != null
-                              ? const Color(0xFF4F46E5)
+                              ? AppColors.emeraldInk
                               : const Color(0xFFE2E8F0),
                           width: _attachedFileName != null ? 1.5 : 1.0,
                         ),
@@ -1033,7 +1034,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                                   ),
                                   child: const Icon(
                                     Icons.attachment_rounded,
-                                    color: Color(0xFF4F46E5),
+                                    color: AppColors.emeraldInk,
                                     size: 20,
                                   ),
                                 ),
@@ -1046,7 +1047,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                                       Text(
                                         _attachedFileName!,
                                         style: const TextStyle(
-                                          color: Color(0xFF0F172A),
+                                          color: AppColors.emeraldInk,
                                           fontWeight: FontWeight.w700,
                                           fontSize: 13,
                                         ),
@@ -1079,7 +1080,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                               children: [
                                 Icon(
                                   Icons.cloud_upload_outlined,
-                                  color: Color(0xFF4F46E5),
+                                  color: AppColors.emeraldInk,
                                   size: 22,
                                 ),
                                 SizedBox(width: 10),
@@ -1125,14 +1126,14 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                             children: [
                               const Icon(
                                 Icons.calendar_today_outlined,
-                                color: Color(0xFF4F46E5),
+                                color: AppColors.emeraldInk,
                                 size: 14,
                               ),
                               const SizedBox(width: 6),
                               Text(
                                 '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
                                 style: const TextStyle(
-                                  color: Color(0xFF0F172A),
+                                  color: AppColors.emeraldInk,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -1153,8 +1154,10 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                       key: const Key('add_contribution_submit_btn'),
                       onPressed: _isLoading ? null : _handleSubmit,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4F46E5),
-                        foregroundColor: Colors.white,
+                        backgroundColor: AppColors.emeraldInk,
+                        foregroundColor: AppColors.champagne,
+                        disabledBackgroundColor:
+                            AppColors.emeraldInk.withValues(alpha: 0.6),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -1167,18 +1170,20 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2.5,
                                 valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                                    AlwaysStoppedAnimation<Color>(AppColors.champagne),
                               ),
                             )
                           : const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(Icons.check_circle_outline_rounded,
+                                    color: AppColors.champagne,
                                     size: 20),
                                 SizedBox(width: 8),
                                 Text(
                                   'Log Contribution',
                                   style: TextStyle(
+                                    color: AppColors.champagne,
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
                                   ),

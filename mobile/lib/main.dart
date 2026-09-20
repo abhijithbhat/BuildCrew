@@ -1,4 +1,8 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/add_contribution_screen.dart';
 import 'screens/connect_repository_screen.dart';
@@ -22,14 +26,106 @@ import 'screens/team_roles_screen.dart';
 import 'services/api_client.dart';
 import 'services/storage_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await Supabase.initialize(
+      url: 'https://bidfjrgytnqexwsdnwlt.supabase.co',
+      publishableKey:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZGZqcmd5dG5xZXh3c2Rud2x0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0NzUzMDUsImV4cCI6MjEwMTA1MTMwNX0.uc2X-32-KNLx6iv-Ib0ACwZz0uMvR-EEok4qDKww1zE',
+    );
+  } catch (e) {
+    debugPrint('Supabase initialize error: $e');
+  }
+
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   final StorageService? storageService;
+  final AppLinks? appLinks;
 
-  const MyApp({super.key, this.storageService});
+  const MyApp({super.key, this.storageService, this.appLinks});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final AppLinks _appLinks;
+  StreamSubscription<Uri>? _linkSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _appLinks = widget.appLinks ?? AppLinks();
+    _initDeepLinks();
+  }
+
+  Future<void> _initDeepLinks() async {
+    try {
+      // 1. Listen for incoming URIs while the app is running (foreground or background)
+      _linkSubscription = _appLinks.uriLinkStream.listen(
+        (uri) {
+          _handleIncomingUri(uri);
+        },
+        onError: (err) {
+          debugPrint('AppLinks uriLinkStream error: $err');
+        },
+      );
+
+      // 2. Check for incoming URI when the app is launched cold
+      final initialUri = await _appLinks.getInitialLink();
+      if (initialUri != null) {
+        await _handleIncomingUri(initialUri);
+      }
+    } catch (e) {
+      debugPrint('AppLinks initialization error: $e');
+    }
+  }
+
+  Future<void> _handleIncomingUri(Uri uri) async {
+    debugPrint('Received deep link: $uri');
+    try {
+      // Custom scheme: com.abhijithbhat.buildcrew, host: login-callback
+      if (uri.scheme == 'com.abhijithbhat.buildcrew' &&
+          (uri.host == 'login-callback' || uri.path.contains('login-callback'))) {
+        final response =
+            await Supabase.instance.client.auth.getSessionFromUrl(uri);
+        final session = response.session;
+        final storage = widget.storageService ?? StorageService();
+        await storage.saveTokens(
+          accessToken: session.accessToken,
+          refreshToken: session.refreshToken ?? '',
+        );
+        final user = session.user;
+        final email = user.email ?? '';
+        final name = (user.userMetadata?['full_name'] as String?) ??
+            (user.userMetadata?['name'] as String?) ??
+            (user.userMetadata?['user_name'] as String?) ??
+            (email.isNotEmpty ? email : 'User');
+        await storage.saveUserInfo(
+          userId: user.id,
+          email: email,
+          name: name,
+        );
+        ApiClient.navigatorKey.currentState?.pushNamedAndRemoveUntil(
+          HomeScreen.routeName,
+          (route) => false,
+          arguments: name,
+        );
+      }
+    } catch (e) {
+      debugPrint('Supabase getSessionFromUrl error: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _linkSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +135,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       initialRoute: '/',
       routes: {
-        '/': (context) => AuthWrapper(storageService: storageService),
+        '/': (context) => AuthWrapper(storageService: widget.storageService),
         LoginScreen.routeName: (context) => const LoginScreen(),
         SignupScreen.routeName: (context) => const SignupScreen(),
         '/otp': (context) => const OtpScreen(),
