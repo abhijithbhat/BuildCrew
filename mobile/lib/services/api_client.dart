@@ -12,6 +12,10 @@ class ApiClient {
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
+  /// Global scaffold messenger key to display snackbars across the app.
+  static final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
+
   /// Global stream broadcasting force-logout events (e.g. when refresh token expires).
   static final StreamController<void> onForceLogout =
       StreamController<void>.broadcast();

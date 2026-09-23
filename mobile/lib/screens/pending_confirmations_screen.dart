@@ -306,7 +306,7 @@ class _PendingConfirmationsScreenState
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: const BoxDecoration(
-                        color: Color(0xFFEEF2FF),
+                        color: AppColors.champagne,
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -490,10 +490,10 @@ class _PendingConfirmationsScreenState
             ? Icons.filter_list_off_rounded
             : Icons.mark_email_read_outlined,
         badgeColor: isSearching
-            ? const Color(0xFFEEF2FF)
+            ? AppColors.champagne
             : const Color(0xFFECFDF5),
         badgeBorderColor: isSearching
-            ? const Color(0xFFC7D2FE)
+            ? AppColors.inputBorder
             : const Color(0xFFA7F3D0),
         iconColor: isSearching
             ? AppColors.emeraldInk

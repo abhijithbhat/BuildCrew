@@ -750,7 +750,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEEF2FF),
+                  color: AppColors.champagne,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(

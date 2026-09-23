@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/project.dart';
+import '../theme/app_colors.dart';
 
 class ProjectCard extends StatelessWidget {
   final Project project;
@@ -25,9 +26,9 @@ class ProjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final roleColor = isOwner ? const Color(0xFFB45309) : const Color(0xFF4338CA);
-    final roleBgColor = isOwner ? const Color(0xFFFEF3C7) : const Color(0xFFEEF2FF);
-    final roleBorderColor = isOwner ? const Color(0xFFFDE68A) : const Color(0xFFE0E7FF);
+    final roleColor = isOwner ? const Color(0xFFB45309) : AppColors.emeraldInk;
+    final roleBgColor = isOwner ? const Color(0xFFFEF3C7) : AppColors.champagne;
+    final roleBorderColor = isOwner ? const Color(0xFFFDE68A) : AppColors.inputBorder;
     final roleLabel = isOwner ? 'Team Lead' : 'Member';
 
     return Container(
@@ -67,8 +68,8 @@ class ProjectCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: isOwner
-                              ? [const Color(0xFF4F46E5), const Color(0xFF7C3AED)]
-                              : [const Color(0xFF2563EB), const Color(0xFF0284C7)],
+                              ? [AppColors.emeraldInk, const Color(0xFF047857)]
+                              : [const Color(0xFF065F46), const Color(0xFF0D9488)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -76,8 +77,8 @@ class ProjectCard extends StatelessWidget {
                         boxShadow: [
                           BoxShadow(
                             color: (isOwner
-                                    ? const Color(0xFF4F46E5)
-                                    : const Color(0xFF2563EB))
+                                    ? AppColors.emeraldInk
+                                    : const Color(0xFF065F46))
                                 .withValues(alpha: 0.25),
                             blurRadius: 8,
                             offset: const Offset(0, 3),
@@ -212,14 +213,14 @@ class ProjectCard extends StatelessWidget {
                                   Icon(
                                     Icons.share_outlined,
                                     size: 14,
-                                    color: Color(0xFF4F46E5),
+                                    color: AppColors.emeraldInk,
                                   ),
                                   SizedBox(width: 4),
                                   Text(
                                     'Invite',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: Color(0xFF4F46E5),
+                                      color: AppColors.emeraldInk,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),

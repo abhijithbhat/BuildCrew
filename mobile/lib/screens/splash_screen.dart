@@ -28,51 +28,8 @@ class SplashScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Brand Logo Emblem (App Mark in Champagne)
-                    Container(
-                      width: 96,
-                      height: 96,
-                      decoration: BoxDecoration(
-                        color: AppColors.champagne.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(26),
-                        border: Border.all(
-                          color: AppColors.champagne,
-                          width: 2.0,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 24,
-                            offset: const Offset(0, 8),
-                          ),
-                          BoxShadow(
-                            color: AppColors.champagne.withValues(alpha: 0.15),
-                            blurRadius: 20,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Container(
-                              width: 56,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppColors.champagne.withValues(alpha: 0.18),
-                              ),
-                            ),
-                            const Icon(
-                              Icons.groups_rounded,
-                              size: 48,
-                              color: AppColors.champagne,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    // Brand Logo Emblem (Solid #064E3B shield with #F8E7C9 checkmark)
+                    const ShieldCheckMark(size: 104),
                     const SizedBox(height: 24),
 
                     // App Title
@@ -181,4 +138,82 @@ class SplashScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A custom widget rendering the solid #064E3B shield containing the #F8E7C9 checkmark.
+class ShieldCheckMark extends StatelessWidget {
+  final double size;
+
+  const ShieldCheckMark({super.key, this.size = 100});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _ShieldCheckPainter(),
+      ),
+    );
+  }
+}
+
+class _ShieldCheckPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double s = size.width / 108.0;
+
+    // Subtle ambient glow ring in Champagne
+    final Paint glowPaint = Paint()
+      ..color = AppColors.champagne.withValues(alpha: 0.12)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(
+      Offset(size.width / 2, size.height / 2),
+      40 * s,
+      glowPaint,
+    );
+
+    // Shield path (matching Android vector coordinates in 108x108 space)
+    final Path shieldPath = Path()
+      ..moveTo(33 * s, 26 * s)
+      ..cubicTo(29 * s, 26 * s, 26 * s, 29 * s, 26 * s, 33 * s)
+      ..lineTo(26 * s, 54 * s)
+      ..cubicTo(26 * s, 67 * s, 38 * s, 78 * s, 54 * s, 84 * s)
+      ..cubicTo(70 * s, 78 * s, 82 * s, 67 * s, 82 * s, 54 * s)
+      ..lineTo(82 * s, 33 * s)
+      ..cubicTo(82 * s, 29 * s, 79 * s, 26 * s, 75 * s, 26 * s)
+      ..close();
+
+    // Solid #064E3B shield fill
+    final Paint shieldFill = Paint()
+      ..color = AppColors.emeraldInk
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(shieldPath, shieldFill);
+
+    // Shield accent border: #F8E7C9
+    final Paint shieldStroke = Paint()
+      ..color = AppColors.champagne
+      ..strokeWidth = 2.5 * s
+      ..style = PaintingStyle.stroke
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(shieldPath, shieldStroke);
+
+    // Checkmark path: clean 45-degree checkmark (~50% width)
+    // Start: (36, 54), Apex: (49, 67), End: (72, 44)
+    final Path checkPath = Path()
+      ..moveTo(36 * s, 54 * s)
+      ..lineTo(49 * s, 67 * s)
+      ..lineTo(72 * s, 44 * s);
+
+    final Paint checkPaint = Paint()
+      ..color = AppColors.champagne
+      ..strokeWidth = 6.0 * s
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(checkPath, checkPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

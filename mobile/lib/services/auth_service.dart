@@ -11,7 +11,13 @@ class AuthService {
   final Dio _dio;
   final StorageService _storageService;
   final SupabaseClient? supabaseClient;
-  StreamSubscription<AuthState>? _authSubscription;
+  static StreamSubscription<AuthState>? _staticAuthSubscription;
+  static bool _navigatedToHome = false;
+
+  static bool get isNavigatedToHome => _navigatedToHome;
+  static void setNavigatedToHome(bool value) {
+    _navigatedToHome = value;
+  }
 
   SupabaseClient get supabase => supabaseClient ?? Supabase.instance.client;
 
@@ -46,10 +52,15 @@ class AuthService {
   /// Sets up onAuthStateChange listener that saves credentials and navigates
   /// to the home screen once a session is established.
   void _initAuthStateListener() {
+    if (_staticAuthSubscription != null) return;
     try {
-      _authSubscription = supabase.auth.onAuthStateChange.listen((data) async {
+      _staticAuthSubscription = supabase.auth.onAuthStateChange.listen((data) async {
         final session = data.session;
-        if (data.event == AuthChangeEvent.signedIn && session != null) {
+        if (data.event == AuthChangeEvent.signedOut) {
+          _navigatedToHome = false;
+        } else if (data.event == AuthChangeEvent.signedIn && session != null) {
+          if (_navigatedToHome) return;
+          _navigatedToHome = true;
           debugPrint('Supabase Auth session established: ${session.user.id}');
           final accessToken = session.accessToken;
           final refreshToken = session.refreshToken ?? '';
@@ -404,6 +415,7 @@ class AuthService {
 
   /// Clear tokens securely from storage on logout.
   Future<void> logout() async {
+    _navigatedToHome = false;
     try {
       await supabase.auth.signOut();
     } catch (_) {}
@@ -412,7 +424,9 @@ class AuthService {
 
   /// Cancels any active Supabase auth state subscription.
   void dispose() {
-    _authSubscription?.cancel();
+    _staticAuthSubscription?.cancel();
+    _staticAuthSubscription = null;
+    _navigatedToHome = false;
   }
 }
 

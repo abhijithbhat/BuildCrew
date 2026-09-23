@@ -433,7 +433,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                       ? const Color(0xFFFEF3C7)
                       : (isMe
                           ? AppColors.emeraldInk
-                          : const Color(0xFFEEF2FF)),
+                          : AppColors.champagne),
                   child: Text(
                     displayedInitial,
                     style: TextStyle(
@@ -538,12 +538,12 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: agreement.isDeclared
-                              ? const Color(0xFFEEF2FF)
+                              ? AppColors.champagne
                               : const Color(0xFFFFFBEB),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: agreement.isDeclared
-                                ? const Color(0xFFC7D2FE)
+                                ? AppColors.inputBorder
                                 : const Color(0xFFFDE68A),
                           ),
                         ),
@@ -566,7 +566,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: agreement.isDeclared
-                                    ? const Color(0xFF4338CA)
+                                    ? AppColors.emeraldInk
                                     : const Color(0xFFB45309),
                               ),
                             ),
@@ -868,9 +868,9 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
               width: 84,
               height: 84,
               decoration: BoxDecoration(
-                color: const Color(0xFFEEF2FF),
+                color: AppColors.champagne,
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFC7D2FE), width: 1.5),
+                border: Border.all(color: AppColors.inputBorder, width: 1.5),
               ),
               child: const Icon(
                 Icons.assignment_ind_outlined,
@@ -1189,7 +1189,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                 label: const Text('Show All Categories'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.emeraldInk,
-                  side: const BorderSide(color: Color(0xFFC7D2FE)),
+                  side: const BorderSide(color: AppColors.inputBorder),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

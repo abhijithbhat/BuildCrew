@@ -24,7 +24,9 @@ import 'screens/signup_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/team_roles_screen.dart';
 import 'services/api_client.dart';
+import 'services/auth_service.dart';
 import 'services/storage_service.dart';
+import 'theme/app_colors.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,6 +57,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   late final AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
+  static String? _lastHandledUri;
 
   @override
   void initState() {
@@ -78,7 +81,13 @@ class _MyAppState extends State<MyApp> {
       // 2. Check for incoming URI when the app is launched cold
       final initialUri = await _appLinks.getInitialLink();
       if (initialUri != null) {
-        await _handleIncomingUri(initialUri);
+        final uriStr = initialUri.toString();
+        if (_lastHandledUri != uriStr) {
+          _lastHandledUri = uriStr;
+          await _handleIncomingUri(initialUri);
+        } else {
+          debugPrint('Ignoring already-handled initial link on restart: $uriStr');
+        }
       }
     } catch (e) {
       debugPrint('AppLinks initialization error: $e');
@@ -91,34 +100,83 @@ class _MyAppState extends State<MyApp> {
       // Custom scheme: com.abhijithbhat.buildcrew, host: login-callback
       if (uri.scheme == 'com.abhijithbhat.buildcrew' &&
           (uri.host == 'login-callback' || uri.path.contains('login-callback'))) {
-        final response =
-            await Supabase.instance.client.auth.getSessionFromUrl(uri);
-        final session = response.session;
-        final storage = widget.storageService ?? StorageService();
-        await storage.saveTokens(
-          accessToken: session.accessToken,
-          refreshToken: session.refreshToken ?? '',
-        );
-        final user = session.user;
-        final email = user.email ?? '';
-        final name = (user.userMetadata?['full_name'] as String?) ??
-            (user.userMetadata?['name'] as String?) ??
-            (user.userMetadata?['user_name'] as String?) ??
-            (email.isNotEmpty ? email : 'User');
-        await storage.saveUserInfo(
-          userId: user.id,
-          email: email,
-          name: name,
-        );
-        ApiClient.navigatorKey.currentState?.pushNamedAndRemoveUntil(
-          HomeScreen.routeName,
-          (route) => false,
-          arguments: name,
-        );
+
+        // ONLY trigger cancellation/failure if the provider explicitly returned an error!
+        final errorParam = uri.queryParameters['error'] ??
+            uri.queryParameters['error_description'];
+        if (errorParam != null && errorParam.isNotEmpty) {
+          debugPrint('OAuth callback returned explicit error: $errorParam');
+          _notifyAuthFailed('Sign-in was cancelled');
+          return;
+        }
+
+        // Check if session is already active (e.g. exchanged by Supabase internal handler)
+        Session? session = Supabase.instance.client.auth.currentSession;
+        if (session == null) {
+          try {
+            final response =
+                await Supabase.instance.client.auth.getSessionFromUrl(uri);
+            session = response.session;
+          } catch (e) {
+            debugPrint('getSessionFromUrl did not exchange code: $e');
+            session = Supabase.instance.client.auth.currentSession;
+          }
+        }
+
+        // If session is valid, save credentials and route to Home safely
+        if (session != null) {
+          final storage = widget.storageService ?? StorageService();
+          await storage.saveTokens(
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken ?? '',
+          );
+          final user = session.user;
+          final email = user.email ?? '';
+          final name = (user.userMetadata?['full_name'] as String?) ??
+              (user.userMetadata?['name'] as String?) ??
+              (user.userMetadata?['user_name'] as String?) ??
+              (email.isNotEmpty ? email : 'User');
+          await storage.saveUserInfo(
+            userId: user.id,
+            email: email,
+            name: name,
+          );
+
+          if (!AuthService.isNavigatedToHome) {
+            AuthService.setNavigatedToHome(true);
+            ApiClient.navigatorKey.currentState?.pushNamedAndRemoveUntil(
+              HomeScreen.routeName,
+              (route) => false,
+              arguments: name,
+            );
+          }
+        }
       }
     } catch (e) {
-      debugPrint('Supabase getSessionFromUrl error: $e');
+      debugPrint('Deep link handling error: $e');
     }
+  }
+
+  void _notifyAuthFailed([String message = 'Sign-in was cancelled or failed']) {
+    AuthService.setNavigatedToHome(false);
+    ApiClient.navigatorKey.currentState?.pushNamedAndRemoveUntil(
+      LoginScreen.routeName,
+      (route) => false,
+    );
+    ApiClient.scaffoldMessengerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   @override
@@ -131,8 +189,69 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: ApiClient.navigatorKey,
+      scaffoldMessengerKey: ApiClient.scaffoldMessengerKey,
       title: 'BuildCrew',
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: AppColors.emeraldInk,
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: AppColors.champagne,
+        chipTheme: ChipThemeData(
+          selectedColor: AppColors.emeraldInk,
+          checkmarkColor: AppColors.champagne,
+          backgroundColor: Colors.white,
+          labelStyle: const TextStyle(color: AppColors.bodyText),
+          secondaryLabelStyle: const TextStyle(color: AppColors.champagne),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: const BorderSide(color: AppColors.inputBorder),
+          ),
+        ),
+        switchTheme: SwitchThemeData(
+          thumbColor: WidgetStateProperty.resolveWith((states) =>
+              states.contains(WidgetState.selected)
+                  ? AppColors.emeraldInk
+                  : null),
+          trackColor: WidgetStateProperty.resolveWith((states) =>
+              states.contains(WidgetState.selected)
+                  ? AppColors.emeraldInk.withValues(alpha: 0.5)
+                  : null),
+        ),
+        checkboxTheme: CheckboxThemeData(
+          fillColor: WidgetStateProperty.resolveWith((states) =>
+              states.contains(WidgetState.selected)
+                  ? AppColors.emeraldInk
+                  : null),
+          checkColor: WidgetStateProperty.all(AppColors.champagne),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.emeraldInk,
+            foregroundColor: AppColors.champagne,
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.emeraldInk,
+            side: const BorderSide(color: AppColors.inputBorder),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.emeraldInk,
+          ),
+        ),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: AppColors.emeraldInk,
+          foregroundColor: AppColors.champagne,
+        ),
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          color: AppColors.emeraldInk,
+        ),
+      ),
       initialRoute: '/',
       routes: {
         '/': (context) => AuthWrapper(storageService: widget.storageService),

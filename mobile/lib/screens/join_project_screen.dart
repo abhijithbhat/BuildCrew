@@ -343,7 +343,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                             SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                'Invite codes are case-insensitive and valid for 7 days.',
+                                'Invite codes are case-insensitive and don\'t expire',
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: Color(0xFF64748B),

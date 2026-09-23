@@ -233,23 +233,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.pushNamed(context, '/create-project'),
                   ),
                 ),
-                const SizedBox(height: 24),
-                TextButton.icon(
-                  icon: const Icon(Icons.logout, color: Color(0xFFDC2626)),
-                  label: const Text(
-                    'Logout',
-                    style: TextStyle(
-                      color: Color(0xFFDC2626),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  onPressed: () async {
-                    await AuthService(storageService: _storageService).logout();
-                    if (context.mounted) {
-                      Navigator.pushReplacementNamed(context, '/login');
-                    }
-                  },
-                ),
               ],
             ),
           ),

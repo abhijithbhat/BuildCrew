@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 
 /// A reusable, production-quality empty state view for BuildCrew list screens.
-/// Follows the unified Slate-Indigo design system with dual-tinted illustration
+/// Follows the unified Emerald-Champagne design system with dual-tinted illustration
 /// badges, crisp typography, and actionable CTA buttons.
 class EmptyStateView extends StatelessWidget {
   final IconData icon;
@@ -36,11 +37,11 @@ class EmptyStateView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveBadgeColor = badgeColor ??
-        (isDark ? const Color(0xFF151C2C) : const Color(0xFFEEF2FF));
+        (isDark ? const Color(0xFF151C2C) : AppColors.champagne);
     final effectiveBorderColor = badgeBorderColor ??
-        (isDark ? const Color(0xFF1E293B) : const Color(0xFFC7D2FE));
+        (isDark ? const Color(0xFF1E293B) : AppColors.inputBorder);
     final effectiveIconColor = iconColor ??
-        (isDark ? const Color(0xFF60A5FA) : const Color(0xFF4F46E5));
+        (isDark ? const Color(0xFF60A5FA) : AppColors.emeraldInk);
     final effectiveTitleColor =
         isDark ? Colors.white : const Color(0xFF0F172A);
     final effectiveDescColor =
@@ -72,7 +73,7 @@ class EmptyStateView extends StatelessWidget {
                       ]
                     : [
                         BoxShadow(
-                          color: const Color(0xFF4F46E5).withValues(alpha: 0.12),
+                          color: AppColors.emeraldInk.withValues(alpha: 0.12),
                           blurRadius: 18,
                           offset: const Offset(0, 6),
                         ),

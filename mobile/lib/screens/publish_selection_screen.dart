@@ -535,7 +535,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFEEF2FF),
+                                color: AppColors.champagne,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(

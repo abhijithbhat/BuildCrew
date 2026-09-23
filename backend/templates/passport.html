@@ -40,14 +40,21 @@
             --border-subtle: #F1F5F9;
             --border-focus: #CBD5E1;
             
-            --primary-blue: #4F46E5;
-            --primary-blue-hover: #4338CA;
-            --primary-blue-light: #EEF2FF;
-            --primary-blue-border: #C7D2FE;
+            --primary-emerald: #064E3B;
+            --primary-emerald-hover: #04382A;
+            --primary-emerald-light: #ECFDF5;
+            --primary-emerald-border: #A7F3D0;
+            --champagne-accent: #F8E7C9;
+            --champagne-light: #FDF9F0;
             
-            --role-bg: #EFF6FF;
-            --role-border: #BFDBFE;
-            --role-text: #1D4ED8;
+            --primary-blue: #064E3B;
+            --primary-blue-hover: #04382A;
+            --primary-blue-light: #ECFDF5;
+            --primary-blue-border: #A7F3D0;
+            
+            --role-bg: #F8E7C9;
+            --role-border: rgba(6, 78, 59, 0.25);
+            --role-text: #064E3B;
             
             --peer-confirmed-bg: #ECFDF5;
             --peer-confirmed-border: #A7F3D0;
@@ -63,11 +70,11 @@
             --amber-border: #FDE68A;
             --amber-text: #92400E;
             
-            --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
-            --shadow-sm: 0 2px 4px rgba(15, 23, 42, 0.05);
-            --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.07);
-            --shadow-lg: 0 10px 25px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
-            --shadow-glow: 0 0 20px rgba(79, 70, 229, 0.15);
+            --shadow-xs: 0 1px 2px rgba(6, 78, 59, 0.04);
+            --shadow-sm: 0 2px 4px rgba(6, 78, 59, 0.05);
+            --shadow-md: 0 4px 12px rgba(6, 78, 59, 0.07);
+            --shadow-lg: 0 10px 25px -3px rgba(6, 78, 59, 0.08), 0 4px 6px -2px rgba(6, 78, 59, 0.04);
+            --shadow-glow: 0 0 20px rgba(6, 78, 59, 0.18);
         }
 
         * {
@@ -88,11 +95,11 @@
 
         /* Top Trust & Verification Banner */
         .verification-topbar {
-            background: #0F172A;
-            color: #F8FAFC;
+            background: #064E3B;
+            color: #F8E7C9;
             padding: 10px 24px;
             font-size: 12.5px;
-            border-bottom: 1px solid #1E293B;
+            border-bottom: 1px solid rgba(248, 231, 201, 0.2);
             position: sticky;
             top: 0;
             z-index: 50;
@@ -114,17 +121,18 @@
             gap: 8px;
             font-weight: 600;
             letter-spacing: -0.01em;
+            color: #F8E7C9;
         }
 
         .brand-icon {
             width: 18px;
             height: 18px;
-            background: linear-gradient(135deg, #6366F1, #4F46E5);
+            background: #F8E7C9;
             border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #FFFFFF;
+            color: #064E3B;
             font-size: 11px;
             font-weight: 800;
         }
@@ -133,7 +141,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            color: #94A3B8;
+            color: rgba(248, 231, 201, 0.85);
             font-size: 12px;
         }
 
@@ -171,7 +179,7 @@
 
         /* Recruiter Trust Seal Banner */
         .recruiter-seal-card {
-            background: linear-gradient(135deg, #1E1B4B 0%, #0F172A 100%);
+            background: linear-gradient(135deg, #064E3B 0%, #04382A 100%);
             border-radius: 16px;
             padding: 18px 24px;
             margin-bottom: 24px;
@@ -180,7 +188,7 @@
             justify-content: space-between;
             color: #FFFFFF;
             box-shadow: var(--shadow-md);
-            border: 1px solid rgba(99, 102, 241, 0.25);
+            border: 1px solid rgba(248, 231, 201, 0.25);
             gap: 16px;
             flex-wrap: wrap;
         }
@@ -195,13 +203,13 @@
             width: 42px;
             height: 42px;
             border-radius: 12px;
-            background: rgba(99, 102, 241, 0.2);
-            border: 1px solid rgba(165, 180, 252, 0.3);
+            background: rgba(248, 231, 201, 0.15);
+            border: 1px solid rgba(248, 231, 201, 0.3);
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            color: #A5B4FC;
+            color: #F8E7C9;
         }
 
         .seal-title {
@@ -215,9 +223,9 @@
         }
 
         .seal-verified-pill {
-            background: rgba(16, 185, 129, 0.2);
-            color: #34D399;
-            border: 1px solid rgba(52, 211, 153, 0.4);
+            background: rgba(248, 231, 201, 0.18);
+            color: #F8E7C9;
+            border: 1px solid rgba(248, 231, 201, 0.4);
             font-size: 11px;
             font-weight: 600;
             padding: 2px 8px;
@@ -228,7 +236,8 @@
 
         .seal-subtitle {
             font-size: 12.5px;
-            color: #94A3B8;
+            color: #F8E7C9;
+            opacity: 0.9;
             margin-top: 2px;
         }
 
@@ -254,24 +263,26 @@
         }
 
         .btn-action-primary {
-            background: #4F46E5;
-            color: #FFFFFF;
-            box-shadow: 0 2px 6px rgba(79, 70, 229, 0.35);
+            background: #F8E7C9;
+            color: #064E3B;
+            font-weight: 700;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
         }
 
         .btn-action-primary:hover {
-            background: #4338CA;
+            background: #ECD7B3;
+            color: #064E3B;
             transform: translateY(-1px);
         }
 
         .btn-action-secondary {
             background: rgba(255, 255, 255, 0.1);
-            color: #F1F5F9;
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #F8E7C9;
+            border: 1px solid rgba(248, 231, 201, 0.35);
         }
 
         .btn-action-secondary:hover {
-            background: rgba(255, 255, 255, 0.18);
+            background: rgba(248, 231, 201, 0.2);
             color: #FFFFFF;
             transform: translateY(-1px);
         }
@@ -300,7 +311,7 @@
             left: 0;
             right: 0;
             height: 4px;
-            background: linear-gradient(90deg, #4F46E5 0%, #6366F1 50%, #10B981 100%);
+            background: linear-gradient(90deg, #064E3B 0%, #10B981 50%, #F8E7C9 100%);
         }
 
         .profile-info {
@@ -331,8 +342,8 @@
             width: 84px;
             height: 84px;
             border-radius: 20px;
-            background: linear-gradient(135deg, #4F46E5 0%, #6366F1 50%, #8B5CF6 100%);
-            color: #FFFFFF;
+            background: linear-gradient(135deg, #064E3B 0%, #047857 50%, #065F46 100%);
+            color: #F8E7C9;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -481,8 +492,8 @@
         }
 
         .stat-card-highlight {
-            background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
-            border-color: #C7D2FE;
+            background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+            border-color: #A7F3D0;
         }
 
         .stat-value {
@@ -497,7 +508,7 @@
         }
 
         .stat-card-highlight .stat-value {
-            color: #3730A3;
+            color: #064E3B;
         }
 
         .stat-label {
@@ -583,7 +594,7 @@
         }
 
         .contribution-card:hover::before {
-            background: #4F46E5;
+            background: #064E3B;
         }
 
         .contribution-header {
@@ -618,9 +629,9 @@
         }
 
         .badge-code {
-            background: #EEF2FF;
-            color: #4338CA;
-            border-color: #C7D2FE;
+            background: #ECFDF5;
+            color: #064E3B;
+            border-color: #A7F3D0;
         }
 
         .badge-design {
@@ -714,9 +725,9 @@
 
         .evidence-link:hover {
             background: #FFFFFF;
-            border-color: #4F46E5;
-            color: #4F46E5;
-            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.15);
+            border-color: #064E3B;
+            color: #064E3B;
+            box-shadow: 0 2px 8px rgba(6, 78, 59, 0.15);
             transform: translateY(-1px);
         }
 
@@ -726,7 +737,7 @@
         }
 
         .evidence-link:hover svg {
-            color: #4F46E5;
+            color: #064E3B;
         }
 
         .contribution-footer {
@@ -776,8 +787,8 @@
         .explainer-icon {
             width: 28px;
             height: 28px;
-            background: #EEF2FF;
-            color: #4F46E5;
+            background: #ECFDF5;
+            color: #064E3B;
             border-radius: 8px;
             display: flex;
             align-items: center;
@@ -883,8 +894,8 @@
             position: fixed;
             bottom: 24px;
             right: 24px;
-            background: #0F172A;
-            color: #FFFFFF;
+            background: #064E3B;
+            color: #F8E7C9;
             padding: 12px 20px;
             border-radius: 10px;
             font-size: 13px;
@@ -898,7 +909,7 @@
             opacity: 0;
             transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
             pointer-events: none;
-            border: 1px solid #334155;
+            border: 1px solid rgba(248, 231, 201, 0.3);
         }
 
         .toast-notification.show {
@@ -1198,7 +1209,7 @@
             <div class="section-header-row">
                 <div class="section-title-group">
                     <h2>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#064E3B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="9 11 12 14 22 4"></polyline>
                             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
                         </svg>
@@ -1223,8 +1234,11 @@
                                 </svg>
                                 {% elif cat in ['design', 'ui/ux', 'ui', 'ux'] %}
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                    <path d="M12 2a4.5 4.5 0 0 0 0 9 4.5 4.5 0 0 1 0 9 4.5 4.5 0 0 1 0-9 4.5 4.5 0 0 0 0-9z"></path>
+                                    <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle>
+                                    <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle>
+                                    <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle>
+                                    <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle>
+                                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path>
                                 </svg>
                                 {% else %}
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1340,7 +1354,7 @@
                     </div>
                     <div class="explainer-item">
                         <div class="explainer-item-title">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#064E3B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="4"></circle>
                                 <line x1="1.05" y1="12" x2="7" y2="12"></line>
                                 <line x1="17.01" y1="12" x2="22.96" y2="12"></line>

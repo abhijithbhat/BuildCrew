@@ -188,7 +188,7 @@ void main() {
       expect(find.text('My Projects'), findsOneWidget);
       expect(find.text('Join Project with Code'), findsOneWidget);
       expect(find.text('Create New Project'), findsOneWidget);
-      expect(find.text('Logout'), findsOneWidget);
+      expect(find.byIcon(Icons.logout), findsOneWidget);
     });
 
     testWidgets('renders greeting loaded from StorageService with registered name', (WidgetTester tester) async {

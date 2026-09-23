@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/contribution.dart';
+import '../theme/app_colors.dart';
 
 class ContributionCard extends StatelessWidget {
   final Contribution contribution;
@@ -136,7 +137,7 @@ class ContributionCard extends StatelessWidget {
       case 'code':
         return const Color(0xFF3B82F6); // Blue
       default:
-        return const Color(0xFF6366F1); // Indigo
+        return AppColors.emeraldInk;
     }
   }
 
@@ -181,9 +182,9 @@ class ContributionCard extends StatelessWidget {
       icon = Icons.verified_rounded;
       label = 'Source Verified';
     } else if (status == 'confirmed' || status == 'peer-confirmed') {
-      bg = Colors.indigo.shade50;
-      border = Colors.indigo.shade300;
-      text = Colors.indigo.shade800;
+      bg = const Color(0xFFECFDF5);
+      border = const Color(0xFFA7F3D0);
+      text = const Color(0xFF065F46);
       icon = Icons.check_circle_rounded;
       label = 'Peer Confirmed';
     } else if (status == 'needs-review' || contribution.isDisputed) {
@@ -836,16 +837,16 @@ class ContributionCard extends StatelessWidget {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: contribution.isPendingConfirmation
                             ? const Color(0xFFD97706)
-                            : const Color(0xFF4F46E5),
+                            : AppColors.emeraldInk,
                         side: BorderSide(
                           color: contribution.isPendingConfirmation
                               ? const Color(0xFFFCD34D)
-                              : const Color(0xFFC7D2FE),
+                              : AppColors.inputBorder,
                           width: 1.2,
                         ),
                         backgroundColor: contribution.isPendingConfirmation
                             ? const Color(0xFFFEF3C7)
-                            : const Color(0xFFEEF2FF),
+                            : AppColors.champagne,
                         padding: const EdgeInsets.symmetric(
                             vertical: 8, horizontal: 12),
                         shape: RoundedRectangleBorder(

@@ -1133,17 +1133,39 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(10),
+                        width: 46,
+                        height: 46,
                         decoration: BoxDecoration(
-                          color: isOwner
-                              ? Colors.amber.withValues(alpha: 0.1)
-                              : Colors.blue.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: isOwner
+                                ? [AppColors.emeraldInk, const Color(0xFF047857)]
+                                : [const Color(0xFF065F46), const Color(0xFF0D9488)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(13),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (isOwner
+                                      ? AppColors.emeraldInk
+                                      : const Color(0xFF065F46))
+                                  .withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
-                        child: Icon(
-                          isOwner ? Icons.military_tech_rounded : Icons.folder_outlined,
-                          color: isOwner ? Colors.amber.shade800 : Colors.blueAccent,
-                          size: 28,
+                        child: Center(
+                          child: Text(
+                            project.name.isNotEmpty
+                                ? project.name.substring(0, 1).toUpperCase()
+                                : 'P',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 14),

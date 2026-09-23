@@ -376,7 +376,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                                           foregroundColor:
                                               AppColors.emeraldInk,
                                           side: const BorderSide(
-                                              color: Color(0xFFC7D2FE)),
+                                              color: AppColors.inputBorder),
                                           shape: RoundedRectangleBorder(
                                             borderRadius:
                                                 BorderRadius.circular(12),

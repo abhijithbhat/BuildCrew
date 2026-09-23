@@ -761,7 +761,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEEF2FF),
+                            color: AppColors.champagne,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Icon(
@@ -1029,7 +1029,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFEEF2FF),
+                                    color: AppColors.champagne,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(

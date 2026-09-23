@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/contribution.dart';
 import '../models/role_agreement.dart';
 import '../services/project_service.dart';
+import '../theme/app_colors.dart';
 
 class RequestConfirmationModal {
   static Future<void> show({
@@ -180,12 +181,12 @@ class _RequestConfirmationModalContentState
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4F46E5).withAlpha(40),
+                    color: AppColors.emeraldInk.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.how_to_reg_outlined,
-                    color: Color(0xFF818CF8),
+                    color: AppColors.champagne,
                     size: 24,
                   ),
                 ),
@@ -258,7 +259,7 @@ class _RequestConfirmationModalContentState
                   child: Column(
                     children: [
                       CircularProgressIndicator(
-                        color: Color(0xFF6366F1),
+                        color: AppColors.emeraldInk,
                         strokeWidth: 2.5,
                       ),
                       SizedBox(height: 12),
@@ -345,7 +346,7 @@ class _RequestConfirmationModalContentState
                           ? 'Deselect All'
                           : 'Select All',
                       style: const TextStyle(
-                        color: Color(0xFF818CF8),
+                        color: AppColors.emeraldInk,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
@@ -392,12 +393,12 @@ class _RequestConfirmationModalContentState
                             horizontal: 12, vertical: 10),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? const Color(0xFF4F46E5).withAlpha(30)
+                              ? AppColors.emeraldInk.withValues(alpha: 0.2)
                               : const Color(0xFF1E293B),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: isSelected
-                                ? const Color(0xFF6366F1)
+                                ? AppColors.emeraldInk
                                 : const Color(0xFF334155),
                             width: 1.2,
                           ),
@@ -407,12 +408,14 @@ class _RequestConfirmationModalContentState
                             CircleAvatar(
                               radius: 16,
                               backgroundColor: isSelected
-                                  ? const Color(0xFF6366F1)
+                                  ? AppColors.emeraldInk
                                   : const Color(0xFF475569),
                               child: Text(
                                 initial,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? AppColors.champagne
+                                      : Colors.white,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
                                 ),
@@ -473,8 +476,8 @@ class _RequestConfirmationModalContentState
                             ),
                             Checkbox(
                               value: isSelected,
-                              activeColor: const Color(0xFF6366F1),
-                              checkColor: Colors.white,
+                              activeColor: AppColors.emeraldInk,
+                              checkColor: AppColors.champagne,
                               onChanged: (val) {
                                 setState(() {
                                   if (val == true) {
@@ -520,8 +523,8 @@ class _RequestConfirmationModalContentState
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.emeraldInk,
+                    foregroundColor: AppColors.champagne,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
