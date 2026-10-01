@@ -413,6 +413,82 @@ class AuthService {
     return await _storageService.getAccessToken();
   }
 
+  /// Execute DELETE with automatic fallback across available network interfaces.
+  Future<Response> _deleteWithFallback(String path, {Options? options}) async {
+    DioException? lastException;
+    final urls = [
+      if (ApiClient.activeBaseUrl.isNotEmpty && fallbackBaseUrls.contains(ApiClient.activeBaseUrl))
+        ApiClient.activeBaseUrl,
+      ...fallbackBaseUrls.where((u) => u != ApiClient.activeBaseUrl),
+    ];
+
+    for (final baseUrl in urls) {
+      try {
+        _dio.options.baseUrl = baseUrl;
+        debugPrint('AuthService: Attempting DELETE to $baseUrl$path');
+        final response = await _dio.delete(path, options: options);
+        ApiClient.activeBaseUrl = baseUrl;
+        return response;
+      } on DioException catch (e) {
+        lastException = e;
+        final isConnError = e.type == DioExceptionType.connectionError ||
+            e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            (e.message != null &&
+                (e.message!.contains('Connection refused') ||
+                    e.message!.contains('No route to host') ||
+                    e.message!.contains('SocketException')));
+        if (isConnError) {
+          debugPrint('FAILED endpoint $baseUrl$path due to connection error. Retrying next...');
+          continue;
+        }
+        rethrow;
+      }
+    }
+    throw lastException ?? 'Cannot connect to backend server. Please check your network.';
+  }
+
+  /// Permanently delete the user's account per Play Store requirements.
+  Future<void> deleteAccount() async {
+    _navigatedToHome = false;
+    final token = await _storageService.getAccessToken();
+
+    if (token != null && token.isNotEmpty) {
+      try {
+        await _deleteWithFallback(
+          '/auth/me',
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        );
+      } on DioException catch (e) {
+        if (e.response != null && e.response?.data is Map) {
+          final data = e.response!.data as Map;
+          final detail = data['detail'] ?? data['message'];
+          if (detail != null) throw detail.toString();
+        }
+        if (e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.connectionError ||
+            (e.message != null &&
+                (e.message!.contains('Connection refused') ||
+                    e.message!.contains('No route to host') ||
+                    e.message!.contains('SocketException')))) {
+          throw 'Cannot connect to backend server. Please check your network or server connection.';
+        }
+        throw e.message ?? 'Failed to delete account. Please try again.';
+      } catch (e) {
+        if (e is String) rethrow;
+        throw 'Failed to delete account. Please try again.';
+      }
+    }
+
+    // On success: calls StorageService.clearAll(), signs out from Supabase client, and broadcasts logout.
+    await _storageService.clearAll();
+    try {
+      await supabase.auth.signOut();
+    } catch (_) {}
+    ApiClient.onForceLogout.add(null);
+  }
+
   /// Clear tokens securely from storage on logout.
   Future<void> logout() async {
     _navigatedToHome = false;

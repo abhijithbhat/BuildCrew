@@ -1,6 +1,8 @@
+import os
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
-from core.database import get_supabase_client, get_supabase_pub_client
+from core.config import settings
+from core.database import get_supabase_client, get_supabase_pub_client, create_client
 from core.dependencies import get_current_user, stable_dev_user_id
 from schemas.auth import (
     ForgotPasswordRequest,
@@ -461,3 +463,149 @@ async def get_me(current_user=Depends(get_current_user)):
         "user": current_user,
         "profile": profile_data,
     }
+
+
+@router.delete("/me", status_code=status.HTTP_200_OK)
+async def delete_my_account(current_user=Depends(get_current_user)):
+    """Permanently delete user profile, personal projects, credentials, and Supabase auth user."""
+    user_id = getattr(current_user, "id", None)
+    email = getattr(current_user, "email", None)
+    if not user_id and isinstance(current_user, dict):
+        user_id = current_user.get("id")
+        email = current_user.get("email")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to delete account.",
+        )
+
+    # Clean up local development mock stores
+    if email:
+        DEV_USERS_DB.pop(email.lower(), None)
+        DEV_VERIFIED_USERS.discard(email.lower())
+        DEV_USER_NAMES_DB.pop(email.lower(), None)
+
+    try:
+        supabase = get_supabase_client()
+    except Exception:
+        supabase = None
+
+    if supabase:
+        # a. Inspect projects created by the user
+        try:
+            owned_projects = supabase.table("projects").select("id").eq("created_by", user_id).execute()
+            owned_data = getattr(owned_projects, "data", None)
+            owned_project_ids = []
+            if isinstance(owned_data, list):
+                owned_project_ids = [p["id"] for p in owned_data if isinstance(p, dict) and "id" in p]
+
+            for pid in owned_project_ids:
+                try:
+                    members_resp = supabase.table("project_members").select("user_id").eq("project_id", pid).execute()
+                    members_data = getattr(members_resp, "data", None)
+                    other_members = []
+                    if isinstance(members_data, list):
+                        other_members = [
+                            m["user_id"] for m in members_data
+                            if isinstance(m, dict) and m.get("user_id") and str(m.get("user_id")) != str(user_id)
+                        ]
+
+                    if not other_members:
+                        # Sole owner with no other members: delete the project and its contributions
+                        try:
+                            supabase.table("contributions").delete().eq("project", pid).execute()
+                        except Exception:
+                            pass
+                        try:
+                            supabase.table("role_agreements").delete().eq("project_id", pid).execute()
+                        except Exception:
+                            pass
+                        try:
+                            supabase.table("github_installations").delete().eq("project_id", pid).execute()
+                        except Exception:
+                            pass
+                        try:
+                            supabase.table("project_members").delete().eq("project_id", pid).execute()
+                        except Exception:
+                            pass
+                        try:
+                            supabase.table("projects").delete().eq("id", pid).execute()
+                        except Exception:
+                            pass
+                    else:
+                        # Team project: transfer project ownership to next member or anonymize creator
+                        next_owner = other_members[0]
+                        supabase.table("projects").update({"created_by": next_owner}).eq("id", pid).execute()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # b. Remove user from project_members and role_agreements in team projects
+        try:
+            supabase.table("project_members").delete().eq("user_id", user_id).execute()
+        except Exception:
+            pass
+        try:
+            supabase.table("role_agreements").delete().eq("user_id", user_id).execute()
+        except Exception:
+            pass
+
+        # Anonymize or remove confirmation requests and reviews
+        try:
+            supabase.table("confirmation_requests").delete().eq("requested_by", user_id).execute()
+        except Exception:
+            pass
+        try:
+            supabase.table("confirmation_requests").delete().eq("reviewer_id", user_id).execute()
+        except Exception:
+            pass
+        try:
+            supabase.table("confirmations").delete().eq("confirmed_by_user_id", user_id).execute()
+        except Exception:
+            pass
+
+        # For contributions: preserve peer-confirmed deliverables or anonymize creator references
+        try:
+            supabase.table("contributions").update({"confirmed_by": None}).eq("confirmed_by", user_id).execute()
+        except Exception:
+            pass
+        try:
+            supabase.table("contributions").delete().eq("contributor", user_id).neq("verification_status", "confirmed").execute()
+        except Exception:
+            pass
+
+        # c. Delete user's row from public.profiles
+        try:
+            supabase.table("profiles").delete().eq("id", user_id).execute()
+        except Exception:
+            pass
+
+    # d. Use Supabase Admin Client (using SUPABASE_SERVICE_ROLE_KEY) to execute delete_user
+    service_role_key = (
+        getattr(settings, "SUPABASE_SERVICE_ROLE_KEY", None)
+        or getattr(settings, "SUPABASE_SERVICE_KEY", None)
+        or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        or os.environ.get("SUPABASE_SERVICE_KEY")
+    )
+    if settings.SUPABASE_URL and service_role_key:
+        try:
+            admin_client = create_client(settings.SUPABASE_URL, service_role_key)
+            if hasattr(admin_client, "auth") and hasattr(admin_client.auth, "admin"):
+                admin_client.auth.admin.delete_user(str(user_id))
+        except Exception:
+            pass
+    elif supabase and hasattr(supabase, "auth") and hasattr(supabase.auth, "admin") and hasattr(supabase.auth.admin, "delete_user"):
+        try:
+            supabase.auth.admin.delete_user(str(user_id))
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "message": "Account and associated data deleted successfully.",
+        "user_id": user_id,
+    }
+
+

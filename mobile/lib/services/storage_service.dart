@@ -119,6 +119,15 @@ class StorageService {
     }
   }
 
+  /// Completely wipe all stored keys, tokens, profile info, and in-memory caches.
+  Future<void> clearAll() async {
+    try {
+      await _storage.deleteAll();
+    } catch (_) {}
+    await clearTokens();
+    _inMemoryFallback.clear();
+  }
+
   static const String _keyDraftProjectId = 'draft_project_id';
   static const String _keyDraftTitle = 'draft_title';
   static const String _keyDraftCategory = 'draft_category';

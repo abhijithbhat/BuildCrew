@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/add_contribution_screen.dart';
@@ -20,8 +21,8 @@ import 'screens/pending_confirmations_screen.dart';
 import 'screens/project_detail_screen.dart';
 import 'screens/publish_selection_screen.dart';
 import 'screens/repo_status_screen.dart';
+import 'screens/settings_screen.dart';
 import 'screens/signup_screen.dart';
-import 'screens/splash_screen.dart';
 import 'screens/team_roles_screen.dart';
 import 'services/api_client.dart';
 import 'services/auth_service.dart';
@@ -30,6 +31,11 @@ import 'theme/app_colors.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
 
   try {
     await Supabase.initialize(
@@ -41,14 +47,32 @@ Future<void> main() async {
     debugPrint('Supabase initialize error: $e');
   }
 
-  runApp(const MyApp());
+  String initialRoute = '/login';
+  try {
+    final storageService = StorageService();
+    final token = await storageService.getAccessToken();
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null || (token != null && token.isNotEmpty)) {
+      initialRoute = '/home';
+    }
+  } catch (e) {
+    debugPrint('Auth check error in main(): $e');
+  }
+
+  runApp(MyApp(initialRoute: initialRoute));
 }
 
 class MyApp extends StatefulWidget {
   final StorageService? storageService;
   final AppLinks? appLinks;
+  final String initialRoute;
 
-  const MyApp({super.key, this.storageService, this.appLinks});
+  const MyApp({
+    super.key,
+    this.storageService,
+    this.appLinks,
+    this.initialRoute = '/login',
+  });
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -252,9 +276,8 @@ class _MyAppState extends State<MyApp> {
           color: AppColors.emeraldInk,
         ),
       ),
-      initialRoute: '/',
+      initialRoute: widget.initialRoute,
       routes: {
-        '/': (context) => AuthWrapper(storageService: widget.storageService),
         LoginScreen.routeName: (context) => const LoginScreen(),
         SignupScreen.routeName: (context) => const SignupScreen(),
         '/otp': (context) => const OtpScreen(),
@@ -273,84 +296,12 @@ class _MyAppState extends State<MyApp> {
         MyContributionsScreen.routeName: (context) => const MyContributionsScreen(),
         PendingConfirmationsScreen.routeName: (context) => const PendingConfirmationsScreen(),
         PublishSelectionScreen.routeName: (context) => const PublishSelectionScreen(),
-        SplashScreen.routeName: (context) => const SplashScreen(),
+        SettingsScreen.routeName: (context) => const SettingsScreen(),
       },
     );
   }
 }
 
-class AuthWrapper extends StatefulWidget {
-  final StorageService? storageService;
-
-  const AuthWrapper({super.key, this.storageService});
-
-  @override
-  State<AuthWrapper> createState() => _AuthWrapperState();
-}
-
-class _AuthWrapperState extends State<AuthWrapper> {
-  late final StorageService _storageService;
-
-  @override
-  void initState() {
-    super.initState();
-    _storageService = widget.storageService ?? StorageService();
-    _checkAuth();
-  }
-
-  Future<void> _checkAuth() async {
-    try {
-      final token = await _storageService.getAccessToken();
-      if (!mounted) return;
-
-      if (token != null && token.isNotEmpty) {
-        final name = await _storageService.getUserName() ?? await _storageService.getUserEmail();
-        final draft = await _storageService.getContributionDraft();
-        if (!mounted) return;
-
-        if (draft.isNotEmpty && draft['projectId'] != null && draft['projectId']!.isNotEmpty) {
-          Navigator.pushReplacementNamed(
-            context,
-            HomeScreen.routeName,
-            arguments: name ?? 'User',
-          );
-          Navigator.pushNamed(
-            context,
-            MyProjectsScreen.routeName,
-          );
-          Navigator.pushNamed(
-            context,
-            ProjectDetailScreen.routeName,
-            arguments: {'projectId': draft['projectId']},
-          );
-          Navigator.pushNamed(
-            context,
-            AddContributionScreen.routeName,
-            arguments: {'projectId': draft['projectId']},
-          );
-          return;
-        }
-
-        Navigator.pushReplacementNamed(
-          context,
-          HomeScreen.routeName,
-          arguments: name ?? 'User',
-        );
-      } else {
-        Navigator.pushReplacementNamed(context, LoginScreen.routeName);
-      }
-    } catch (_) {
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, LoginScreen.routeName);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const SplashScreen(message: 'Verifying session...');
-  }
-}
 
 
 

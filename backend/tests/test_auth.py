@@ -224,3 +224,40 @@ def test_refresh_token_dev_mode():
     assert "mock-dev-refresh-token-developer@buildcrew.com" in data["refresh_token"]
     assert data["user"]["email"] == "developer@buildcrew.com"
 
+
+def test_delete_my_account_unauthenticated():
+    response = client.delete("/auth/me")
+    assert response.status_code in (401, 403)
+
+
+def test_delete_my_account_authenticated():
+    mock_supabase = MagicMock()
+    mock_user = MagicMock()
+    mock_user.id = "user-delete-123"
+    mock_user.email = "delete-me@example.com"
+    mock_user_response = MagicMock(user=mock_user)
+
+    mock_supabase.auth.get_user.return_value = mock_user_response
+
+    mock_table = MagicMock()
+    mock_delete = MagicMock()
+    mock_eq = MagicMock()
+    mock_eq.execute.return_value = MagicMock(data=[])
+    mock_delete.eq.return_value = mock_eq
+    mock_table.delete.return_value = mock_delete
+    mock_supabase.table.return_value = mock_table
+
+    with patch(
+        "core.dependencies.get_supabase_pub_client", return_value=mock_supabase
+    ), patch("routers.auth.get_supabase_client", return_value=mock_supabase):
+        response = client.delete(
+            "/auth/me",
+            headers={"Authorization": "Bearer valid-delete-jwt"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "deleted successfully" in data["message"]
+        assert data["user_id"] == "user-delete-123"
+
+

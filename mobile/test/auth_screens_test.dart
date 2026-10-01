@@ -4,6 +4,7 @@ import 'package:mobile/screens/forgot_password_screen.dart';
 import 'package:mobile/screens/home_screen.dart';
 import 'package:mobile/screens/login_screen.dart';
 import 'package:mobile/screens/otp_screen.dart';
+import 'package:mobile/screens/settings_screen.dart';
 import 'package:mobile/screens/signup_screen.dart';
 import 'package:mobile/services/storage_service.dart';
 
@@ -188,7 +189,7 @@ void main() {
       expect(find.text('My Projects'), findsOneWidget);
       expect(find.text('Join Project with Code'), findsOneWidget);
       expect(find.text('Create New Project'), findsOneWidget);
-      expect(find.byIcon(Icons.logout), findsOneWidget);
+      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
     });
 
     testWidgets('renders greeting loaded from StorageService with registered name', (WidgetTester tester) async {
@@ -204,5 +205,107 @@ void main() {
       expect(find.text('Welcome, Abhijith Hubli'), findsOneWidget);
     });
   });
+
+  group('SettingsScreen Tests', () {
+    testWidgets('renders account details, notifications, app info, and logout action', (WidgetTester tester) async {
+      final fakeStorage = FakeStorageService(
+        userName: 'Alex Rivers',
+        userEmail: 'alex@rivers.dev',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SettingsScreen(storageService: fakeStorage),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Settings'), findsOneWidget);
+      expect(find.text('Account'), findsOneWidget);
+      expect(find.text('Alex Rivers'), findsOneWidget);
+      expect(find.text('alex@rivers.dev'), findsOneWidget);
+      expect(find.text('Delete My Account'), findsOneWidget);
+
+      expect(find.text('Notifications'), findsOneWidget);
+      expect(find.text('Push Notifications'), findsOneWidget);
+      expect(find.text('Coming Soon'), findsOneWidget);
+
+      expect(find.text('App Info'), findsOneWidget);
+      expect(find.text('Version'), findsOneWidget);
+      expect(find.text('1.0.0 (Build 1)'), findsOneWidget);
+      expect(find.text('Privacy Policy'), findsOneWidget);
+
+      expect(find.byKey(const Key('settings_logout_btn')), findsOneWidget);
+      expect(find.text('Log Out'), findsOneWidget);
+    });
+
+    testWidgets('shows confirmation dialog on Delete My Account tap', (WidgetTester tester) async {
+      final fakeStorage = FakeStorageService(
+        userName: 'Alex Rivers',
+        userEmail: 'alex@rivers.dev',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SettingsScreen(storageService: fakeStorage),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Delete My Account'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete Account Permanently?'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Delete Forever'), findsOneWidget);
+    });
+
+    testWidgets('shows confirmation dialog on Log Out tap', (WidgetTester tester) async {
+      final fakeStorage = FakeStorageService(
+        userName: 'Alex Rivers',
+        userEmail: 'alex@rivers.dev',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SettingsScreen(storageService: fakeStorage),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('settings_logout_btn')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Are you sure you want to log out of BuildCrew?'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+    });
+
+    testWidgets('push notifications toggle auto-reverts and displays snackbar', (WidgetTester tester) async {
+      final fakeStorage = FakeStorageService(
+        userName: 'Alex Rivers',
+        userEmail: 'alex@rivers.dev',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SettingsScreen(storageService: fakeStorage),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final switchFinder = find.byType(Switch);
+      expect(switchFinder, findsOneWidget);
+      final initialSwitch = tester.widget<Switch>(switchFinder);
+      expect(initialSwitch.value, isFalse);
+
+      await tester.tap(switchFinder);
+      await tester.pump();
+
+      expect(find.text('Push notifications will be available in an upcoming update.'), findsOneWidget);
+      final revertedSwitch = tester.widget<Switch>(switchFinder);
+      expect(revertedSwitch.value, isFalse);
+    });
+  });
 }
+
 

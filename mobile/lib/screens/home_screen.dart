@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/role_agreement.dart';
-import '../services/auth_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   static const String routeName = '/home';
@@ -71,15 +71,20 @@ class _HomeScreenState extends State<HomeScreen> {
         foregroundColor: AppColors.emeraldInk,
         elevation: 0,
         scrolledUnderElevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(
+            color: AppColors.inputBorder,
+            height: 1.0,
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, color: AppColors.emeraldInk),
-            tooltip: 'Logout',
-            onPressed: () async {
-              await AuthService(storageService: _storageService).logout();
-              if (context.mounted) {
-                Navigator.pushReplacementNamed(context, '/login');
-              }
+            key: const Key('home_settings_btn'),
+            icon: const Icon(Icons.settings_outlined, color: AppColors.emeraldInk),
+            tooltip: 'Settings',
+            onPressed: () {
+              Navigator.pushNamed(context, SettingsScreen.routeName);
             },
           ),
         ],
