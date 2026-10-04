@@ -1,9 +1,18 @@
 import os
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from core.config import settings
-from core.database import get_supabase_client, get_supabase_pub_client, create_client
+from core.rate_limit import limiter, get_ip_key, get_ip_email_key
+from core.database import (
+    get_supabase_client,
+    get_supabase_pub_client,
+    create_client,
+    _is_dev_fallback_error,
+    is_dev_mode,
+)
 from core.dependencies import get_current_user, stable_dev_user_id
+from core.logging import logger
 from schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
@@ -12,6 +21,7 @@ from schemas.auth import (
     SignUpRequest,
     VerifyOTPRequest,
 )
+from services.github_service import generate_app_jwt
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -23,7 +33,8 @@ DEV_USER_NAMES_DB: dict[str, str] = {}
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
-async def signup(credentials: SignUpRequest):
+@limiter.limit("3/hour", key_func=get_ip_key)
+async def signup(request: Request, credentials: SignUpRequest):
     supabase = get_supabase_pub_client()
     try:
         signup_payload = {
@@ -72,7 +83,7 @@ async def signup(credentials: SignUpRequest):
         raise
     except Exception as e:
         err_msg = str(e)
-        if "nodename nor servname provided" in err_msg or "gai_error" in err_msg or "Name or service not known" in err_msg:
+        if _is_dev_fallback_error(err_msg, service_name="Authentication"):
             # Store credentials in Local Dev DB
             DEV_USERS_DB[credentials.email.lower()] = credentials.password
             if credentials.name and credentials.name.strip():
@@ -94,7 +105,8 @@ async def signup(credentials: SignUpRequest):
 
 
 @router.post("/verify-otp", status_code=status.HTTP_200_OK)
-async def verify_otp(req: VerifyOTPRequest):
+@limiter.limit("10/15minute", key_func=get_ip_email_key)
+async def verify_otp(request: Request, req: VerifyOTPRequest):
     supabase = get_supabase_pub_client()
     try:
         response = supabase.auth.verify_otp(
@@ -127,7 +139,7 @@ async def verify_otp(req: VerifyOTPRequest):
 
     except Exception as e:
         err_msg = str(e)
-        if "nodename nor servname provided" in err_msg or "gai_error" in err_msg or "Name or service not known" in err_msg:
+        if _is_dev_fallback_error(err_msg, service_name="Authentication"):
             # Accept "123456" as universal Dev Mode OTP
             if req.token.strip() != "123456":
                 raise HTTPException(
@@ -153,7 +165,8 @@ async def verify_otp(req: VerifyOTPRequest):
 
 
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
-async def forgot_password(req: ForgotPasswordRequest):
+@limiter.limit("3/hour", key_func=get_ip_key)
+async def forgot_password(request: Request, req: ForgotPasswordRequest):
     supabase = get_supabase_pub_client()
     try:
         supabase.auth.reset_password_for_email(req.email)
@@ -163,7 +176,7 @@ async def forgot_password(req: ForgotPasswordRequest):
         }
     except Exception as e:
         err_msg = str(e)
-        if "nodename nor servname provided" in err_msg or "gai_error" in err_msg or "Name or service not known" in err_msg:
+        if _is_dev_fallback_error(err_msg, service_name="Authentication"):
             email_key = req.email.lower()
             if email_key not in DEV_USERS_DB:
                 raise HTTPException(
@@ -195,7 +208,7 @@ async def reset_password(req: ResetPasswordRequest):
         return {"message": "Password reset successfully. Please log in with your new password."}
     except Exception as e:
         err_msg = str(e)
-        if "nodename nor servname provided" in err_msg or "gai_error" in err_msg or "Name or service not known" in err_msg:
+        if _is_dev_fallback_error(err_msg, service_name="Authentication"):
             if req.token.strip() != "123456":
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -216,7 +229,8 @@ async def reset_password(req: ResetPasswordRequest):
 
 
 @router.post("/login", status_code=status.HTTP_200_OK)
-async def login(credentials: LoginRequest):
+@limiter.limit("5/15minute", key_func=get_ip_email_key)
+async def login(request: Request, credentials: LoginRequest):
     supabase = get_supabase_client()
     try:
         response = supabase.auth.sign_in_with_password(
@@ -259,7 +273,7 @@ async def login(credentials: LoginRequest):
         raise
     except Exception as e:
         err_msg = str(e)
-        if "nodename nor servname provided" in err_msg or "gai_error" in err_msg or "Name or service not known" in err_msg:
+        if _is_dev_fallback_error(err_msg, service_name="Authentication"):
             email_key = credentials.email.lower()
             if email_key not in DEV_USERS_DB:
                 raise HTTPException(
@@ -313,6 +327,12 @@ async def refresh_token(payload: RefreshTokenRequest):
 
     # Local Dev Mode fallback if token matches mock pattern
     if raw_token.startswith("mock-dev-refresh-token-"):
+        if not is_dev_mode():
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="INVALID_REFRESH_TOKEN: Invalid or expired refresh token. Please log in again.",
+                headers={"WWW-Authenticate": "Bearer error=\"invalid_token\", error_description=\"Refresh token is expired or invalid\""},
+            )
         email = raw_token.replace("mock-dev-refresh-token-", "")
         now_ts = int(datetime.now(timezone.utc).timestamp())
         return {
@@ -377,11 +397,7 @@ async def refresh_token(payload: RefreshTokenRequest):
         raise
     except Exception as e:
         err_msg = str(e)
-        if (
-            "nodename nor servname provided" in err_msg
-            or "gai_error" in err_msg
-            or "Name or service not known" in err_msg
-        ):
+        if _is_dev_fallback_error(err_msg, service_name="Authentication"):
             if raw_token.startswith("mock-dev-refresh-token-"):
                 email = raw_token.replace("mock-dev-refresh-token-", "")
                 now_ts = int(datetime.now(timezone.utc).timestamp())
@@ -420,9 +436,10 @@ async def github_login(redirect_to: str | None = None):
             "provider": "github",
         }
     except Exception as e:
+        logger.exception("GitHub OAuth initiation failed")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"GitHub OAuth error: {str(e)}",
+            detail="Failed to initiate GitHub authentication. Please try again.",
         )
 
 
@@ -467,7 +484,10 @@ async def get_me(current_user=Depends(get_current_user)):
 
 @router.delete("/me", status_code=status.HTTP_200_OK)
 async def delete_my_account(current_user=Depends(get_current_user)):
-    """Permanently delete user profile, personal projects, credentials, and Supabase auth user."""
+    """Permanently delete user profile, personal projects, credentials, and Supabase auth user.
+    
+    Never returns 200 unless the Supabase auth user was actually deleted.
+    """
     user_id = getattr(current_user, "id", None)
     email = getattr(current_user, "email", None)
     if not user_id and isinstance(current_user, dict):
@@ -480,132 +500,129 @@ async def delete_my_account(current_user=Depends(get_current_user)):
             detail="Authentication required to delete account.",
         )
 
-    # Clean up local development mock stores
-    if email:
-        DEV_USERS_DB.pop(email.lower(), None)
-        DEV_VERIFIED_USERS.discard(email.lower())
-        DEV_USER_NAMES_DB.pop(email.lower(), None)
-
     try:
         supabase = get_supabase_client()
-    except Exception:
-        supabase = None
 
-    if supabase:
-        # a. Inspect projects created by the user
-        try:
-            owned_projects = supabase.table("projects").select("id").eq("created_by", user_id).execute()
-            owned_data = getattr(owned_projects, "data", None)
-            owned_project_ids = []
-            if isinstance(owned_data, list):
-                owned_project_ids = [p["id"] for p in owned_data if isinstance(p, dict) and "id" in p]
+        # Step 2a: For each project created by the user
+        owned_res = supabase.table("projects").select("id").eq("created_by", user_id).execute()
+        owned_projects = owned_res.data or []
+        for proj in owned_projects:
+            pid = proj["id"]
+            members_res = (
+                supabase.table("project_members")
+                .select("user_id, joined_at")
+                .eq("project_id", pid)
+                .order("joined_at", desc=False)
+                .execute()
+            )
 
-            for pid in owned_project_ids:
-                try:
-                    members_resp = supabase.table("project_members").select("user_id").eq("project_id", pid).execute()
-                    members_data = getattr(members_resp, "data", None)
-                    other_members = []
-                    if isinstance(members_data, list):
-                        other_members = [
-                            m["user_id"] for m in members_data
-                            if isinstance(m, dict) and m.get("user_id") and str(m.get("user_id")) != str(user_id)
-                        ]
+            other_members = [
+                m for m in (members_res.data or [])
+                if str(m.get("user_id")) != str(user_id)
+            ]
 
-                    if not other_members:
-                        # Sole owner with no other members: delete the project and its contributions
-                        try:
-                            supabase.table("contributions").delete().eq("project", pid).execute()
-                        except Exception:
-                            pass
-                        try:
-                            supabase.table("role_agreements").delete().eq("project_id", pid).execute()
-                        except Exception:
-                            pass
-                        try:
-                            supabase.table("github_installations").delete().eq("project_id", pid).execute()
-                        except Exception:
-                            pass
-                        try:
-                            supabase.table("project_members").delete().eq("project_id", pid).execute()
-                        except Exception:
-                            pass
-                        try:
-                            supabase.table("projects").delete().eq("id", pid).execute()
-                        except Exception:
-                            pass
-                    else:
-                        # Team project: transfer project ownership to next member or anonymize creator
-                        next_owner = other_members[0]
-                        supabase.table("projects").update({"created_by": next_owner}).eq("id", pid).execute()
-                except Exception:
-                    pass
-        except Exception:
-            pass
+            if other_members:
+                # Transfer ownership to the EARLIEST-JOINED other member
+                next_owner = other_members[0]["user_id"]
+                upd_res = (
+                    supabase.table("projects")
+                    .update({"created_by": next_owner})
+                    .eq("id", pid)
+                    .execute()
+                )
+                if not upd_res.data or len(upd_res.data) != 1:
+                    raise RuntimeError(
+                        f"Expected exactly 1 project row updated for {pid}, got {len(upd_res.data) if upd_res.data else 0}"
+                    )
+            else:
+                # User is the only member: delete project and its dependents
+                # Before deleting github_installations row, call GitHub DELETE /app/installations/{installation_id}
+                gh_res = (
+                    supabase.table("github_installations")
+                    .select("installation_id")
+                    .eq("project_id", pid)
+                    .execute()
+                )
 
-        # b. Remove user from project_members and role_agreements in team projects
-        try:
-            supabase.table("project_members").delete().eq("user_id", user_id).execute()
-        except Exception:
-            pass
-        try:
-            supabase.table("role_agreements").delete().eq("user_id", user_id).execute()
-        except Exception:
-            pass
+                for inst in (gh_res.data or []):
+                    installation_id = inst.get("installation_id")
+                    if installation_id:
+                        app_jwt = generate_app_jwt()
+                        if app_jwt:
+                            async with httpx.AsyncClient() as http_client:
+                                gh_resp = await http_client.delete(
+                                    f"https://api.github.com/app/installations/{installation_id}",
+                                    headers={
+                                        "Authorization": f"Bearer {app_jwt}",
+                                        "Accept": "application/vnd.github+json",
+                                        "X-GitHub-Api-Version": "2022-11-28",
+                                    },
+                                )
+                                if gh_resp.status_code != 404 and (gh_resp.status_code < 200 or gh_resp.status_code >= 300):
+                                    raise RuntimeError(
+                                        f"Failed to uninstall GitHub App installation {installation_id}: HTTP {gh_resp.status_code}"
+                                    )
+                        elif getattr(settings, "GITHUB_APP_ID", None):
+                            raise RuntimeError("Failed to generate GitHub App JWT for uninstallation.")
 
-        # Anonymize or remove confirmation requests and reviews
-        try:
-            supabase.table("confirmation_requests").delete().eq("requested_by", user_id).execute()
-        except Exception:
-            pass
-        try:
-            supabase.table("confirmation_requests").delete().eq("reviewer_id", user_id).execute()
-        except Exception:
-            pass
-        try:
-            supabase.table("confirmations").delete().eq("confirmed_by_user_id", user_id).execute()
-        except Exception:
-            pass
+                supabase.table("contributions").delete().eq("project", pid).execute()
+                supabase.table("role_agreements").delete().eq("project_id", pid).execute()
+                supabase.table("github_installations").delete().eq("project_id", pid).execute()
+                supabase.table("project_members").delete().eq("project_id", pid).execute()
+                supabase.table("projects").delete().eq("id", pid).execute()
 
-        # For contributions: preserve peer-confirmed deliverables or anonymize creator references
-        try:
-            supabase.table("contributions").update({"confirmed_by": None}).eq("confirmed_by", user_id).execute()
-        except Exception:
-            pass
-        try:
-            supabase.table("contributions").delete().eq("contributor", user_id).neq("verification_status", "confirmed").execute()
-        except Exception:
-            pass
+        # Step 2b: Delete every object under "{user_id}/" in the "evidence" storage bucket
+        storage_bucket = supabase.storage.from_("evidence")
+        while True:
+            list_res = storage_bucket.list(path=str(user_id))
+            if not list_res:
+                break
+            paths_to_remove = [
+                f"{user_id}/{obj["name"]}"
+                for obj in list_res
+                if isinstance(obj, dict) and obj.get("name")
+            ]
+            if not paths_to_remove:
+                break
+            storage_bucket.remove(paths_to_remove)
 
-        # c. Delete user's row from public.profiles
-        try:
-            supabase.table("profiles").delete().eq("id", user_id).execute()
-        except Exception:
-            pass
+        # Step 2c: Call supabase.auth.admin.delete_user(user_id) with the service-role client
+        if not hasattr(supabase, "auth") or not hasattr(supabase.auth, "admin"):
+            raise RuntimeError("Supabase client lacks admin auth service.")
 
-    # d. Use Supabase Admin Client (using SUPABASE_SERVICE_ROLE_KEY) to execute delete_user
-    service_role_key = (
-        getattr(settings, "SUPABASE_SERVICE_ROLE_KEY", None)
-        or getattr(settings, "SUPABASE_SERVICE_KEY", None)
-        or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-        or os.environ.get("SUPABASE_SERVICE_KEY")
-    )
-    if settings.SUPABASE_URL and service_role_key:
-        try:
-            admin_client = create_client(settings.SUPABASE_URL, service_role_key)
-            if hasattr(admin_client, "auth") and hasattr(admin_client.auth, "admin"):
-                admin_client.auth.admin.delete_user(str(user_id))
-        except Exception:
-            pass
-    elif supabase and hasattr(supabase, "auth") and hasattr(supabase.auth, "admin") and hasattr(supabase.auth.admin, "delete_user"):
-        try:
-            supabase.auth.admin.delete_user(str(user_id))
-        except Exception:
-            pass
+        supabase.auth.admin.delete_user(str(user_id))
 
-    return {
-        "status": "success",
-        "message": "Account and associated data deleted successfully.",
-        "user_id": user_id,
-    }
+        # Step 4: After deletion, confirm via supabase.auth.admin.get_user_by_id that the user no longer exists
+        try:
+            check_user = supabase.auth.admin.get_user_by_id(str(user_id))
+            if check_user is not None and getattr(check_user, "user", None) is not None:
+                raise RuntimeError(f"User {user_id} still exists in Supabase auth after deletion.")
+        except Exception as e:
+            err_str = str(e).lower()
+            if "not found" in err_str or "404" in err_str:
+                # Confirmed: user no longer exists
+                pass
+            else:
+                raise
 
+        # Clean up local development mock stores
+        if email:
+            DEV_USERS_DB.pop(email.lower(), None)
+            DEV_VERIFIED_USERS.discard(email.lower())
+            DEV_USER_NAMES_DB.pop(email.lower(), None)
+
+        return {
+            "status": "success",
+            "message": "Account and associated data deleted successfully.",
+            "user_id": user_id,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to delete account for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete account. Please try again.",
+        )
 

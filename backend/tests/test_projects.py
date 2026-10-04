@@ -361,6 +361,11 @@ def test_generate_invite_success_supabase():
     mock_proj_select.eq.return_value = mock_proj_eq
     mock_proj_table.select.return_value = mock_proj_select
 
+    # Update projects.invite_code
+    mock_proj_update = MagicMock()
+    mock_proj_update.eq.return_value.execute.return_value = MagicMock(data=[{"id": "proj-123"}])
+    mock_proj_table.update.return_value = mock_proj_update
+
     # User is member
     mock_member_table = MagicMock()
     mock_member_select = MagicMock()
@@ -396,7 +401,7 @@ def test_generate_invite_success_supabase():
         assert data["project_name"] == "BuildCrew Core"
         assert data["created_by"] == "user-123"
         assert data["invite_code"].startswith("BC-")
-        assert "https://buildcrew.app/join/BC-" in data["invite_url"]
+        assert data.get("invite_url") is None
         assert "invite code" in data["message"].lower()
 
 
@@ -451,36 +456,32 @@ def test_join_project_empty_code():
 
 
 def test_join_project_invalid_code():
-    mock_user = MagicMock(id="user-joiner", email="joiner@example.com")
+    mock_user = MagicMock(id="user-joiner-invalid", email="joiner-inv@example.com")
     app.dependency_overrides[get_current_user] = lambda: mock_user
 
-    response = client.post(
-        "/projects/join",
-        json={"invite_code": "BC-NONEXIST"},
-        headers={"Authorization": "Bearer valid-token"},
-    )
-    assert response.status_code == 404
-    assert "Invalid or expired invite code" in response.json()["detail"]
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.ilike.return_value.execute.return_value = MagicMock(data=[])
+
+    with patch("routers.projects.get_supabase_client", return_value=mock_supabase):
+        response = client.post(
+            "/projects/join",
+            json={"invite_code": "BC-NONEXIST"},
+            headers={"Authorization": "Bearer valid-token"},
+        )
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Invalid invite code"
 
 
 def test_join_project_already_member_supabase():
     mock_supabase = MagicMock()
 
-    DEV_PROJECT_INVITES_DB["BC-EXISTS"] = {
-        "invite_code": "BC-EXISTS",
-        "project_id": "proj-existing-1",
-        "expires_at": "2099-01-01T00:00:00Z",
-    }
-
     mock_proj_table = MagicMock()
     mock_proj_select = MagicMock()
-    mock_proj_eq = MagicMock()
-    mock_proj_single = MagicMock()
-    mock_proj_single.execute.return_value = MagicMock(
-        data={"id": "proj-existing-1", "name": "Existing Project"}
+    mock_proj_ilike = MagicMock()
+    mock_proj_ilike.execute.return_value = MagicMock(
+        data=[{"id": "proj-existing-1", "name": "Existing Project", "invite_code": "BC-EXISTS", "created_by": "user-other"}]
     )
-    mock_proj_eq.single.return_value = mock_proj_single
-    mock_proj_select.eq.return_value = mock_proj_eq
+    mock_proj_select.ilike.return_value = mock_proj_ilike
     mock_proj_table.select.return_value = mock_proj_select
 
     mock_member_table = MagicMock()
@@ -519,21 +520,13 @@ def test_join_project_already_member_supabase():
 def test_join_project_success_supabase():
     mock_supabase = MagicMock()
 
-    DEV_PROJECT_INVITES_DB["BC-VALID1"] = {
-        "invite_code": "BC-VALID1",
-        "project_id": "proj-valid-1",
-        "expires_at": "2099-01-01T00:00:00Z",
-    }
-
     mock_proj_table = MagicMock()
     mock_proj_select = MagicMock()
-    mock_proj_eq = MagicMock()
-    mock_proj_single = MagicMock()
-    mock_proj_single.execute.return_value = MagicMock(
-        data={"id": "proj-valid-1", "name": "Valid Supabase Project"}
+    mock_proj_ilike = MagicMock()
+    mock_proj_ilike.execute.return_value = MagicMock(
+        data=[{"id": "proj-valid-1", "name": "Valid Supabase Project", "invite_code": "BC-VALID1", "created_by": "user-other"}]
     )
-    mock_proj_eq.single.return_value = mock_proj_single
-    mock_proj_select.eq.return_value = mock_proj_eq
+    mock_proj_select.ilike.return_value = mock_proj_ilike
     mock_proj_table.select.return_value = mock_proj_select
 
     mock_member_table = MagicMock()

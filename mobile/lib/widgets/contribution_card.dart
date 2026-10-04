@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/contribution.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 
 class ContributionCard extends StatelessWidget {
   final Contribution contribution;
@@ -276,7 +277,7 @@ class ContributionCard extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error launching link: $e'),
+            content: Text('Error launching link: ${friendlyError(e)}'),
             backgroundColor: Colors.red.shade700,
             behavior: SnackBarBehavior.floating,
           ),
@@ -290,7 +291,7 @@ class ContributionCard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppColors.emeraldInk,
         insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: ClipRRect(
@@ -300,7 +301,7 @@ class ContributionCard extends StatelessWidget {
             children: [
               // Dialog Header
               Container(
-                color: const Color(0xFF1E293B),
+                color: AppColors.emeraldInk,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [

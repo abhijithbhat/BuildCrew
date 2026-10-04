@@ -5,6 +5,7 @@ import '../models/role_agreement.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 import '../widgets/empty_state_view.dart';
 import 'declare_role_screen.dart';
 
@@ -152,7 +153,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
           _isLoading = false;
         });
       }
@@ -306,14 +307,14 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
         ),
         content: Text(
           'Are you sure you want to remove "${agreement.displayName}" from the project team? Their declared role will be deleted.',
-          style: const TextStyle(fontSize: 14, height: 1.4, color: Color(0xFF475569)),
+          style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.textMuted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text(
               'Cancel',
-              style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+              style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w600),
             ),
           ),
           ElevatedButton(
@@ -352,7 +353,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to remove member: $e'),
+              content: Text('Failed to remove member: ${friendlyError(e)}'),
               backgroundColor: const Color(0xFFE11D48),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
@@ -406,7 +407,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isMe ? AppColors.emeraldInk : const Color(0xFFE2E8F0),
+          color: isMe ? AppColors.emeraldInk : AppColors.divider,
           width: isMe ? 1.5 : 1,
         ),
         boxShadow: [
@@ -524,7 +525,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                           displayedEmail,
                           style: const TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF64748B),
+                            color: AppColors.textMuted,
                             fontWeight: FontWeight.w400,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -603,7 +604,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF64748B),
+                    color: AppColors.textMuted,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -614,13 +615,13 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.champagne,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: AppColors.divider),
                   ),
                   child: Text(
                     agreement.responsibilities!.trim(),
                     style: const TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF334155),
+                      color: AppColors.bodyText,
                       height: 1.4,
                     ),
                   ),
@@ -658,7 +659,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                       'Updated ${_formatDate(agreement.updatedAt ?? agreement.createdAt)}',
                       style: const TextStyle(
                         fontSize: 11,
-                        color: Color(0xFF94A3B8),
+                        color: AppColors.hint,
                       ),
                     ),
                 ],
@@ -896,7 +897,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
-              color: Color(0xFF64748B),
+              color: AppColors.textMuted,
               height: 1.5,
             ),
           ),
@@ -1086,7 +1087,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                     color: AppColors.emeraldInk, size: 20),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18, color: Color(0xFF64748B)),
+                        icon: const Icon(Icons.clear, size: 18, color: AppColors.textMuted),
                         onPressed: () {
                           setState(() {
                             _searchQuery = '';
@@ -1101,11 +1102,11 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                     horizontal: 16, vertical: 12),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  borderSide: const BorderSide(color: AppColors.divider),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  borderSide: const BorderSide(color: AppColors.divider),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -1138,7 +1139,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                   selected: isSelected,
                   selectedColor: AppColors.emeraldInk,
                   labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : const Color(0xFF475569),
+                    color: isSelected ? Colors.white : AppColors.textMuted,
                     fontSize: 12,
                     fontWeight:
                         isSelected ? FontWeight.w700 : FontWeight.w500,
@@ -1151,7 +1152,7 @@ class _TeamRolesScreenState extends State<TeamRolesScreen> {
                     side: BorderSide(
                       color: isSelected
                           ? AppColors.emeraldInk
-                          : const Color(0xFFE2E8F0),
+                          : AppColors.divider,
                     ),
                   ),
                   showCheckmark: false,

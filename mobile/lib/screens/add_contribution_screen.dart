@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 
 class AddContributionScreen extends StatefulWidget {
   static const String routeName = '/add-contribution';
@@ -108,7 +109,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
       'id': 'other',
       'label': 'Other Impact',
       'icon': Icons.stars_rounded,
-      'color': Color(0xFF64748B),
+      'color': AppColors.textMuted,
       'examples': 'Project management, meetings, stakeholder coordination',
     },
   ];
@@ -251,7 +252,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not select image: $e'),
+            content: Text('Could not select image: ${friendlyError(e)}'),
             backgroundColor: const Color(0xFFE11D48),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -309,7 +310,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not select document: $e'),
+            content: Text('Could not select document: ${friendlyError(e)}'),
             backgroundColor: const Color(0xFFE11D48),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -379,7 +380,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFCBD5E1),
+                    color: AppColors.divider,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -398,7 +399,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded,
-                        color: Color(0xFF64748B)),
+                        color: AppColors.textMuted),
                     onPressed: () => Navigator.pop(ctx),
                   ),
                 ],
@@ -406,7 +407,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
               const SizedBox(height: 4),
               const Text(
                 'Upload real files from your device storage or gallery:',
-                style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
               ),
               const SizedBox(height: 16),
 
@@ -433,10 +434,10 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                 ),
                 subtitle: const Text(
                   'Select PDF, DOC, DOCX, TXT from device files',
-                  style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
                 trailing: const Icon(Icons.chevron_right_rounded,
-                    color: Color(0xFF94A3B8)),
+                    color: AppColors.hint),
                 onTap: () => _pickDeviceDocument(
                   ctx,
                   extensions: ['pdf', 'doc', 'docx', 'txt', 'md'],
@@ -467,10 +468,10 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                 ),
                 subtitle: const Text(
                   'Select PPTX, PPT, or PDF slide deck from device',
-                  style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
                 trailing: const Icon(Icons.chevron_right_rounded,
-                    color: Color(0xFF94A3B8)),
+                    color: AppColors.hint),
                 onTap: () => _pickDeviceDocument(
                   ctx,
                   extensions: ['pptx', 'ppt', 'pdf', 'key'],
@@ -501,10 +502,10 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                 ),
                 subtitle: const Text(
                   'Choose real screenshot, mockup, or PNG/JPG image',
-                  style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
                 trailing: const Icon(Icons.chevron_right_rounded,
-                    color: Color(0xFF94A3B8)),
+                    color: AppColors.hint),
                 onTap: () => _pickDeviceImage(ctx, source: ImageSource.gallery),
               ),
 
@@ -531,10 +532,10 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                 ),
                 subtitle: const Text(
                   'Pick any file or document from device storage (up to 25MB)',
-                  style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
                 trailing: const Icon(Icons.chevron_right_rounded,
-                    color: Color(0xFF94A3B8)),
+                    color: AppColors.hint),
                 onTap: () => _pickDeviceDocument(
                   ctx,
                   extensions: null,
@@ -565,10 +566,10 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                 ),
                 subtitle: const Text(
                   'Capture whiteboard notes, specs, or sketches',
-                  style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
                 trailing: const Icon(Icons.chevron_right_rounded,
-                    color: Color(0xFF94A3B8)),
+                    color: AppColors.hint),
                 onTap: () => _pickDeviceImage(ctx, source: ImageSource.camera),
               ),
             ],
@@ -649,7 +650,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = e.toString();
+        _errorMessage = friendlyError(e);
       });
     }
   }
@@ -745,7 +746,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: AppColors.divider),
                       boxShadow: [
                         BoxShadow(
                           color:
@@ -787,7 +788,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                               Text(
                                 'Log non-code contributions (UI/UX, specs, user research, pitch decks). Manual entries start as Self-Declared and appear in the stream for peer verification.',
                                 style: TextStyle(
-                                  color: Color(0xFF64748B),
+                                  color: AppColors.textMuted,
                                   fontSize: 12,
                                   height: 1.4,
                                 ),
@@ -817,7 +818,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: AppColors.divider),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
@@ -826,7 +827,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                         isExpanded: true,
                         dropdownColor: Colors.white,
                         icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                            color: Color(0xFF64748B)),
+                            color: AppColors.textMuted),
                         items: _categories.map((cat) {
                           return DropdownMenuItem<String>(
                             value: cat['id'] as String,
@@ -891,7 +892,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                           horizontal: 16, vertical: 14),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                        borderSide: const BorderSide(color: AppColors.divider),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -948,7 +949,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                           horizontal: 16, vertical: 14),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                        borderSide: const BorderSide(color: AppColors.divider),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -993,7 +994,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                           horizontal: 16, vertical: 14),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                        borderSide: const BorderSide(color: AppColors.divider),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -1019,7 +1020,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                         border: Border.all(
                           color: _attachedFileName != null
                               ? AppColors.emeraldInk
-                              : const Color(0xFFE2E8F0),
+                              : AppColors.divider,
                           width: _attachedFileName != null ? 1.5 : 1.0,
                         ),
                       ),
@@ -1058,7 +1059,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                                       Text(
                                         '${((_attachedFileSize ?? 0) / 1024).toStringAsFixed(1)} KB • ${_attachedFileType ?? "file"} • Attached file ready for upload',
                                         style: const TextStyle(
-                                          color: Color(0xFF64748B),
+                                          color: AppColors.textMuted,
                                           fontSize: 11,
                                         ),
                                       ),
@@ -1087,7 +1088,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                                 Text(
                                   'Tap to attach Screenshot, PDF, or Document',
                                   style: TextStyle(
-                                    color: Color(0xFF64748B),
+                                    color: AppColors.textMuted,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -1104,7 +1105,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                       const Text(
                         'Contribution Date: ',
                         style: TextStyle(
-                          color: Color(0xFF64748B),
+                          color: AppColors.textMuted,
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1119,7 +1120,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            border: Border.all(color: AppColors.divider),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,

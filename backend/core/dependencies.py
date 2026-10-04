@@ -1,8 +1,11 @@
 import hashlib
 from typing import Any, Optional
+import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from core.database import get_supabase_pub_client
+from core.config import settings
+from core.database import get_supabase_pub_client, is_dev_mode
+from core.logging import logger
 
 security = HTTPBearer()
 security_optional = HTTPBearer(auto_error=False)
@@ -15,20 +18,28 @@ def stable_dev_user_id(email: str) -> str:
     return f"dev-user-{short_hash}"
 
 
+class DevUser:
+    """Local development mock user."""
+    def __init__(self, id: str, email: str):
+        self.id = id
+        self.email = email
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """FastAPI dependency to verify Supabase JWT token and extract current user."""
     token = credentials.credentials
-    if token.startswith("mock-dev-access-token-"):
+
+    # Local dev mock access token convenience ONLY when explicitly allowed in development
+    if (
+        settings.ALLOW_DEV_AUTH
+        and settings.ENVIRONMENT == "development"
+        and token.startswith("mock-dev-access-token-")
+    ):
         email = token.replace("mock-dev-access-token-", "")
         user_id = stable_dev_user_id(email)
-
-        class DevUser:
-            id = user_id
-            email = email
-
-        return DevUser()
+        return DevUser(id=user_id, email=email)
 
     try:
         supabase = get_supabase_pub_client()
@@ -43,21 +54,39 @@ async def get_current_user(
     except HTTPException:
         raise
     except Exception as e:
-        err_msg = str(e)
-        if (
-            "nodename nor servname provided" in err_msg
-            or "gai_error" in err_msg
-            or "Name or service not known" in err_msg
-            or "configured in environment variables" in err_msg
-        ):
-            class OfflineDevUser:
-                id = "dev-user-1234"
-                email = "dev@example.com"
+        logger.exception("Supabase auth validation failed")
 
-            return OfflineDevUser()
+        err_msg = str(e).lower()
+        is_network_or_config = (
+            isinstance(e, (httpx.RequestError, ValueError))
+            or any(
+                s in err_msg
+                for s in (
+                    "nodename nor servname provided",
+                    "gai_error",
+                    "name or service not known",
+                    "connection refused",
+                    "failed to connect",
+                    "connecterror",
+                    "timeout",
+                    "network",
+                    "configured in environment variables",
+                    "service unavailable",
+                    "cannot connect",
+                )
+            )
+        )
+
+        if is_network_or_config:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication service unavailable",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Could not validate credentials: {str(e)}",
+            detail="Invalid or expired authentication token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -70,7 +99,12 @@ async def get_optional_current_user(
         return None
     try:
         return await get_current_user(credentials)
+    except HTTPException as e:
+        if e.status_code == status.HTTP_503_SERVICE_UNAVAILABLE:
+            raise
+        return None
     except Exception:
         return None
+
 
 

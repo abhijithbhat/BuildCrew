@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/project.dart';
 import '../services/project_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 
 class DeclareRoleScreen extends StatefulWidget {
   static const String routeName = '/declare-role';
@@ -200,7 +201,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
         });
       }
     } finally {
@@ -299,7 +300,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                         : 'Define your title, responsibilities, and target milestones to align with your crew.',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: Color(0xFF64748B),
+                      color: AppColors.textMuted,
                       fontSize: 14,
                       letterSpacing: -0.1,
                       height: 1.4,
@@ -354,7 +355,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFFE2E8F0),
+                        color: AppColors.divider,
                         width: 1.2,
                       ),
                       boxShadow: [
@@ -374,7 +375,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1.1,
-                            color: Color(0xFF64748B),
+                            color: AppColors.textMuted,
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -393,7 +394,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                             hintStyle: hintStyle,
                             prefixIcon: const Icon(
                               Icons.work_outline_rounded,
-                              color: Color(0xFF64748B),
+                              color: AppColors.textMuted,
                               size: 20,
                             ),
                             filled: true,
@@ -405,14 +406,14 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
-                                color: Color(0xFFE2E8F0),
+                                color: AppColors.divider,
                                 width: 1.2,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
-                                color: Color(0xFFE2E8F0),
+                                color: AppColors.divider,
                                 width: 1.2,
                               ),
                             ),
@@ -460,7 +461,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFFE2E8F0),
+                        color: AppColors.divider,
                         width: 1.2,
                       ),
                       boxShadow: [
@@ -480,7 +481,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1.1,
-                            color: Color(0xFF64748B),
+                            color: AppColors.textMuted,
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -505,7 +506,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                               padding: EdgeInsets.only(bottom: 50.0),
                               child: Icon(
                                 Icons.assignment_outlined,
-                                color: Color(0xFF64748B),
+                                color: AppColors.textMuted,
                                 size: 20,
                               ),
                             ),
@@ -518,14 +519,14 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
-                                color: Color(0xFFE2E8F0),
+                                color: AppColors.divider,
                                 width: 1.2,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
-                                color: Color(0xFFE2E8F0),
+                                color: AppColors.divider,
                                 width: 1.2,
                               ),
                             ),
@@ -570,7 +571,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFFE2E8F0),
+                        color: AppColors.divider,
                         width: 1.2,
                       ),
                       boxShadow: [
@@ -593,14 +594,14 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 1.1,
-                                color: Color(0xFF64748B),
+                                color: AppColors.textMuted,
                               ),
                             ),
                             Text(
                               'Optional',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Color(0xFF94A3B8),
+                                color: AppColors.hint,
                                 fontStyle: FontStyle.italic,
                               ),
                             ),
@@ -618,7 +619,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                             decoration: BoxDecoration(
                               color: AppColors.champagne,
                               border: Border.all(
-                                color: const Color(0xFFE2E8F0),
+                                color: AppColors.divider,
                                 width: 1.2,
                               ),
                               borderRadius: BorderRadius.circular(12),
@@ -650,7 +651,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                                     icon: const Icon(
                                       Icons.close_rounded,
                                       size: 18,
-                                      color: Color(0xFF64748B),
+                                      color: AppColors.textMuted,
                                     ),
                                     onPressed: _clearDeadline,
                                     tooltip: 'Clear deadline',
@@ -660,7 +661,7 @@ class _DeclareRoleScreenState extends State<DeclareRoleScreen> {
                                 else
                                   const Icon(
                                     Icons.arrow_drop_down,
-                                    color: Color(0xFF64748B),
+                                    color: AppColors.textMuted,
                                   ),
                               ],
                             ),

@@ -13,6 +13,7 @@ import 'my_contributions_screen.dart';
 import 'publish_selection_screen.dart';
 import 'repo_status_screen.dart';
 import 'team_roles_screen.dart';
+import '../utils/error_messages.dart';
 
 
 
@@ -187,7 +188,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Failed to regenerate: $err'),
+                        content: Text('Failed to regenerate: ${friendlyError(err)}'),
                         backgroundColor: Colors.red.shade700,
                         behavior: SnackBarBehavior.floating,
                       ),
@@ -320,7 +321,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not generate invite: $e'),
+            content: Text('Could not generate invite: ${friendlyError(e)}'),
             backgroundColor: Colors.red.shade700,
             behavior: SnackBarBehavior.floating,
           ),
@@ -397,7 +398,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to dismantle project: $e'),
+              content: Text('Failed to dismantle project: ${friendlyError(e)}'),
               backgroundColor: Colors.red.shade700,
               behavior: SnackBarBehavior.floating,
             ),
@@ -466,7 +467,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to leave project: $e'),
+              content: Text('Failed to leave project: ${friendlyError(e)}'),
               backgroundColor: Colors.red.shade700,
               behavior: SnackBarBehavior.floating,
             ),
@@ -598,7 +599,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Failed to generate draft: $e',
+                  'Failed to generate draft: ${friendlyError(e)}',
                   style: const TextStyle(color: Colors.white, fontSize: 13),
                 ),
               ),
@@ -628,7 +629,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _contributionsError = e.toString();
+        _contributionsError = friendlyError(e);
         _isLoadingContributions = false;
       });
     }
@@ -756,7 +757,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to delete contribution: $e'),
+              content: Text('Failed to delete contribution: ${friendlyError(e)}'),
               backgroundColor: Colors.red.shade700,
               behavior: SnackBarBehavior.floating,
             ),
@@ -833,7 +834,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to confirm: $e'),
+          content: Text('Failed to confirm: ${friendlyError(e)}'),
           backgroundColor: Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
         ),
@@ -846,10 +847,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF151C2C),
+        backgroundColor: AppColors.emeraldInk,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF1E293B)),
+          side: const BorderSide(color: AppColors.divider),
         ),
         title: const Row(
           children: [
@@ -869,7 +870,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         content: Text(
           'Are you sure you want to dispute "${c.title}"? Its status will become "Needs Review" and visibility will be set to Private until the dispute is resolved.',
           style: const TextStyle(
-            color: Color(0xFF94A3B8),
+            color: AppColors.champagne,
             fontSize: 13,
             height: 1.4,
           ),
@@ -878,7 +879,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancel',
-                style: TextStyle(color: Color(0xFF94A3B8))),
+                style: TextStyle(color: AppColors.champagne)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -924,7 +925,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to dispute: $e'),
+          content: Text('Failed to dispute: ${friendlyError(e)}'),
           backgroundColor: Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
         ),

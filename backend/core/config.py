@@ -5,9 +5,11 @@ _ENV_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"
 
 
 class Settings(BaseSettings):
+    ENVIRONMENT: str = "production"
+    ALLOW_DEV_AUTH: bool = False
+
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_KEY: str = ""
-    SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_PUBLISHABLE_KEY: str = ""
     GEMINI_API_KEY: str = ""
     

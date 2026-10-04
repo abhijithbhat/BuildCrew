@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 
 class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key});
@@ -85,7 +86,7 @@ class _OtpScreenState extends State<OtpScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
         });
       }
     } finally {
@@ -401,7 +402,7 @@ class _OtpScreenState extends State<OtpScreen> {
                             : 'Resend Verification Code',
                         style: TextStyle(
                           color: _resendCountdown > 0
-                              ? const Color(0xFF94A3B8)
+                              ? AppColors.hint
                               : AppColors.emeraldInk,
                           fontWeight: FontWeight.w700,
                           fontSize: 14,

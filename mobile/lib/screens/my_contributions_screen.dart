@@ -4,6 +4,7 @@ import '../models/project.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 import '../widgets/contribution_card.dart';
 import '../widgets/empty_state_view.dart';
 import '../widgets/request_confirmation_modal.dart';
@@ -137,7 +138,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = e.toString();
+        _errorMessage = friendlyError(e);
       });
     }
   }
@@ -241,7 +242,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
               color: isSelected ? color.withAlpha(20) : Colors.white,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: isSelected ? color : const Color(0xFFE2E8F0),
+                color: isSelected ? color : AppColors.divider,
                 width: isSelected ? 1.5 : 1.0,
               ),
               boxShadow: [
@@ -282,7 +283,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                   style: TextStyle(
                     color: isSelected
                         ? AppColors.emeraldInk
-                        : const Color(0xFF64748B),
+                        : AppColors.textMuted,
                     fontSize: 11,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                   ),
@@ -317,7 +318,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
           color: isSelected ? AppColors.emeraldInk : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? AppColors.emeraldInk : const Color(0xFFE2E8F0),
+            color: isSelected ? AppColors.emeraldInk : AppColors.divider,
           ),
         ),
         child: Row(
@@ -326,13 +327,13 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
             Icon(
               icon,
               size: 14,
-              color: isSelected ? Colors.white : const Color(0xFF64748B),
+              color: isSelected ? Colors.white : AppColors.textMuted,
             ),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFF475569),
+                color: isSelected ? Colors.white : AppColors.textMuted,
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               ),
@@ -351,7 +352,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Color(0xFFE2E8F0)),
+            side: const BorderSide(color: AppColors.divider),
           ),
           title: const Row(
             children: [
@@ -369,7 +370,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
           ),
           content: const Text(
             'This contribution was automatically imported from GitHub. To modify or delete it, please push changes to your GitHub repository.',
-            style: TextStyle(color: Color(0xFF64748B), fontSize: 13, height: 1.4),
+            style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.4),
           ),
           actions: [
             TextButton(
@@ -388,7 +389,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFFE2E8F0)),
+          side: const BorderSide(color: AppColors.divider),
         ),
         title: const Row(
           children: [
@@ -406,12 +407,12 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
         ),
         content: Text(
           'Are you sure you want to delete "${c.title}"?\n\nThis will remove the logged deliverable and its attached evidence link from your contribution timeline.',
-          style: const TextStyle(color: Color(0xFF64748B), fontSize: 13, height: 1.4),
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w600)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -455,7 +456,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to delete contribution: $e'),
+              content: Text('Failed to delete contribution: ${friendlyError(e)}'),
               backgroundColor: const Color(0xFFE11D48),
               behavior: SnackBarBehavior.floating,
             ),
@@ -578,7 +579,8 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
           style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.champagne),
         ),
       ),
-      body: RefreshIndicator(
+      body: SafeArea(
+        child: RefreshIndicator(
         onRefresh: _loadContributions,
         color: AppColors.emeraldInk,
         child: ListView(
@@ -730,7 +732,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                 prefixIcon: const Icon(Icons.search_rounded, color: AppColors.emeraldInk, size: 20),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear_rounded, color: Color(0xFF64748B), size: 18),
+                        icon: const Icon(Icons.clear_rounded, color: AppColors.textMuted, size: 18),
                         onPressed: () {
                           _searchController.clear();
                           setState(() {
@@ -744,7 +746,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  borderSide: const BorderSide(color: AppColors.divider),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -782,7 +784,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
               const Center(
                 child: Text(
                   'Loading your personal contributions...',
-                  style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                 ),
               ),
             ] else if (filtered.isEmpty) ...[
@@ -861,6 +863,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
             const SizedBox(height: 80),
           ],
         ),
+      ),
       ),
     );
   }

@@ -37,12 +37,12 @@ class ProjectCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFE2E8F0),
+          color: AppColors.divider,
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            color: AppColors.emeraldInk.withValues(alpha: 0.04),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -108,7 +108,7 @@ class ProjectCard extends StatelessWidget {
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F172A),
+                              color: AppColors.emeraldInk,
                               letterSpacing: -0.2,
                             ),
                             maxLines: 1,
@@ -120,7 +120,7 @@ class ProjectCard extends StatelessWidget {
                               'Created ${_formatDate(project.createdAt)}',
                               style: const TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF94A3B8),
+                                color: AppColors.hint,
                                 fontWeight: FontWeight.w400,
                               ),
                             ),
@@ -163,7 +163,7 @@ class ProjectCard extends StatelessWidget {
                     project.description!.trim(),
                     style: const TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF475569),
+                      color: AppColors.textMuted,
                       height: 1.45,
                     ),
                     maxLines: 2,
@@ -172,7 +172,7 @@ class ProjectCard extends StatelessWidget {
                 ],
 
                 const SizedBox(height: 14),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const Divider(height: 1, color: AppColors.divider),
                 const SizedBox(height: 10),
 
                 // Bottom Actions Row
@@ -184,14 +184,14 @@ class ProjectCard extends StatelessWidget {
                         Icon(
                           Icons.group_outlined,
                           size: 16,
-                          color: const Color(0xFF64748B),
+                          color: AppColors.textMuted,
                         ),
                         const SizedBox(width: 6),
                         Text(
                           isOwner ? 'Crew Admin' : 'Collaborator',
                           style: const TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF64748B),
+                            color: AppColors.textMuted,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -232,7 +232,7 @@ class ProjectCard extends StatelessWidget {
                         const Icon(
                           Icons.arrow_forward_ios_rounded,
                           size: 12,
-                          color: Color(0xFF94A3B8),
+                          color: AppColors.hint,
                         ),
                       ],
                     ),

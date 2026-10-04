@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../models/project.dart';
 import '../services/project_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 
 class InviteTeammateScreen extends StatefulWidget {
   static const String routeName = '/invite-teammate';
@@ -63,7 +64,7 @@ class _InviteTeammateScreenState extends State<InviteTeammateScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
           _isLoading = false;
         });
       }
@@ -85,9 +86,15 @@ class _InviteTeammateScreenState extends State<InviteTeammateScreen> {
   void _handleShare() {
     if (_inviteCode.isEmpty) return;
     final projectName = _project?.name ?? 'our project';
-    final shareText =
-        'Join "$projectName" on BuildCrew!\n\nInvite Code: $_inviteCode\nJoin Link: $_inviteUrl';
-    _copyToClipboard(shareText, 'Invite link and code copied to clipboard!');
+    final shareText = _inviteUrl.isNotEmpty
+        ? 'Join "$projectName" on BuildCrew!\n\nInvite Code: $_inviteCode\nJoin Link: $_inviteUrl'
+        : 'Join "$projectName" on BuildCrew!\n\nInvite Code: $_inviteCode';
+    _copyToClipboard(
+      shareText,
+      _inviteUrl.isNotEmpty
+          ? 'Invite link and code copied to clipboard!'
+          : 'Invite code "$_inviteCode" copied to clipboard!',
+    );
   }
 
   @override

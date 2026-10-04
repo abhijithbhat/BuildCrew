@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../models/project.dart';
 import '../services/project_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 import 'project_detail_screen.dart';
 
 class JoinProjectScreen extends StatefulWidget {
@@ -81,7 +82,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
         });
       }
     } finally {
@@ -175,7 +176,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                     'Enter the shareable invite code provided by the project owner to collaborate.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Color(0xFF64748B),
+                      color: AppColors.textMuted,
                       fontSize: 14,
                       letterSpacing: -0.1,
                       height: 1.4,
@@ -250,7 +251,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1.1,
-                            color: Color(0xFF64748B),
+                            color: AppColors.textMuted,
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -269,7 +270,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                             hintStyle: hintStyle,
                             prefixIcon: const Icon(
                               Icons.tag_rounded,
-                              color: Color(0xFF64748B),
+                              color: AppColors.textMuted,
                             ),
                             suffixIcon: IconButton(
                               icon: const Icon(
@@ -284,14 +285,14 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
-                                color: Color(0xFFE2E8F0),
+                                color: AppColors.divider,
                                 width: 1.2,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
-                                color: Color(0xFFE2E8F0),
+                                color: AppColors.divider,
                                 width: 1.2,
                               ),
                             ),
@@ -338,7 +339,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                             Icon(
                               Icons.info_outline,
                               size: 14,
-                              color: Color(0xFF94A3B8),
+                              color: AppColors.hint,
                             ),
                             SizedBox(width: 6),
                             Expanded(
@@ -346,7 +347,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                                 'Invite codes are case-insensitive and don\'t expire',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: Color(0xFF64748B),
+                                  color: AppColors.textMuted,
                                 ),
                               ),
                             ),

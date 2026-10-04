@@ -39,13 +39,13 @@ class EmptyStateView extends StatelessWidget {
     final effectiveBadgeColor = badgeColor ??
         (isDark ? const Color(0xFF151C2C) : AppColors.champagne);
     final effectiveBorderColor = badgeBorderColor ??
-        (isDark ? const Color(0xFF1E293B) : AppColors.inputBorder);
+        (isDark ? AppColors.emeraldInk : AppColors.inputBorder);
     final effectiveIconColor = iconColor ??
         (isDark ? const Color(0xFF60A5FA) : AppColors.emeraldInk);
     final effectiveTitleColor =
-        isDark ? Colors.white : const Color(0xFF0F172A);
+        isDark ? Colors.white : AppColors.emeraldInk;
     final effectiveDescColor =
-        isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+        isDark ? AppColors.hint : AppColors.textMuted;
 
     return Center(
       child: Padding(

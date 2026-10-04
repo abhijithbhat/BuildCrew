@@ -20,6 +20,7 @@ class ProjectUpdate(BaseModel):
 class ProjectResponse(ProjectBase):
     id: str
     created_by: Optional[str] = None
+    invite_code: Optional[str] = None
     created_at: Optional[Union[datetime, str]] = None
     updated_at: Optional[Union[datetime, str]] = None
 
@@ -31,7 +32,7 @@ class ProjectInviteResponse(BaseModel):
     project_id: str
     project_name: Optional[str] = None
     created_by: Optional[str] = None
-    invite_url: str
+    invite_url: Optional[str] = None
     created_at: Optional[Union[datetime, str]] = None
     expires_at: Optional[Union[datetime, str]] = None
     message: Optional[str] = "Invite code generated successfully"

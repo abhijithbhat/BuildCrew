@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/project_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 
 class CreateProjectScreen extends StatefulWidget {
   static const String routeName = '/create-project';
@@ -56,7 +57,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
         });
       }
     } finally {
@@ -150,7 +151,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                     'Assemble your crew and collaborate on exciting builds.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Color(0xFF64748B),
+                      color: AppColors.textMuted,
                       fontSize: 14,
                       letterSpacing: -0.1,
                     ),
@@ -210,7 +211,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                     decoration: InputDecoration(
                       labelText: 'Project Name',
                       labelStyle: const TextStyle(
-                        color: Color(0xFF64748B),
+                        color: AppColors.textMuted,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -223,7 +224,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                       hintStyle: hintStyle,
                       prefixIcon: const Icon(
                         Icons.drive_file_rename_outline,
-                        color: Color(0xFF64748B),
+                        color: AppColors.textMuted,
                         size: 20,
                       ),
                       filled: true,
@@ -235,14 +236,14 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                         borderSide: const BorderSide(
-                          color: Color(0xFFE2E8F0),
+                          color: AppColors.divider,
                           width: 1.2,
                         ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                         borderSide: const BorderSide(
-                          color: Color(0xFFE2E8F0),
+                          color: AppColors.divider,
                           width: 1.2,
                         ),
                       ),
@@ -295,7 +296,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                     decoration: InputDecoration(
                       labelText: 'Project Description',
                       labelStyle: const TextStyle(
-                        color: Color(0xFF64748B),
+                        color: AppColors.textMuted,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -311,7 +312,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                         padding: EdgeInsets.only(bottom: 50.0),
                         child: Icon(
                           Icons.description_outlined,
-                          color: Color(0xFF64748B),
+                          color: AppColors.textMuted,
                           size: 20,
                         ),
                       ),
@@ -324,14 +325,14 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                         borderSide: const BorderSide(
-                          color: Color(0xFFE2E8F0),
+                          color: AppColors.divider,
                           width: 1.2,
                         ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                         borderSide: const BorderSide(
-                          color: Color(0xFFE2E8F0),
+                          color: AppColors.divider,
                           width: 1.2,
                         ),
                       ),

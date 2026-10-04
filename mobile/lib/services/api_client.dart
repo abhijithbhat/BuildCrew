@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'storage_service.dart';
 
 /// Central API Client providing a shared Dio instance with automatic silent
@@ -20,6 +20,21 @@ class ApiClient {
   static final StreamController<void> onForceLogout =
       StreamController<void>.broadcast();
 
+  static const String apiBaseUrl = String.fromEnvironment('API_BASE_URL');
+  static const String localLanUrl = String.fromEnvironment('LOCAL_LAN_URL');
+
+  /// Validates API configuration at startup.
+  /// In release mode, throws [StateError] if [API_BASE_URL] is empty or does not start with https://.
+  static void validateStartupConfig() {
+    if (kReleaseMode) {
+      if (apiBaseUrl.isEmpty || !apiBaseUrl.startsWith('https://')) {
+        throw StateError(
+          'API_BASE_URL dart-define must be provided and start with https:// in release mode.',
+        );
+      }
+    }
+  }
+
   static ApiClient? _instance;
   static ApiClient get instance => _instance ??= ApiClient();
 
@@ -27,6 +42,16 @@ class ApiClient {
   final Dio _retryDio;
   final Dio? refreshDio;
   final StorageService _storageService;
+  final SupabaseClient? supabaseClient;
+
+  SupabaseClient? get _supabase {
+    if (supabaseClient != null) return supabaseClient;
+    try {
+      return Supabase.instance.client;
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<String?>? _refreshFuture;
 
@@ -35,12 +60,14 @@ class ApiClient {
     this.refreshDio,
     Dio? retryDio,
     StorageService? storageService,
+    this.supabaseClient,
   })  : _storageService = storageService ?? StorageService(),
         dio = dio ??
             Dio(
               BaseOptions(
-                connectTimeout: const Duration(seconds: 10),
-                receiveTimeout: const Duration(seconds: 10),
+                connectTimeout: const Duration(seconds: 8),
+                receiveTimeout: const Duration(seconds: 20),
+                sendTimeout: const Duration(seconds: 20),
                 headers: {'Content-Type': 'application/json'},
               ),
             ),
@@ -49,11 +76,13 @@ class ApiClient {
                 ? (Dio(dio.options)..httpClientAdapter = dio.httpClientAdapter)
                 : Dio(
                     BaseOptions(
-                      connectTimeout: const Duration(seconds: 10),
-                      receiveTimeout: const Duration(seconds: 10),
+                      connectTimeout: const Duration(seconds: 8),
+                      receiveTimeout: const Duration(seconds: 20),
+                      sendTimeout: const Duration(seconds: 20),
                       headers: {'Content-Type': 'application/json'},
                     ),
                   )) {
+    validateStartupConfig();
     this.dio.interceptors.add(_AuthRefreshInterceptor(this));
   }
 
@@ -86,17 +115,43 @@ class ApiClient {
     }
   }
 
-  /// Base URLs with multi-endpoint fallback across ADB USB, Wi-Fi, and Emulator.
+  /// Base URLs with multi-endpoint fallback.
+  /// In release mode (kReleaseMode), ONLY [apiBaseUrl] is used (throws [StateError] if invalid).
+  /// In debug mode, uses local endpoints with optional [localLanUrl] dart-define.
   static List<String> get fallbackBaseUrls {
-    if (kIsWeb) return ['http://localhost:8000', 'http://127.0.0.1:8000'];
-    if (Platform.isAndroid) {
-      return [
-        'http://127.0.0.1:8000',
-        'http://192.168.0.112:8000',
-        'http://10.0.2.2:8000',
-      ];
+    if (kReleaseMode) {
+      if (apiBaseUrl.isEmpty || !apiBaseUrl.startsWith('https://')) {
+        throw StateError(
+          'API_BASE_URL dart-define must be provided and start with https:// in release mode.',
+        );
+      }
+      return [apiBaseUrl];
     }
-    return ['http://localhost:8000', 'http://127.0.0.1:8000'];
+
+    final urls = <String>[];
+    if (apiBaseUrl.isNotEmpty) {
+      urls.add(apiBaseUrl);
+    }
+
+    if (kIsWeb) {
+      urls.addAll(['http://localhost:8000', 'http://127.0.0.1:8000']);
+      return urls;
+    }
+
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      urls.add('http://127.0.0.1:8000');
+      if (localLanUrl.isNotEmpty) {
+        urls.add(localLanUrl);
+      }
+      urls.add('http://10.0.2.2:8000');
+      return urls;
+    }
+
+    if (localLanUrl.isNotEmpty) {
+      urls.add(localLanUrl);
+    }
+    urls.addAll(['http://localhost:8000', 'http://127.0.0.1:8000']);
+    return urls;
   }
 
   /// Refresh token with concurrency management:
@@ -115,8 +170,38 @@ class ApiClient {
     }
   }
 
-  /// Executes the actual POST /auth/refresh call using an unintercepted Dio instance.
+  /// Executes token refresh:
+  /// - For OAuth users (Supabase currentSession != null): refreshes session via
+  ///   Supabase.instance.client.auth.refreshSession() and persists returned tokens.
+  /// - For email/password users: calls POST /auth/refresh on the backend.
   Future<String?> _executeTokenRefresh() async {
+    // 1. Supabase OAuth refresh branch
+    final client = _supabase;
+    Session? currentOAuthSession;
+    try {
+      currentOAuthSession = client?.auth.currentSession;
+    } catch (_) {
+      currentOAuthSession = null;
+    }
+
+    if (currentOAuthSession != null && client != null) {
+      debugPrint('ApiClient: Refreshing OAuth session via Supabase auth...');
+      final authResponse = await client.auth.refreshSession();
+      final newSession = authResponse.session;
+      if (newSession != null && newSession.accessToken.isNotEmpty) {
+        final newAccessToken = newSession.accessToken;
+        final newRefreshToken = newSession.refreshToken ?? '';
+        await _storageService.saveTokens(
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken,
+        );
+        debugPrint('ApiClient: Successfully refreshed Supabase OAuth session.');
+        return newAccessToken;
+      }
+      throw Exception('Failed to refresh Supabase OAuth session: empty session');
+    }
+
+    // 2. Email/password users: backend POST /auth/refresh
     final storedRefreshToken = await _storageService.getRefreshToken();
     if (storedRefreshToken == null || storedRefreshToken.trim().isEmpty) {
       throw Exception('No refresh token stored');
@@ -126,8 +211,9 @@ class ApiClient {
     final targetDio = refreshDio ??
         Dio(
           BaseOptions(
-            connectTimeout: const Duration(seconds: 10),
-            receiveTimeout: const Duration(seconds: 10),
+            connectTimeout: const Duration(seconds: 8),
+            receiveTimeout: const Duration(seconds: 20),
+            sendTimeout: const Duration(seconds: 20),
             headers: {'Content-Type': 'application/json'},
           ),
         );

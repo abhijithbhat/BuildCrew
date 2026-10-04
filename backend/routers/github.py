@@ -51,10 +51,17 @@ def _check_user_project_access(project_id: str, user_id: str, lead_only: bool = 
     except HTTPException:
         raise
     except Exception as e:
-        logger.debug(f"Supabase project check failed, using dev mode: {e}")
+        logger.debug(f"Supabase project check failed: {e}")
+        from core.database import is_dev_mode
+        if not is_dev_mode():
+            logger.warning(f"Upstream Supabase project check failed in production: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database service unavailable",
+            )
 
-    # Dev DB fallback check
-    from routers.projects import DEV_PROJECTS_DB, DEV_PROJECT_MEMBERS_DB
+        # Dev DB fallback check
+        from routers.projects import DEV_PROJECTS_DB, DEV_PROJECT_MEMBERS_DB
     project = DEV_PROJECTS_DB.get(project_id)
     if not project:
         # For mock test scenarios where project may not be in DEV_PROJECTS_DB
@@ -209,10 +216,12 @@ async def github_app_callback(
             except Exception:
                 pass
             if not proj_name:
-                from routers.projects import DEV_PROJECTS_DB
-                p_dev = DEV_PROJECTS_DB.get(project_id)
-                if p_dev:
-                    proj_name = p_dev.get("name", "").strip().lower()
+                from core.database import is_dev_mode
+                if is_dev_mode():
+                    from routers.projects import DEV_PROJECTS_DB
+                    p_dev = DEV_PROJECTS_DB.get(project_id)
+                    if p_dev:
+                        proj_name = p_dev.get("name", "").strip().lower()
 
             # 2. Get list of repos already linked to other projects
             used_repos = set()
@@ -224,10 +233,12 @@ async def github_app_callback(
                         used_repos.add(inst["repo_full_name"].strip().lower())
             except Exception:
                 pass
-            from services.github_service import DEV_GITHUB_INSTALLATIONS_DB
-            for p_id, inst in DEV_GITHUB_INSTALLATIONS_DB.items():
-                if p_id != project_id and inst.get("repo_full_name"):
-                    used_repos.add(inst["repo_full_name"].strip().lower())
+            from core.database import is_dev_mode
+            if is_dev_mode():
+                from services.github_service import DEV_GITHUB_INSTALLATIONS_DB
+                for p_id, inst in DEV_GITHUB_INSTALLATIONS_DB.items():
+                    if p_id != project_id and inst.get("repo_full_name"):
+                        used_repos.add(inst["repo_full_name"].strip().lower())
 
             chosen_repo = None
 

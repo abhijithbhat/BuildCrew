@@ -890,11 +890,11 @@ def test_upload_evidence_oversized_file_fails():
     mock_user = MagicMock(id="dev-uploader-1", email="uploader@buildcrew.io")
     app.dependency_overrides[get_current_user] = lambda: mock_user
 
-    # Mock huge file exceeding 25MB
+    # Mock huge file exceeding 25MB with allowed extension
     large_bytes = b"0" * (26 * 1024 * 1024)
-    files = {"file": ("huge_file.zip", large_bytes, "application/zip")}
+    files = {"file": ("huge_file.pdf", large_bytes, "application/pdf")}
     response = client.post("/contributions/upload-evidence", files=files)
-    assert response.status_code == 400
+    assert response.status_code == 413
     assert "25MB" in response.json()["detail"] or "exceeds" in response.json()["detail"].lower()
 
 

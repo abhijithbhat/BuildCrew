@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/github_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 import '../widgets/empty_state_view.dart';
 import 'connect_repository_screen.dart';
 
@@ -100,7 +101,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
         });
       }
     } finally {
@@ -123,7 +124,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not open GitHub URL: $e'),
+            content: Text('Could not open GitHub URL: ${friendlyError(e)}'),
             backgroundColor: Colors.red.shade700,
           ),
         );
@@ -192,7 +193,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to disconnect repository: $e'),
+              content: Text('Failed to disconnect repository: ${friendlyError(e)}'),
               backgroundColor: Colors.red.shade700,
               behavior: SnackBarBehavior.floating,
             ),
@@ -376,7 +377,7 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Failed to switch repository: $e';
+          _errorMessage = 'Failed to switch repository: ${friendlyError(e)}';
         });
       }
     } finally {

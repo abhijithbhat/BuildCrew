@@ -19,19 +19,16 @@ class AuthService {
     _navigatedToHome = value;
   }
 
+  @visibleForTesting
+  static void resetStaticState() {
+    _staticAuthSubscription?.cancel();
+    _staticAuthSubscription = null;
+    _navigatedToHome = false;
+  }
+
   SupabaseClient get supabase => supabaseClient ?? Supabase.instance.client;
 
-  static List<String> get fallbackBaseUrls {
-    if (kIsWeb) return ['http://localhost:8000'];
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return [
-        'http://127.0.0.1:8000',
-        'http://192.168.0.112:8000',
-        'http://10.0.2.2:8000',
-      ];
-    }
-    return ['http://localhost:8000', 'http://127.0.0.1:8000'];
-  }
+  static List<String> get fallbackBaseUrls => ApiClient.fallbackBaseUrls;
 
   AuthService({
     Dio? dio,
@@ -40,8 +37,9 @@ class AuthService {
   })  : _dio = dio ??
             Dio(
               BaseOptions(
-                connectTimeout: const Duration(seconds: 10),
-                receiveTimeout: const Duration(seconds: 10),
+                connectTimeout: const Duration(seconds: 8),
+                receiveTimeout: const Duration(seconds: 20),
+                sendTimeout: const Duration(seconds: 20),
                 headers: {'Content-Type': 'application/json'},
               ),
             ),
@@ -58,10 +56,11 @@ class AuthService {
         final session = data.session;
         if (data.event == AuthChangeEvent.signedOut) {
           _navigatedToHome = false;
-        } else if (data.event == AuthChangeEvent.signedIn && session != null) {
-          if (_navigatedToHome) return;
-          _navigatedToHome = true;
-          debugPrint('Supabase Auth session established: ${session.user.id}');
+        } else if ((data.event == AuthChangeEvent.signedIn ||
+                data.event == AuthChangeEvent.tokenRefreshed ||
+                data.event == AuthChangeEvent.userUpdated) &&
+            session != null) {
+          debugPrint('Supabase Auth event ${data.event}: ${session.user.id}');
           final accessToken = session.accessToken;
           final refreshToken = session.refreshToken ?? '';
           await _storageService.saveTokens(
@@ -82,11 +81,15 @@ class AuthService {
             name: name,
           );
 
-          ApiClient.navigatorKey.currentState?.pushNamedAndRemoveUntil(
-            '/home',
-            (route) => false,
-            arguments: name,
-          );
+          if (data.event == AuthChangeEvent.signedIn) {
+            if (_navigatedToHome) return;
+            _navigatedToHome = true;
+            ApiClient.navigatorKey.currentState?.pushNamedAndRemoveUntil(
+              '/home',
+              (route) => false,
+              arguments: name,
+            );
+          }
         }
       });
     } catch (e) {

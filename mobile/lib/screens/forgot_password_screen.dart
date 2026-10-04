@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -62,7 +63,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
         });
       }
     } finally {
@@ -108,7 +109,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
         });
       }
     } finally {
@@ -320,7 +321,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             decoration: InputDecoration(
                               labelText: 'Email Address',
                               labelStyle: const TextStyle(
-                                color: Color(0xFF64748B),
+                                color: AppColors.textMuted,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -333,7 +334,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               hintStyle: hintStyle,
                               prefixIcon: const Icon(
                                 Icons.email_outlined,
-                                color: Color(0xFF64748B),
+                                color: AppColors.textMuted,
                                 size: 20,
                               ),
                               filled: true,
@@ -455,7 +456,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             decoration: InputDecoration(
                               labelText: '6-Digit Reset Code',
                               labelStyle: const TextStyle(
-                                color: Color(0xFF64748B),
+                                color: AppColors.textMuted,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -468,7 +469,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               hintStyle: hintStyle,
                               prefixIcon: const Icon(
                                 Icons.pin_outlined,
-                                color: Color(0xFF64748B),
+                                color: AppColors.textMuted,
                                 size: 20,
                               ),
                               counterText: '',
@@ -537,7 +538,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             decoration: InputDecoration(
                               labelText: 'New Password',
                               labelStyle: const TextStyle(
-                                color: Color(0xFF64748B),
+                                color: AppColors.textMuted,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -550,7 +551,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               hintStyle: hintStyle,
                               prefixIcon: const Icon(
                                 Icons.lock_outline,
-                                color: Color(0xFF64748B),
+                                color: AppColors.textMuted,
                                 size: 20,
                               ),
                               suffixIcon: IconButton(
@@ -559,7 +560,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   _isPasswordVisible
                                       ? Icons.visibility_off
                                       : Icons.visibility,
-                                  color: const Color(0xFF64748B),
+                                  color: AppColors.textMuted,
                                   size: 20,
                                 ),
                                 onPressed: () {
@@ -614,8 +615,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               if (value == null || value.isEmpty) {
                                 return 'New password is required';
                               }
-                              if (value.length < 6) {
-                                return 'Password must be at least 6 characters';
+                              if (value.length < 12) {
+                                return 'Password must be at least 12 characters';
                               }
                               return null;
                             },
@@ -633,7 +634,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             decoration: InputDecoration(
                               labelText: 'Confirm New Password',
                               labelStyle: const TextStyle(
-                                color: Color(0xFF64748B),
+                                color: AppColors.textMuted,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -646,7 +647,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               hintStyle: hintStyle,
                               prefixIcon: const Icon(
                                 Icons.lock_clock_outlined,
-                                color: Color(0xFF64748B),
+                                color: AppColors.textMuted,
                                 size: 20,
                               ),
                               filled: true,

@@ -11,7 +11,39 @@ from routers.github import router as github_router
 from routers.health import router as health_router
 from routers.projects import router as projects_router
 
-app = FastAPI(title="BuildCrew Backend API")
+from core.config import settings
+from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+from core.rate_limit import limiter, rate_limit_exceeded_handler
+
+is_prod = settings.ENVIRONMENT == "production"
+
+app = FastAPI(
+    title="BuildCrew Backend API",
+    docs_url=None if is_prod else "/docs",
+    redoc_url=None if is_prod else "/redoc",
+    openapi_url=None if is_prod else "/openapi.json",
+)
+
+# Attach slowapi rate limiter to app state and exception handler
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+
+@app.exception_handler(Exception)
+async def global_unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Global fallback exception handler returning user-safe 500 error for unhandled exceptions."""
+    logger.exception(f"Unhandled exception while processing {request.method} {request.url.path}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Something went wrong. Please try again."},
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "X-Frame-Options": "DENY",
+            "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        },
+    )
 
 # Configure CORS Middleware for Flutter Web, Desktop & Mobile
 app.add_middleware(
@@ -22,15 +54,60 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def cache_json_body_middleware(request: Request, call_next):
+    """Cache raw JSON body on request.state so rate limiting key functions can read email synchronously."""
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        request.state._cached_body = await request.body()
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
+
+
+@app.middleware("http")
+async def gate_docs_middleware(request: Request, call_next):
+    if settings.ENVIRONMENT == "production":
+        if request.url.path in ("/docs", "/docs/", "/redoc", "/redoc/", "/openapi.json"):
+            res = JSONResponse(status_code=404, content={"detail": "Not Found"})
+            res.headers["X-Content-Type-Options"] = "nosniff"
+            res.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+            res.headers["X-Frame-Options"] = "DENY"
+            res.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+            return res
+    return await call_next(request)
+
+
 @app.on_event("startup")
 async def startup_check():
     from core.config import settings
-    supabase_url = getattr(settings, "SUPABASE_URL", "")
-    if not supabase_url or "placeholder" in supabase_url.lower() or "example" in supabase_url.lower():
-        logger.warning(
-            "⚠️ [LOCAL DEV FALLBACK MODE] Supabase URL is not configured. "
-            "Backend will automatically run using local dev memory & file storage."
-        )
+    if settings.ENVIRONMENT == "production":
+        missing = []
+        if not getattr(settings, "SUPABASE_URL", ""):
+            missing.append("SUPABASE_URL")
+        if not getattr(settings, "SUPABASE_SERVICE_KEY", ""):
+            missing.append("SUPABASE_SERVICE_KEY")
+        if not getattr(settings, "SUPABASE_PUBLISHABLE_KEY", ""):
+            missing.append("SUPABASE_PUBLISHABLE_KEY")
+        if missing:
+            raise RuntimeError(
+                f"Missing required Supabase environment variables in production: {', '.join(missing)}"
+            )
+    else:
+        supabase_url = getattr(settings, "SUPABASE_URL", "")
+        if not supabase_url or "placeholder" in supabase_url.lower() or "example" in supabase_url.lower():
+            logger.warning(
+                "⚠️ [LOCAL DEV FALLBACK MODE] Supabase URL is not configured. "
+                "Backend will automatically run using local dev memory & file storage."
+            )
 
 
 # Request Logging Middleware
@@ -160,5 +237,12 @@ app.mount(
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        proxy_headers=True,
+        forwarded_allow_ips="*",
+    )
 

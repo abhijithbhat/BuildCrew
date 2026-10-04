@@ -1,6 +1,48 @@
 from datetime import datetime
 from typing import Any, List, Optional, Union
-from pydantic import BaseModel, ConfigDict
+from urllib.parse import urlparse
+from pydantic import BaseModel, ConfigDict, field_validator
+
+
+def _validate_evidence_link(v: Optional[str]) -> Optional[str]:
+    """Validate evidence_link for creation and updates.
+    
+    Trim whitespace, allow only http:// or https:// URLs with a valid hostname, max 2048 chars;
+    otherwise raise ValueError resulting in 422: 'Evidence link must start with http:// or https://'.
+    """
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        return None
+    if len(v) > 2048:
+        raise ValueError("Evidence link must start with http:// or https://")
+    if not (v.startswith("http://") or v.startswith("https://")):
+        raise ValueError("Evidence link must start with http:// or https://")
+    parsed = urlparse(v)
+    if not parsed.scheme or not parsed.netloc or not parsed.netloc.strip():
+        raise ValueError("Evidence link must start with http:// or https://")
+    return v
+
+
+def _sanitize_existing_evidence_link(v: Any) -> Optional[str]:
+    """Sanitize existing rows: skip rendering any link that is not valid http(s)."""
+    if not v:
+        return None
+    v = str(v).strip()
+    if not v:
+        return None
+    if len(v) > 2048:
+        return None
+    if not (v.startswith("http://") or v.startswith("https://")):
+        return None
+    try:
+        parsed = urlparse(v)
+        if not parsed.scheme or not parsed.netloc or not parsed.netloc.strip():
+            return None
+    except Exception:
+        return None
+    return v
 
 
 class ContributionBase(BaseModel):
@@ -14,6 +56,11 @@ class ContributionBase(BaseModel):
     confirmed_by: Optional[str] = None
     visibility: str = "private"
     dispute_state: str = "none"
+
+    @field_validator("evidence_link", mode="after")
+    @classmethod
+    def validate_evidence_link(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_evidence_link(v)
 
 
 class ContributionCreate(ContributionBase):
@@ -32,6 +79,10 @@ class ManualContributionCreate(BaseModel):
     evidence_link: Optional[str] = None
     visibility: Optional[str] = "private"
 
+    @field_validator("evidence_link", mode="after")
+    @classmethod
+    def validate_evidence_link(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_evidence_link(v)
 
 
 class ContributionUpdate(BaseModel):
@@ -46,6 +97,11 @@ class ContributionUpdate(BaseModel):
     visibility: Optional[str] = None
     dispute_state: Optional[str] = None
 
+    @field_validator("evidence_link", mode="after")
+    @classmethod
+    def validate_evidence_link(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_evidence_link(v)
+
 
 class ContributionResponse(ContributionBase):
     id: str
@@ -55,6 +111,11 @@ class ContributionResponse(ContributionBase):
     updated_at: Union[datetime, str]
     contributor_name: Optional[str] = None
     contributor_profile: Optional[dict] = None
+
+    @field_validator("evidence_link", mode="before")
+    @classmethod
+    def sanitize_evidence_link_for_response(cls, v: Any) -> Optional[str]:
+        return _sanitize_existing_evidence_link(v)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -105,6 +166,11 @@ class ConfirmationRequestResponse(BaseModel):
     description: Optional[str] = None
     evidence_link: Optional[str] = None
     contribution: Optional[ContributionResponse] = None
+
+    @field_validator("evidence_link", mode="before")
+    @classmethod
+    def sanitize_evidence_link(cls, v: Any) -> Optional[str]:
+        return _sanitize_existing_evidence_link(v)
 
     model_config = ConfigDict(from_attributes=True)
 

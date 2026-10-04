@@ -2,14 +2,16 @@ import json
 import os
 import secrets
 import string
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
 from typing import Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from core.database import get_supabase_client
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from core.database import get_supabase_client, _is_dev_fallback_error, is_dev_mode
 from core.dependencies import get_current_user
 from core.logging import logger
+from core.rate_limit import limiter, get_user_key
 from schemas.project import (
     ProjectCreate,
     ProjectInviteResponse,
@@ -43,6 +45,8 @@ INVITES_CACHE_FILE = os.path.join(
 
 
 def _load_invites() -> dict:
+    if not is_dev_mode():
+        return {}
     if os.path.exists(INVITES_CACHE_FILE):
         try:
             with open(INVITES_CACHE_FILE, "r") as f:
@@ -53,6 +57,8 @@ def _load_invites() -> dict:
 
 
 def _save_invites(invites: dict) -> None:
+    if not is_dev_mode():
+        return
     try:
         with open(INVITES_CACHE_FILE, "w") as f:
             json.dump(invites, f, indent=2)
@@ -66,7 +72,7 @@ DEV_DATA_CACHE_FILE = os.path.join(
 
 
 def _load_dev_data() -> dict:
-    if os.environ.get("PYTEST_CURRENT_TEST"):
+    if not is_dev_mode() or os.environ.get("PYTEST_CURRENT_TEST"):
         return {}
     if os.path.exists(DEV_DATA_CACHE_FILE):
         try:
@@ -78,7 +84,7 @@ def _load_dev_data() -> dict:
 
 
 def _save_dev_data() -> None:
-    if os.environ.get("PYTEST_CURRENT_TEST"):
+    if not is_dev_mode() or os.environ.get("PYTEST_CURRENT_TEST"):
         return
     try:
         with open(DEV_DATA_CACHE_FILE, "w") as f:
@@ -105,45 +111,6 @@ DEV_PROJECT_INVITES_DB: dict[str, dict] = _load_invites()
 DEV_ROLE_AGREEMENTS_DB: list[dict] = _dev_cache.get("roles", [])
 DEV_CONTRIBUTIONS_DB: list[dict] = _dev_cache.get("contributions", [])
 DEV_CONFIRMATION_REQUESTS_DB: list[dict] = _dev_cache.get("confirmation_requests", [])
-
-
-def _is_dev_fallback_error(err_msg: str) -> bool:
-    err_lower = err_msg.lower()
-    matched = any(
-        s in err_lower
-        for s in (
-            "nodename nor servname provided",
-            "gai_error",
-            "name or service not known",
-            "supabase_url",
-            "environment variables",
-            "failed to connect",
-            "client disconnected",
-            "connection",
-            "connect",
-            "timeout",
-            "network",
-            "invalid api key",
-            "unauthorized",
-            "pgrst",
-            "postgrest",
-            "mock",
-            "invalid input syntax for type uuid",
-            "22p02",
-            "violates foreign key constraint",
-            "foreign key",
-            "23503",
-            "is not present in table",
-            "dev_fallback",
-            "local dev fallback",
-        )
-    )
-    if matched:
-        logger.warning(
-            f"⚠️ [LOCAL DEV FALLBACK] Supabase unavailable ({err_msg[:80]}). "
-            "Data is being read/written to Local Dev Store."
-        )
-    return matched
 
 
 
@@ -273,9 +240,10 @@ async def create_project(
                 "member": dev_member,
             }
 
+        logger.exception("Failed to create project")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to create project: {err_msg}",
+            detail="Failed to create project. Please try again.",
         )
 
 
@@ -371,9 +339,10 @@ async def list_projects(current_user: Any = Depends(get_current_user)):
             return {
                 "projects": user_projects,
             }
+        logger.exception("Failed to fetch projects")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to fetch projects: {err_msg}",
+            detail="Failed to fetch projects. Please try again.",
         )
 
 
@@ -419,9 +388,10 @@ async def get_project_details(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found",
             )
+        logger.exception("Failed to fetch project details")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to fetch project details: {err_msg}",
+            detail="Failed to fetch project details. Please try again.",
         )
 
 
@@ -466,10 +436,6 @@ async def delete_project(
         DEV_ROLE_AGREEMENTS_DB[:] = [
             r for r in DEV_ROLE_AGREEMENTS_DB if r.get("project_id") != project_id
         ]
-        for c, inf in list(DEV_PROJECT_INVITES_DB.items()):
-            if inf.get("project_id") == project_id:
-                DEV_PROJECT_INVITES_DB.pop(c, None)
-        _save_invites(DEV_PROJECT_INVITES_DB)
 
         return {
             "message": "Project dismantled successfully",
@@ -511,9 +477,10 @@ async def delete_project(
                 "project_id": project_id,
             }
 
+        logger.exception("Failed to delete project")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to delete project: {err_msg}",
+            detail="Failed to delete project. Please try again.",
         )
 
 
@@ -623,9 +590,10 @@ async def leave_project(
                 "project_id": project_id,
             }
 
+        logger.exception("Failed to leave project")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to leave project: {err_msg}",
+            detail="Failed to leave project. Please try again.",
         )
 
 
@@ -719,9 +687,10 @@ async def remove_project_member(
                 "user_id": member_user_id,
             }
 
+        logger.exception("Failed to remove member")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to remove member: {err_msg}",
+            detail="Failed to remove member. Please try again.",
         )
 
 
@@ -738,19 +707,6 @@ async def generate_project_invite(
     now = datetime.now(timezone.utc)
     # Permanent invite code with a 10-year horizon
     expires_at = now + timedelta(days=365 * 10)
-
-    # Check if a permanent invite code already exists for this project in local cache
-    existing_invite = None
-    if not regenerate:
-        for code, info in list(DEV_PROJECT_INVITES_DB.items()):
-            if info.get("project_id") == project_id:
-                existing_invite = info
-                break
-
-    if existing_invite:
-        invite_code = existing_invite["invite_code"]
-    else:
-        invite_code = generate_invite_code()
 
     try:
         supabase = get_supabase_client()
@@ -794,26 +750,49 @@ async def generate_project_invite(
                 detail="Only the Team Lead (Project Creator) can regenerate the invite code.",
             )
 
-        # If regenerating, clean out previous codes for this project
-        if regenerate:
-            for old_code, old_info in list(DEV_PROJECT_INVITES_DB.items()):
-                if old_info.get("project_id") == project_id:
-                    DEV_PROJECT_INVITES_DB.pop(old_code, None)
+        # 3. Permanent invite code: return existing if set; otherwise generate & store (retry up to 5 times)
+        if not regenerate and project_data.get("invite_code"):
+            invite_code = project_data["invite_code"]
+        else:
+            stored = False
+            for attempt in range(5):
+                code_candidate = generate_invite_code()
+                try:
+                    supabase.table("projects").update({
+                        "invite_code": code_candidate
+                    }).eq("id", project_id).execute()
+                    invite_code = code_candidate
+                    stored = True
+                    break
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if (
+                        "unique" in err_str
+                        or "duplicate" in err_str
+                        or "23505" in err_str
+                        or "projects_invite_code_key" in err_str
+                    ):
+                        logger.warning(
+                            f"Invite code collision '{code_candidate}' (attempt {attempt + 1}/5): {e}"
+                        )
+                        continue
+                    raise
+            if not stored:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to generate a unique invite code after multiple attempts.",
+                )
 
-        invite_data = {
+        return {
             "invite_code": invite_code,
             "project_id": project_id,
             "project_name": project_data.get("name"),
-            "created_by": user_id,
-            "invite_url": f"https://buildcrew.app/join/{invite_code}",
+            "created_by": project_data.get("created_by") or user_id,
+            "invite_url": None,
             "created_at": now.isoformat(),
             "expires_at": expires_at.isoformat(),
             "message": "New invite code generated successfully" if regenerate else "Permanent invite code retrieved successfully",
         }
-        DEV_PROJECT_INVITES_DB[invite_code] = invite_data
-        _save_invites(DEV_PROJECT_INVITES_DB)
-
-        return invite_data
 
     except HTTPException:
         raise
@@ -851,12 +830,19 @@ async def generate_project_invite(
                     if old_info.get("project_id") == project_id:
                         DEV_PROJECT_INVITES_DB.pop(old_code, None)
 
+            if not regenerate and project_data.get("invite_code"):
+                invite_code = project_data["invite_code"]
+            else:
+                invite_code = generate_invite_code()
+                project_data["invite_code"] = invite_code
+                _save_dev_data()
+
             invite_data = {
                 "invite_code": invite_code,
                 "project_id": project_id,
                 "project_name": project_data.get("name"),
-                "created_by": user_id,
-                "invite_url": f"https://buildcrew.app/join/{invite_code}",
+                "created_by": project_data.get("created_by") or user_id,
+                "invite_url": None,
                 "created_at": now.isoformat(),
                 "expires_at": expires_at.isoformat(),
                 "message": "New invite code generated successfully (Local Dev Mode)" if regenerate else "Permanent invite code retrieved successfully (Local Dev Mode)",
@@ -865,9 +851,10 @@ async def generate_project_invite(
             _save_invites(DEV_PROJECT_INVITES_DB)
             return invite_data
 
+        logger.exception("Failed to generate invite code")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to generate invite code: {err_msg}",
+            detail="Failed to generate invite code. Please try again.",
         )
 
 
@@ -884,14 +871,39 @@ async def regenerate_project_invite_endpoint(
     )
 
 
+_join_rate_limits: dict[str, list[float]] = {}
+
+
+def _check_join_rate_limit(user_id: str, limit: int = 10, window_seconds: float = 60.0) -> None:
+    now = time.monotonic()
+    user_times = _join_rate_limits.setdefault(user_id, [])
+    cutoff = now - window_seconds
+    user_times[:] = [t for t in user_times if t > cutoff]
+    if len(user_times) >= limit:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many join attempts. Please try again later.",
+        )
+    user_times.append(now)
+
+
+def reset_join_rate_limiter() -> None:
+    _join_rate_limits.clear()
+    limiter.reset()
+
 
 @router.post("/join", response_model=ProjectJoinResponse, status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute", key_func=get_user_key)
 async def join_project_by_invite(
+    request: Request,
     payload: ProjectJoinRequest,
     current_user: Any = Depends(get_current_user),
 ):
     """Join a project using a valid shareable invite code."""
     user_id = _get_user_id(current_user)
+
+    # Rate-limit POST /projects/join to 10/minute per user
+    _check_join_rate_limit(user_id)
 
     if not payload.invite_code or not payload.invite_code.strip():
         raise HTTPException(
@@ -899,62 +911,37 @@ async def join_project_by_invite(
             detail="Invite code cannot be empty.",
         )
 
-    clean_code = payload.invite_code.strip().upper()
-
-    # Refresh from persistent cache if not in memory
-    if clean_code not in DEV_PROJECT_INVITES_DB:
-        DEV_PROJECT_INVITES_DB.update(_load_invites())
-
-    invite_info = DEV_PROJECT_INVITES_DB.get(clean_code)
-    if not invite_info:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invalid or expired invite code.",
-        )
-
-
-    # Check expiration
-    expires_at_str = invite_info.get("expires_at")
-    if expires_at_str:
-        try:
-            expires_at = datetime.fromisoformat(expires_at_str)
-            if datetime.now(timezone.utc) > expires_at:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invite code has expired.",
-                )
-        except (ValueError, TypeError):
-            pass
-
-    project_id = invite_info.get("project_id")
-    if not project_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invalid invite code: project not specified.",
-        )
-
+    clean_code = payload.invite_code.strip()
     now_iso = datetime.now(timezone.utc).isoformat()
 
     try:
         supabase = get_supabase_client()
 
-        # Check project existence in Supabase
+        # Look up projects where upper(invite_code) = upper(submitted code)
+        safe_code = clean_code.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         proj_res = (
             supabase.table("projects")
             .select("*")
-            .eq("id", project_id)
-            .single()
+            .ilike("invite_code", safe_code)
             .execute()
         )
         if not proj_res.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="The project associated with this invite code was not found.",
+                detail="Invalid invite code",
             )
 
-        project_data = proj_res.data
+        project_data = proj_res.data[0]
+        if (project_data.get("invite_code") or "").strip().upper() != clean_code.upper():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Invalid invite code",
+            )
 
-        # Check if user is already a member
+        project_id = project_data["id"]
+
+        # Check if user is already a member or creator
+        is_creator = (project_data.get("created_by") == user_id)
         member_check = (
             supabase.table("project_members")
             .select("*")
@@ -962,7 +949,7 @@ async def join_project_by_invite(
             .eq("user_id", user_id)
             .execute()
         )
-        if member_check.data:
+        if is_creator or member_check.data:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="You are already a member of this project.",
@@ -993,13 +980,24 @@ async def join_project_by_invite(
         err_msg = str(e)
         if _is_dev_fallback_error(err_msg):
             # Local Dev Mode fallback
-            if project_id not in DEV_PROJECTS_DB:
+            project_data = None
+            clean_upper = clean_code.upper()
+            for p in DEV_PROJECTS_DB.values():
+                if (p.get("invite_code") or "").strip().upper() == clean_upper:
+                    project_data = p
+                    break
+            if not project_data:
+                inv_info = DEV_PROJECT_INVITES_DB.get(clean_upper)
+                if inv_info and inv_info.get("project_id") in DEV_PROJECTS_DB:
+                    project_data = DEV_PROJECTS_DB[inv_info["project_id"]]
+
+            if not project_data:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="The project associated with this invite code was not found.",
+                    detail="Invalid invite code",
                 )
 
-            project_data = DEV_PROJECTS_DB[project_id]
+            project_id = project_data["id"]
 
             already_member = any(
                 m.get("project_id") == project_id and m.get("user_id") == user_id
@@ -1027,9 +1025,10 @@ async def join_project_by_invite(
                 "member": dev_member,
             }
 
+        logger.exception("Failed to join project")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to join project: {err_msg}",
+            detail="Failed to join project. Please try again.",
         )
 
 
@@ -1212,9 +1211,10 @@ async def declare_or_update_project_role(
                 "role_agreement": saved_role,
             }
 
+        logger.exception("Failed to save role agreement")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to save role agreement: {err_msg}",
+            detail="Failed to save role agreement. Please try again.",
         )
 
 
@@ -1432,9 +1432,10 @@ async def list_project_roles(
                 "declared_count": len(project_roles),
             }
 
+        logger.exception("Failed to fetch declared roles")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to fetch declared roles: {err_msg}",
+            detail="Failed to fetch declared roles. Please try again.",
         )
 
 
@@ -1793,12 +1794,9 @@ async def generate_draft_contributions(
             saved_drafts = all_c.data or []
 
         # Update last_generated_at in installation
-        try:
-            supabase.table("github_installations").update({
-                "last_generated_at": now_iso
-            }).eq("project_id", project_id).execute()
-        except Exception:
-            pass
+        supabase.table("github_installations").update({
+            "last_generated_at": now_iso
+        }).eq("project_id", project_id).execute()
 
         # Build profile lookup dictionary for response enrichment
         prof_dict = {m["user_id"]: m for m in members_lookup}
@@ -2029,9 +2027,10 @@ async def generate_draft_contributions(
                 "last_generated_at": now_iso,
             }
 
+        logger.exception("Failed to generate draft contributions")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to generate draft contributions: {err_msg}",
+            detail="Failed to generate draft contributions. Please try again.",
         )
 
 
@@ -2263,9 +2262,10 @@ async def list_project_contributions(
                 "contributions": filtered_contribs,
             }
 
+        logger.exception("Failed to list contributions")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to list contributions: {err_msg}",
+            detail="Failed to list contributions. Please try again.",
         )
 
 
@@ -2393,9 +2393,10 @@ async def list_public_project_contributions(
                 "contributions": dev_contribs,
             }
 
+        logger.exception("Failed to list public contributions")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to list public contributions: {err_msg}",
+            detail="Failed to list public contributions. Please try again.",
         )
 
 

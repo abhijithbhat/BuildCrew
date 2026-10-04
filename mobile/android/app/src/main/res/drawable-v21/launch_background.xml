@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- BuildCrew launch splash screen for API 21+ -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/splash_background" />
+    <item android:drawable="@color/emerald_ink" />
     <item
         android:width="120dp"
         android:height="120dp"

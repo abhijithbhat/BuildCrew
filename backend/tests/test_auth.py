@@ -17,7 +17,7 @@ def test_signup_endpoint_success():
     with patch("routers.auth.get_supabase_pub_client", return_value=mock_supabase):
         response = client.post(
             "/auth/signup",
-            json={"email": "test@example.com", "password": "password123"},
+            json={"email": "test@example.com", "password": "SecurePassword123"},
         )
         assert response.status_code == 201
         data = response.json()
@@ -34,7 +34,7 @@ def test_signup_endpoint_failure():
 
         response = client.post(
             "/auth/signup",
-            json={"email": "invalid-email", "password": "pass"},
+            json={"email": "invalid-email", "password": "SecurePassword123"},
         )
         assert response.status_code == 400
         assert response.json()["detail"] == "Invalid email format"
@@ -152,7 +152,7 @@ def test_get_me_invalid_jwt():
             headers={"Authorization": "Bearer invalid-jwt-token"},
         )
         assert response.status_code == 401
-        assert "Could not validate credentials" in response.json()["detail"]
+        assert "Invalid or expired authentication token" in response.json()["detail"]
 
 
 def test_refresh_token_success():
@@ -239,13 +239,14 @@ def test_delete_my_account_authenticated():
 
     mock_supabase.auth.get_user.return_value = mock_user_response
 
-    mock_table = MagicMock()
-    mock_delete = MagicMock()
-    mock_eq = MagicMock()
-    mock_eq.execute.return_value = MagicMock(data=[])
-    mock_delete.eq.return_value = mock_eq
-    mock_table.delete.return_value = mock_delete
-    mock_supabase.table.return_value = mock_table
+    # Table mocks: no owned projects
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+    # Storage mocks: empty bucket
+    mock_supabase.storage.from_.return_value.list.return_value = []
+    # Admin delete succeeds
+    mock_supabase.auth.admin.delete_user.return_value = None
+    # Admin confirmation check confirms user no longer exists (404)
+    mock_supabase.auth.admin.get_user_by_id.side_effect = Exception("User not found: 404")
 
     with patch(
         "core.dependencies.get_supabase_pub_client", return_value=mock_supabase

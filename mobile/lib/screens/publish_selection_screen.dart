@@ -6,6 +6,7 @@ import '../services/api_client.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 import '../widgets/empty_state_view.dart';
 
 /// Screen allowing builders to select which of their confirmed deliverables
@@ -172,7 +173,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = friendlyError(e);
         _isLoading = false;
       });
     }
@@ -309,7 +310,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                   color: Colors.white, size: 20),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(e.toString()),
+                child: Text(friendlyError(e)),
               ),
             ],
           ),
@@ -395,7 +396,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
       case 'qa':
         return const Color(0xFF10B981); // Emerald
       default:
-        return const Color(0xFF64748B); // Slate
+        return AppColors.textMuted;
     }
   }
 
@@ -517,7 +518,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: AppColors.divider),
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.emeraldInk.withValues(alpha: 0.04),
@@ -562,7 +563,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                                     'Choose which confirmed deliverables are featured on your public passport profile. Unchecked items remain private to your team.',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: Color(0xFF64748B),
+                                      color: AppColors.textMuted,
                                       height: 1.4,
                                     ),
                                   ),
@@ -587,7 +588,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                               count: totalConfirmed - totalSelected > 0
                                   ? totalConfirmed - totalSelected
                                   : 0,
-                              color: const Color(0xFF64748B),
+                              color: AppColors.textMuted,
                               icon: Icons.lock_outline_rounded,
                             ),
                             const SizedBox(width: 8),
@@ -632,7 +633,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear_rounded,
-                                    color: Color(0xFF64748B), size: 18),
+                                    color: AppColors.textMuted, size: 18),
                                 onPressed: () {
                                   _searchController.clear();
                                   setState(() {
@@ -646,12 +647,12 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide:
-                              const BorderSide(color: Color(0xFFE2E8F0)),
+                              const BorderSide(color: AppColors.divider),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide:
-                              const BorderSide(color: Color(0xFFE2E8F0)),
+                              const BorderSide(color: AppColors.divider),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -775,7 +776,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                           : '$totalSelected deliverables visible on passport',
                       style: const TextStyle(
                         fontSize: 11,
-                        color: Color(0xFF64748B),
+                        color: AppColors.textMuted,
                       ),
                     ),
                   ],
@@ -875,7 +876,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
         border: Border.all(
           color: isSelected
               ? AppColors.emeraldInk
-              : const Color(0xFFE2E8F0),
+              : AppColors.divider,
           width: isSelected ? 1.5 : 1.0,
         ),
         boxShadow: [
@@ -928,7 +929,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                             side: BorderSide(
                               color: isSelected
                                   ? AppColors.emeraldInk
-                                  : const Color(0xFF94A3B8),
+                                  : AppColors.hint,
                               width: 1.5,
                             ),
                           ),
@@ -1012,7 +1013,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? const Color(0xFFECFDF5)
-                                  : const Color(0xFFF1F5F9),
+                                  : AppColors.divider,
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Row(
@@ -1025,7 +1026,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                                     shape: BoxShape.circle,
                                     color: isSelected
                                         ? const Color(0xFF059669)
-                                        : const Color(0xFF94A3B8),
+                                        : AppColors.hint,
                                   ),
                                 ),
                                 const SizedBox(width: 4),
@@ -1034,7 +1035,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                                   style: TextStyle(
                                     color: isSelected
                                         ? const Color(0xFF059669)
-                                        : const Color(0xFF64748B),
+                                        : AppColors.textMuted,
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -1067,7 +1068,7 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF64748B),
+                            color: AppColors.textMuted,
                             height: 1.3,
                           ),
                         ),
@@ -1081,14 +1082,14 @@ class _PublishSelectionScreenState extends State<PublishSelectionScreen> {
                             const Icon(
                               Icons.calendar_today_outlined,
                               size: 11,
-                              color: Color(0xFF94A3B8),
+                              color: AppColors.hint,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               item.dateRange!.trim(),
                               style: const TextStyle(
                                 fontSize: 11,
-                                color: Color(0xFF64748B),
+                                color: AppColors.textMuted,
                               ),
                             ),
                           ],

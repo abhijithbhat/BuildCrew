@@ -1,27 +1,19 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'api_client.dart';
 
 class HealthService {
   final Dio _dio;
 
-  static List<String> get fallbackBaseUrls {
-    if (kIsWeb) return ['http://localhost:8000'];
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return [
-        'http://127.0.0.1:8000',
-        'http://192.168.0.112:8000',
-        'http://10.0.2.2:8000',
-      ];
-    }
-    return ['http://localhost:8000', 'http://127.0.0.1:8000'];
-  }
+  static List<String> get fallbackBaseUrls => ApiClient.fallbackBaseUrls;
 
   HealthService({Dio? dio, String? baseUrl})
       : _dio = dio ??
             Dio(
               BaseOptions(
-                connectTimeout: const Duration(seconds: 5),
-                receiveTimeout: const Duration(seconds: 5),
+                connectTimeout: const Duration(seconds: 8),
+                receiveTimeout: const Duration(seconds: 20),
+                sendTimeout: const Duration(seconds: 20),
               ),
             );
 

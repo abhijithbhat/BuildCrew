@@ -5,10 +5,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from core.database import get_supabase_client
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from core.database import get_supabase_client, is_dev_mode
 from core.dependencies import get_current_user
 from core.logging import logger
+from core.rate_limit import limiter, get_user_key
 from routers.auth import DEV_USER_NAMES_DB
 from routers.projects import (
     DEV_CONFIRMATION_REQUESTS_DB,
@@ -35,6 +36,25 @@ from schemas.contribution import (
 router = APIRouter(prefix="/contributions", tags=["Contributions"])
 
 
+ALLOWED_EVIDENCE_EXTENSIONS = {
+    "png", "jpg", "jpeg", "webp", "gif", "pdf", "txt", "md", "docx", "pptx", "xlsx"
+}
+
+EXTENSION_MIME_TYPES = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "webp": "image/webp",
+    "gif": "image/gif",
+    "pdf": "application/pdf",
+    "txt": "text/plain",
+    "md": "text/markdown",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
+
 @router.post(
     "/upload-evidence",
     response_model=EvidenceUploadResponse,
@@ -46,12 +66,20 @@ router = APIRouter(prefix="/contributions", tags=["Contributions"])
     status_code=status.HTTP_201_CREATED,
     include_in_schema=False,
 )
+@limiter.limit("20/hour", key_func=get_user_key)
 async def upload_evidence_file(
+    request: Request,
     file: UploadFile = File(...),
     project_id: Optional[str] = Form(None),
     current_user: Any = Depends(get_current_user),
 ):
-    """Upload evidence file (screenshot, document, image, PDF) to Supabase Storage with local dev fallback."""
+    """Upload evidence file to Supabase Storage with local dev fallback.
+    
+    Reads in 1MB chunks and aborts with 413 if 25MB is exceeded.
+    Validates extension against allowed list (415 if invalid).
+    Determines content-type server-side from extension, ignoring client header.
+    Never falls back to local disk outside development mode.
+    """
     user_id = _get_user_id(current_user)
 
     if not file or not file.filename:
@@ -60,26 +88,55 @@ async def upload_evidence_file(
             detail="No file was uploaded.",
         )
 
-    file_bytes = await file.read()
-    if not file_bytes or len(file_bytes) == 0:
+    raw_filename = os.path.basename(file.filename)
+    if not raw_filename or "." not in raw_filename:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Unsupported file extension. Allowed extensions: png, jpg, jpeg, webp, gif, pdf, txt, md, docx, pptx, xlsx",
+        )
+
+    ext = raw_filename.rsplit(".", 1)[-1].lower()
+    if ext not in ALLOWED_EVIDENCE_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported file extension '.{ext}'. Allowed extensions: png, jpg, jpeg, webp, gif, pdf, txt, md, docx, pptx, xlsx",
+        )
+
+    # Content-type determined server-side from extension, ignoring client-sent value
+    content_type = (
+        EXTENSION_MIME_TYPES.get(ext)
+        or mimetypes.guess_type(raw_filename)[0]
+        or "application/octet-stream"
+    )
+
+    # Read the upload in 1 MB chunks and abort with 413 once 25 MB is exceeded
+    CHUNK_SIZE = 1024 * 1024  # 1 MB
+    MAX_SIZE_BYTES = 25 * 1024 * 1024  # 25 MB
+
+    chunks = []
+    total_size = 0
+    while True:
+        chunk = await file.read(CHUNK_SIZE)
+        if not chunk:
+            break
+        total_size += len(chunk)
+        if total_size > MAX_SIZE_BYTES:
+            raise HTTPException(
+                status_code=getattr(status, "HTTP_413_CONTENT_TOO_LARGE", 413),
+                detail="File size exceeds maximum limit of 25MB.",
+            )
+        chunks.append(chunk)
+
+    if total_size == 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Uploaded file is empty.",
         )
 
-    # Maximum 25MB file size limit
-    max_size_bytes = 25 * 1024 * 1024
-    if len(file_bytes) > max_size_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File size exceeds maximum limit of 25MB.",
-        )
+    file_bytes = b"".join(chunks)
 
     # Clean filename
-    raw_filename = os.path.basename(file.filename)
     clean_filename = re.sub(r"[^a-zA-Z0-9._-]", "_", raw_filename)
-    content_type = file.content_type or mimetypes.guess_type(clean_filename)[0] or "application/octet-stream"
-
     unique_prefix = uuid.uuid4().hex[:12]
     storage_path = f"{user_id}/{unique_prefix}_{clean_filename}"
 
@@ -101,14 +158,16 @@ async def upload_evidence_file(
             "url": public_url,
             "filename": clean_filename,
             "file_type": content_type,
-            "size_bytes": len(file_bytes),
+            "size_bytes": total_size,
             "storage_path": storage_path,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         err_msg = str(e)
-        if _is_dev_fallback_error(err_msg) or "bucket" in err_msg.lower() or "storage" in err_msg.lower() or "not found" in err_msg.lower():
-            # Local Dev Fallback
+        if _is_dev_fallback_error(err_msg, service_name="Storage"):
+            # Local Dev Fallback (only reached if is_dev_mode() is True)
             upload_dir = os.path.join(os.path.dirname(__file__), "..", "uploads", "evidence", user_id)
             os.makedirs(upload_dir, exist_ok=True)
             saved_filename = f"{unique_prefix}_{clean_filename}"
@@ -116,18 +175,25 @@ async def upload_evidence_file(
             with open(saved_filepath, "wb") as f:
                 f.write(file_bytes)
 
-            local_url = f"/static/evidence/{user_id}/{saved_filename}"
+            local_url = f"http://localhost:8000/static/evidence/{user_id}/{saved_filename}"
             return {
                 "url": local_url,
                 "filename": clean_filename,
                 "file_type": content_type,
-                "size_bytes": len(file_bytes),
+                "size_bytes": total_size,
                 "storage_path": f"evidence/{user_id}/{saved_filename}",
             }
 
+        if not is_dev_mode():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Storage service unavailable",
+            )
+
+        logger.exception("Failed to upload evidence file")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to upload evidence file: {err_msg}",
+            detail="Failed to upload evidence file. Please try again.",
         )
 
 
@@ -316,9 +382,10 @@ async def create_manual_contribution(
             _save_dev_data()
             return dev_record
 
+        logger.exception("Failed to create contribution")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to create contribution: {err_msg}",
+            detail="Failed to create contribution. Please try again.",
         )
 
 
@@ -424,9 +491,10 @@ async def delete_contribution(
                 "id": contribution_id,
             }
 
+        logger.exception("Failed to delete contribution")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to delete contribution: {err_msg}",
+            detail="Failed to delete contribution. Please try again.",
         )
 
 
@@ -690,9 +758,10 @@ async def request_peer_confirmation(
             _save_dev_data()
             return created_records
 
+        logger.exception("Failed to request confirmation")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to request confirmation: {err_msg}",
+            detail="Failed to request confirmation. Please try again.",
         )
 
 
@@ -894,9 +963,10 @@ async def confirm_contribution(
             _save_dev_data()
             return contribution
 
+        logger.exception("Failed to confirm contribution")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to confirm contribution: {err_msg}",
+            detail="Failed to confirm contribution. Please try again.",
         )
 
 
@@ -1098,9 +1168,10 @@ async def dispute_contribution(
             _save_dev_data()
             return contribution
 
+        logger.exception("Failed to dispute contribution")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to dispute contribution: {err_msg}",
+            detail="Failed to dispute contribution. Please try again.",
         )
 
 
@@ -1272,9 +1343,10 @@ async def publish_contribution(
             _save_dev_data()
             return contribution
 
+        logger.exception("Failed to publish contribution")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to publish contribution: {err_msg}",
+            detail="Failed to publish contribution. Please try again.",
         )
 
 
@@ -1426,9 +1498,10 @@ async def unpublish_contribution(
             _save_dev_data()
             return contribution
 
+        logger.exception("Failed to unpublish contribution")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to unpublish contribution: {err_msg}",
+            detail="Failed to unpublish contribution. Please try again.",
         )
 
 
@@ -1616,9 +1689,10 @@ async def get_pending_confirmations(
                 requests=enriched_list,
             )
 
+        logger.exception("Failed to fetch pending confirmations")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to fetch pending confirmations: {err_msg}",
+            detail="Failed to fetch pending confirmations. Please try again.",
         )
 
 
@@ -1726,9 +1800,10 @@ async def get_user_passport(
                 contributions=valid_items,
             )
 
+        logger.exception("Failed to fetch user passport")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to fetch user passport: {err_msg}",
+            detail="Failed to fetch user passport. Please try again.",
         )
 
 
@@ -1967,9 +2042,10 @@ async def get_project_passport(
                 contributions=valid_items,
             )
 
+        logger.exception("Failed to fetch project passport")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to fetch project passport: {err_msg}",
+            detail="Failed to fetch project passport. Please try again.",
         )
 
 
@@ -2073,9 +2149,10 @@ async def list_public_contributions(
                 contributions=valid_items,
             )
 
+        logger.exception("Failed to list public contributions")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to list public contributions: {err_msg}",
+            detail="Failed to list public contributions. Please try again.",
         )
 
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/project.dart';
 import '../services/project_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 import '../widgets/empty_state_view.dart';
 import '../widgets/project_card.dart';
 import 'create_project_screen.dart';
@@ -56,7 +57,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
           _isLoading = false;
         });
       }
@@ -167,7 +168,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                 color: Colors.white,
                 border: Border(
                   bottom: BorderSide(
-                    color: Color(0xFFE2E8F0),
+                    color: AppColors.divider,
                     width: 1.0,
                   ),
                 ),
@@ -190,12 +191,12 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                     decoration: InputDecoration(
                       hintText: 'Search projects by name or keywords...',
                       hintStyle: const TextStyle(
-                        color: Color(0xFF94A3B8),
+                        color: AppColors.hint,
                         fontSize: 13,
                       ),
                       prefixIcon: const Icon(
                         Icons.search,
-                        color: Color(0xFF64748B),
+                        color: AppColors.textMuted,
                         size: 20,
                       ),
                       suffixIcon: _searchQuery.isNotEmpty
@@ -203,7 +204,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                               icon: const Icon(
                                 Icons.clear,
                                 size: 18,
-                                color: Color(0xFF64748B),
+                                color: AppColors.textMuted,
                               ),
                               onPressed: () {
                                 _searchController.clear();
@@ -329,7 +330,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     fontSize: 13,
-                                    color: Color(0xFF64748B),
+                                    color: AppColors.textMuted,
                                   ),
                                 ),
                                 const SizedBox(height: 20),
@@ -428,7 +429,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                                         ),
                                         style: OutlinedButton.styleFrom(
                                           side: const BorderSide(
-                                            color: Color(0xFFCBD5E1),
+                                            color: AppColors.divider,
                                             width: 1.2,
                                           ),
                                           padding: const EdgeInsets.symmetric(

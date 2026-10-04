@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 
 class SignupScreen extends StatefulWidget {
   static const String routeName = '/signup';
@@ -48,7 +49,7 @@ class _SignupScreenState extends State<SignupScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
         });
       }
     } finally {
@@ -71,7 +72,7 @@ class _SignupScreenState extends State<SignupScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
         });
       }
     } finally {
@@ -113,7 +114,7 @@ class _SignupScreenState extends State<SignupScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
         });
       }
     } finally {
@@ -270,7 +271,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       decoration: InputDecoration(
                         labelText: 'Full Name',
                         labelStyle: const TextStyle(
-                          color: Color(0xFF64748B),
+                          color: AppColors.textMuted,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
@@ -283,7 +284,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         hintStyle: hintStyle,
                         prefixIcon: const Icon(
                           Icons.person_outline,
-                          color: Color(0xFF64748B),
+                          color: AppColors.textMuted,
                           size: 20,
                         ),
                         filled: true,
@@ -351,7 +352,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       decoration: InputDecoration(
                         labelText: 'Email',
                         labelStyle: const TextStyle(
-                          color: Color(0xFF64748B),
+                          color: AppColors.textMuted,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
@@ -364,7 +365,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         hintStyle: hintStyle,
                         prefixIcon: const Icon(
                           Icons.email_outlined,
-                          color: Color(0xFF64748B),
+                          color: AppColors.textMuted,
                           size: 20,
                         ),
                         filled: true,
@@ -439,7 +440,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       decoration: InputDecoration(
                         labelText: 'Password',
                         labelStyle: const TextStyle(
-                          color: Color(0xFF64748B),
+                          color: AppColors.textMuted,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
@@ -452,7 +453,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         hintStyle: hintStyle,
                         prefixIcon: const Icon(
                           Icons.lock_outline,
-                          color: Color(0xFF64748B),
+                          color: AppColors.textMuted,
                           size: 20,
                         ),
                         suffixIcon: IconButton(
@@ -461,7 +462,7 @@ class _SignupScreenState extends State<SignupScreen> {
                             _isPasswordVisible
                                 ? Icons.visibility_off
                                 : Icons.visibility,
-                            color: const Color(0xFF64748B),
+                            color: AppColors.textMuted,
                             size: 20,
                           ),
                           onPressed: () {
@@ -516,8 +517,8 @@ class _SignupScreenState extends State<SignupScreen> {
                         if (value == null || value.isEmpty) {
                           return 'Password is required';
                         }
-                        if (value.length < 6) {
-                          return 'Password must be at least 6 characters';
+                        if (value.length < 12) {
+                          return 'Password must be at least 12 characters';
                         }
                         return null;
                       },

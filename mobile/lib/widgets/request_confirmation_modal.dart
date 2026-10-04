@@ -3,6 +3,7 @@ import '../models/contribution.dart';
 import '../models/role_agreement.dart';
 import '../services/project_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 
 class RequestConfirmationModal {
   static Future<void> show({
@@ -16,7 +17,7 @@ class RequestConfirmationModal {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.emeraldInk,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -91,7 +92,7 @@ class _RequestConfirmationModalContentState
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _fetchError = e.toString();
+        _fetchError = friendlyError(e);
         _isLoading = false;
       });
     }
@@ -143,7 +144,7 @@ class _RequestConfirmationModalContentState
       if (!mounted) return;
       setState(() {
         _isSubmitting = false;
-        _submitError = e.toString();
+        _submitError = friendlyError(e);
       });
     }
   }
@@ -207,7 +208,7 @@ class _RequestConfirmationModalContentState
                       Text(
                         'Ask teammates to verify "${widget.contribution.title}"',
                         style: const TextStyle(
-                          color: Color(0xFF94A3B8),
+                          color: AppColors.champagne,
                           fontSize: 12,
                         ),
                         maxLines: 1,
@@ -266,7 +267,7 @@ class _RequestConfirmationModalContentState
                       Text(
                         'Loading project teammates...',
                         style:
-                            TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                            TextStyle(color: AppColors.champagne, fontSize: 13),
                       ),
                     ],
                   ),
@@ -311,7 +312,7 @@ class _RequestConfirmationModalContentState
                     Text(
                       'You are the only member in this project. Invite teammates first to request peer confirmations.',
                       style:
-                          TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                          TextStyle(color: AppColors.champagne, fontSize: 12),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -325,7 +326,7 @@ class _RequestConfirmationModalContentState
                   Text(
                     'Teammates (${_selectedReviewerIds.length}/${_teammates.length} selected)',
                     style: const TextStyle(
-                      color: Color(0xFF94A3B8),
+                      color: AppColors.champagne,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -393,13 +394,13 @@ class _RequestConfirmationModalContentState
                             horizontal: 12, vertical: 10),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? AppColors.emeraldInk.withValues(alpha: 0.2)
-                              : const Color(0xFF1E293B),
+                              ? AppColors.champagne.withValues(alpha: 0.2)
+                              : AppColors.emeraldInk,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: isSelected
-                                ? AppColors.emeraldInk
-                                : const Color(0xFF334155),
+                                ? AppColors.champagne
+                                : AppColors.divider,
                             width: 1.2,
                           ),
                         ),
@@ -408,8 +409,8 @@ class _RequestConfirmationModalContentState
                             CircleAvatar(
                               radius: 16,
                               backgroundColor: isSelected
-                                  ? AppColors.emeraldInk
-                                  : const Color(0xFF475569),
+                                  ? AppColors.champagne
+                                  : AppColors.divider.withValues(alpha: 0.3),
                               child: Text(
                                 initial,
                                 style: TextStyle(
@@ -466,7 +467,7 @@ class _RequestConfirmationModalContentState
                                   Text(
                                     member.declaredRole,
                                     style: const TextStyle(
-                                      color: Color(0xFF94A3B8),
+                                      color: AppColors.champagne,
                                       fontSize: 12,
                                     ),
                                     overflow: TextOverflow.ellipsis,

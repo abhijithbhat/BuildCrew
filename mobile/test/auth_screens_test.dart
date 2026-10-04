@@ -104,7 +104,7 @@ void main() {
       expect(find.text('Forgot Password'), findsWidgets);
 
       // Go back to login
-      await tester.pageBack();
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
       await tester.pumpAndSettle();
 
       // Tap Sign Up button
@@ -221,16 +221,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Settings'), findsOneWidget);
-      expect(find.text('Account'), findsOneWidget);
+      expect(find.text('ACCOUNT'), findsOneWidget);
       expect(find.text('Alex Rivers'), findsOneWidget);
       expect(find.text('alex@rivers.dev'), findsOneWidget);
       expect(find.text('Delete My Account'), findsOneWidget);
 
-      expect(find.text('Notifications'), findsOneWidget);
+      expect(find.text('NOTIFICATIONS'), findsOneWidget);
       expect(find.text('Push Notifications'), findsOneWidget);
       expect(find.text('Coming Soon'), findsOneWidget);
 
-      expect(find.text('App Info'), findsOneWidget);
+      expect(find.text('APP INFO'), findsOneWidget);
       expect(find.text('Version'), findsOneWidget);
       expect(find.text('1.0.0 (Build 1)'), findsOneWidget);
       expect(find.text('Privacy Policy'), findsOneWidget);
@@ -273,6 +273,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(find.byKey(const Key('settings_logout_btn')));
       await tester.tap(find.byKey(const Key('settings_logout_btn')));
       await tester.pumpAndSettle();
 

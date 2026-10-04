@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/github_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 
 class ConnectRepositoryScreen extends StatefulWidget {
   static const String routeName = '/connect-repository';
@@ -108,7 +109,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Failed to connect repository: $e';
+          _errorMessage = 'Failed to connect repository: ${friendlyError(e)}';
         });
       }
     } finally {
@@ -170,7 +171,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
     } catch (e) {
       if (!silent && mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
         });
       }
     } finally {
@@ -221,7 +222,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Failed to link repository: $e';
+          _errorMessage = 'Failed to link repository: ${friendlyError(e)}';
         });
       }
     } finally {
@@ -271,7 +272,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = friendlyError(e);
         });
       }
     } finally {
@@ -378,7 +379,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                 'Connect your repository to seamlessly track commits, review pull requests, and log member contributions.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  color: Color(0xFF64748B),
+                  color: AppColors.textMuted,
                   fontSize: 14,
                   height: 1.5,
                 ),
@@ -398,7 +399,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: const Color(0xFFE2E8F0),
+                    color: AppColors.divider,
                     width: 1,
                   ),
                   boxShadow: [
@@ -419,7 +420,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                           'Track team branch pushes and commit logs in real-time.',
                     ),
                     const Divider(
-                      color: Color(0xFFF1F5F9),
+                      color: AppColors.divider,
                       height: 28,
                       thickness: 1,
                     ),
@@ -431,7 +432,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                           'Monitor reviews, approvals, and merged feature branches.',
                     ),
                     const Divider(
-                      color: Color(0xFFF1F5F9),
+                      color: AppColors.divider,
                       height: 28,
                       thickness: 1,
                     ),
@@ -443,7 +444,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                           'Stay aligned on bugs, user stories, and tasks.',
                     ),
                     const Divider(
-                      color: Color(0xFFF1F5F9),
+                      color: AppColors.divider,
                       height: 28,
                       thickness: 1,
                     ),
@@ -569,7 +570,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: AppColors.divider),
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.emeraldInk.withValues(alpha: 0.04),
@@ -598,7 +599,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                     const SizedBox(height: 6),
                     const Text(
                       'If the app is already installed on your GitHub account, link your repository directly:',
-                      style: TextStyle(color: Color(0xFF64748B), fontSize: 12, height: 1.4),
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12, height: 1.4),
                     ),
                     const SizedBox(height: 14),
                     TextField(
@@ -608,16 +609,16 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                         labelText: 'Repository (owner/repo)',
                         hintText: 'e.g. your-username/project-repo',
                         hintStyle: const TextStyle(color: Color(0xFFB0BEC5), fontSize: 13),
-                        labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                        labelStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
                         filled: true,
                         fillColor: AppColors.champagne,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: const BorderSide(color: AppColors.divider),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: const BorderSide(color: AppColors.divider),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -659,7 +660,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                 'Make sure your backend and ngrok tunnel are running during installation.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Color(0xFF94A3B8),
+                  color: AppColors.hint,
                   fontSize: 12,
                   height: 1.4,
                 ),
@@ -709,7 +710,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
               Text(
                 subtitle,
                 style: const TextStyle(
-                  color: Color(0xFF64748B),
+                  color: AppColors.textMuted,
                   fontSize: 12.5,
                   height: 1.35,
                 ),
@@ -776,7 +777,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                     Text(
                       'Tap to connect directly to this project:',
                       style: TextStyle(
-                        color: Color(0xFF64748B),
+                        color: AppColors.textMuted,
                         fontSize: 12,
                       ),
                     ),
@@ -793,7 +794,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
               decoration: BoxDecoration(
                 color: AppColors.champagne,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: AppColors.divider),
               ),
               child: ListTile(
                 dense: true,

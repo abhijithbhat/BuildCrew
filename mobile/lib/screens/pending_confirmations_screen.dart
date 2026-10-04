@@ -4,6 +4,7 @@ import '../models/contribution.dart';
 import '../services/project_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 import '../widgets/empty_state_view.dart';
 
 class PendingConfirmationsScreen extends StatefulWidget {
@@ -56,7 +57,7 @@ class _PendingConfirmationsScreenState
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = friendlyError(e);
         _isLoading = false;
       });
     }
@@ -106,7 +107,7 @@ class _PendingConfirmationsScreenState
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to confirm: $e'),
+          content: Text('Failed to confirm: ${friendlyError(e)}'),
           backgroundColor: const Color(0xFFE11D48),
           behavior: SnackBarBehavior.floating,
         ),
@@ -124,7 +125,7 @@ class _PendingConfirmationsScreenState
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFFE2E8F0)),
+          side: const BorderSide(color: AppColors.divider),
         ),
         title: const Row(
           children: [
@@ -144,7 +145,7 @@ class _PendingConfirmationsScreenState
           'Are you sure you want to dispute "${req.contributionTitle ?? 'this deliverable'}"?\n\n'
           'Its status will become "Needs Review" and visibility will be set to Private until the dispute is resolved.',
           style: const TextStyle(
-            color: Color(0xFF64748B),
+            color: AppColors.textMuted,
             fontSize: 13,
             height: 1.4,
           ),
@@ -152,7 +153,7 @@ class _PendingConfirmationsScreenState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w600)),
           ),
           ElevatedButton(
             key: const Key('confirm_dispute_dialog_btn'),
@@ -211,7 +212,7 @@ class _PendingConfirmationsScreenState
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to dispute: $e'),
+          content: Text('Failed to dispute: ${friendlyError(e)}'),
           backgroundColor: const Color(0xFFE11D48),
           behavior: SnackBarBehavior.floating,
         ),
@@ -298,7 +299,7 @@ class _PendingConfirmationsScreenState
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   border: Border(
-                    bottom: BorderSide(color: Color(0xFFE2E8F0)),
+                    bottom: BorderSide(color: AppColors.divider),
                   ),
                 ),
                 child: Row(
@@ -332,7 +333,7 @@ class _PendingConfirmationsScreenState
                           const Text(
                             'Review and confirm deliverables logged by teammates',
                             style: TextStyle(
-                              color: Color(0xFF64748B),
+                              color: AppColors.textMuted,
                               fontSize: 12,
                             ),
                           ),
@@ -345,13 +346,13 @@ class _PendingConfirmationsScreenState
                       decoration: BoxDecoration(
                         color: _requests.isNotEmpty
                             ? AppColors.emeraldInk
-                            : const Color(0xFFE2E8F0),
+                            : AppColors.divider,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         '${_requests.length}',
                         style: TextStyle(
-                          color: _requests.isNotEmpty ? Colors.white : const Color(0xFF64748B),
+                          color: _requests.isNotEmpty ? Colors.white : AppColors.textMuted,
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                         ),
@@ -389,12 +390,12 @@ class _PendingConfirmationsScreenState
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide:
-                            const BorderSide(color: Color(0xFFE2E8F0)),
+                            const BorderSide(color: AppColors.divider),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide:
-                            const BorderSide(color: Color(0xFFE2E8F0)),
+                            const BorderSide(color: AppColors.divider),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -430,7 +431,7 @@ class _PendingConfirmationsScreenState
             SizedBox(height: 16),
             Text(
               'Loading pending confirmations...',
-              style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
             ),
           ],
         ),
@@ -460,7 +461,7 @@ class _PendingConfirmationsScreenState
               Text(
                 _errorMessage!,
                 style: const TextStyle(
-                  color: Color(0xFF64748B),
+                  color: AppColors.textMuted,
                   fontSize: 12,
                 ),
                 textAlign: TextAlign.center,
@@ -612,13 +613,13 @@ class _PendingConfirmationsScreenState
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: AppColors.divider,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   category.toUpperCase(),
                   style: const TextStyle(
-                    color: Color(0xFF64748B),
+                    color: AppColors.textMuted,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
@@ -644,7 +645,7 @@ class _PendingConfirmationsScreenState
             Text(
               req.description!,
               style: const TextStyle(
-                color: Color(0xFF475569),
+                color: AppColors.textMuted,
                 fontSize: 13,
                 height: 1.4,
               ),
@@ -665,7 +666,7 @@ class _PendingConfirmationsScreenState
                 decoration: BoxDecoration(
                   color: AppColors.champagne,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: AppColors.divider),
                 ),
                 child: Row(
                   children: [
@@ -694,7 +695,7 @@ class _PendingConfirmationsScreenState
           ],
 
           const SizedBox(height: 14),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const Divider(height: 1, color: AppColors.divider),
           const SizedBox(height: 12),
 
           // Action Buttons: Confirm & Dispute

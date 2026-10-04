@@ -6,6 +6,7 @@ import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_messages.dart';
 import 'login_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -146,7 +147,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         content: const Text(
-          'This will permanently erase your profile, personal projects, and credentials. This action cannot be undone.',
+          'Your account, contributions and uploaded files will be permanently deleted.',
           style: TextStyle(
             color: AppColors.bodyText,
             fontSize: 14,
@@ -214,7 +215,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           setState(() {
             _isDeleting = false;
           });
-          final errorMsg = e.toString().replaceFirst('Exception: ', '').trim();
+          final errorMsg = friendlyError(e);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -373,13 +374,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     // Section 1: Account
                     _buildSectionHeader('Account'),
                     const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.inputBorder, width: 1.2),
-                      ),
-                      child: Column(
+                    Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      clipBehavior: Clip.antiAlias,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.inputBorder, width: 1.2),
+                        ),
+                        child: Column(
                         children: [
                           ListTile(
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -442,6 +446,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ],
                       ),
+                    ),
                     ),
 
                     const SizedBox(height: 24),
@@ -547,13 +552,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     // Section 3: App Info
                     _buildSectionHeader('App Info'),
                     const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.inputBorder, width: 1.2),
-                      ),
-                      child: Column(
+                    Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      clipBehavior: Clip.antiAlias,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.inputBorder, width: 1.2),
+                        ),
+                        child: Column(
                         children: [
                           ListTile(
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -625,6 +633,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ],
                       ),
+                    ),
                     ),
 
                     const SizedBox(height: 32),

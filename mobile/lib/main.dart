@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -29,8 +30,32 @@ import 'services/auth_service.dart';
 import 'services/storage_service.dart';
 import 'theme/app_colors.dart';
 
+const String _envSupabaseUrl = String.fromEnvironment('SUPABASE_URL');
+const String _envSupabaseKey =
+    String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+
+const String _debugSupabaseUrl = 'https://bidfjrgytnqexwsdnwlt.supabase.co';
+const String _debugSupabaseKey =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZGZqcmd5dG5xZXh3c2Rud2x0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0NzUzMDUsImV4cCI6MjEwMTA1MTMwNX0.uc2X-32-KNLx6iv-Ib0ACwZz0uMvR-EEok4qDKww1zE';
+
+String get effectiveSupabaseUrl {
+  if (_envSupabaseUrl.isNotEmpty) return _envSupabaseUrl;
+  if (!kReleaseMode) return _debugSupabaseUrl;
+  throw StateError('SUPABASE_URL dart-define must be provided in release mode');
+}
+
+String get effectiveSupabaseKey {
+  if (_envSupabaseKey.isNotEmpty) return _envSupabaseKey;
+  if (!kReleaseMode) return _debugSupabaseKey;
+  throw StateError(
+      'SUPABASE_PUBLISHABLE_KEY dart-define must be provided in release mode');
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Validate API base URL in release mode at startup
+  ApiClient.validateStartupConfig();
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -39,9 +64,8 @@ Future<void> main() async {
 
   try {
     await Supabase.initialize(
-      url: 'https://bidfjrgytnqexwsdnwlt.supabase.co',
-      publishableKey:
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZGZqcmd5dG5xZXh3c2Rud2x0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0NzUzMDUsImV4cCI6MjEwMTA1MTMwNX0.uc2X-32-KNLx6iv-Ib0ACwZz0uMvR-EEok4qDKww1zE',
+      url: effectiveSupabaseUrl,
+      publishableKey: effectiveSupabaseKey,
     );
   } catch (e) {
     debugPrint('Supabase initialize error: $e');
@@ -277,6 +301,15 @@ class _MyAppState extends State<MyApp> {
         ),
       ),
       initialRoute: widget.initialRoute,
+      builder: (context, child) => ColoredBox(
+        color: AppColors.champagne,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: child,
+          ),
+        ),
+      ),
       routes: {
         LoginScreen.routeName: (context) => const LoginScreen(),
         SignupScreen.routeName: (context) => const SignupScreen(),

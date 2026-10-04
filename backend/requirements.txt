@@ -7,4 +7,5 @@ pytest
 httpx
 python-multipart
 jinja2
+slowapi
 
