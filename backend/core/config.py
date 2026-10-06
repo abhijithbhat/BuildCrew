@@ -7,6 +7,7 @@ _ENV_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"
 class Settings(BaseSettings):
     ENVIRONMENT: str = "production"
     ALLOW_DEV_AUTH: bool = False
+    APP_SECRET_KEY: str = ""
 
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_KEY: str = ""
@@ -16,6 +17,7 @@ class Settings(BaseSettings):
     # GitHub App Integration
     GITHUB_APP_ID: str = ""
     GITHUB_CLIENT_ID: str = ""
+    GITHUB_CLIENT_SECRET: str = ""
     GITHUB_APP_SLUG: str = ""
     GITHUB_PRIVATE_KEY_PATH: str = "github_private_key.pem"
     GITHUB_PRIVATE_KEY: str = ""

@@ -1,15 +1,17 @@
 """
 Tests for slowapi rate limiting and 12-character minimum password enforcement.
 Verifies:
-- 6th login attempt is blocked with HTTP 429 and Retry-After header.
-- Login attempt from different email or different IP is not blocked.
+- 11th login attempt is blocked with HTTP 429 and Retry-After header.
+- 11th login attempt for one email is 429 even when X-Forwarded-For changes on every request.
+- Different email is unaffected.
+- X-Forwarded-For is ignored everywhere; X-Real-IP is used in production.
 - 11-character password rejected on /auth/signup and /auth/reset-password with 422.
 - 12-character password accepted on /auth/signup and /auth/reset-password.
-- /auth/signup and /auth/forgot-password 4th attempt blocked (3 per hour per IP).
-- /auth/verify-otp 11th attempt blocked (10 per 15 min per IP+email).
+- /auth/signup (3/hr per email, 20/hr per IP, 200/hr globally) and /auth/forgot-password (3/hr per email, 20/hr per IP).
+- /auth/reset-password (10/15min per email, 60/15min per IP) returns 429 after 10 wrong codes.
+- /auth/verify-otp (10 per 15 min per email, 60 per 15 min per IP).
 - /projects/join 11th attempt blocked (10 per minute per user).
 - /contributions/upload-evidence 21st attempt blocked (20 per hour per user).
-- Proxy headers: X-Forwarded-For correctly isolated.
 """
 
 from unittest.mock import MagicMock, patch
@@ -92,10 +94,17 @@ def test_reset_password_11_chars_rejected():
 
 def test_reset_password_12_chars_accepted():
     """A 12-character password on reset-password passes schema validation."""
-    mock_supabase = MagicMock()
-    mock_supabase.auth.verify_otp.return_value = MagicMock()
+    mock_pub = MagicMock()
+    mock_otp_resp = MagicMock()
+    mock_otp_resp.user = MagicMock(id="11111111-1111-4111-8111-111111111111")
+    mock_otp_resp.session = None
+    mock_pub.auth.verify_otp.return_value = mock_otp_resp
 
-    with patch("routers.auth.get_supabase_pub_client", return_value=mock_supabase):
+    mock_admin = MagicMock()
+    mock_admin.auth.admin.update_user_by_id.return_value = MagicMock()
+
+    with patch("routers.auth.get_supabase_pub_client", return_value=mock_pub), \
+         patch("routers.auth.get_supabase_client", return_value=mock_admin):
         response = client.post(
             "/auth/reset-password",
             json={
@@ -111,22 +120,24 @@ def test_reset_password_12_chars_accepted():
 # ---------------------------------------------------------------------------
 # Rate Limiting Tests
 # ---------------------------------------------------------------------------
+# Rate Limiting Tests
+# ---------------------------------------------------------------------------
 
 
-def test_login_rate_limit_6th_attempt_blocked():
+def test_login_rate_limit_11th_attempt_blocked():
     """
-    /auth/login allows 5 per 15 min per IP+email.
-    The 6th attempt from the same IP+email must be blocked with HTTP 429 and Retry-After.
+    /auth/login allows 10 per 15 min per email (and 60 per 15 min per IP).
+    The 11th attempt for the same email must be blocked with HTTP 429 and Retry-After.
     """
     mock_supabase = MagicMock()
     mock_supabase.auth.sign_in_with_password.side_effect = Exception("Invalid login credentials")
 
     with patch("routers.auth.get_supabase_client", return_value=mock_supabase):
         target_email = "target_login@example.com"
-        headers = {"X-Forwarded-For": "198.51.100.1"}
+        headers = {"X-Real-IP": "198.51.100.1"}
 
-        # First 5 attempts: rejected with 401 (not rate limited)
-        for i in range(5):
+        # First 10 attempts: rejected with 401 (not rate limited)
+        for i in range(10):
             res = client.post(
                 "/auth/login",
                 json={"email": target_email, "password": "WrongPassword123"},
@@ -134,16 +145,16 @@ def test_login_rate_limit_6th_attempt_blocked():
             )
             assert res.status_code == 401, f"Attempt {i+1} got unexpected status {res.status_code}"
 
-        # 6th attempt: MUST be blocked with 429
-        res6 = client.post(
+        # 11th attempt: MUST be blocked with 429
+        res11 = client.post(
             "/auth/login",
             json={"email": target_email, "password": "WrongPassword123"},
             headers=headers,
         )
-        assert res6.status_code == 429
-        assert "Retry-After" in res6.headers
-        assert int(res6.headers["Retry-After"]) > 0
-        assert "Rate limit exceeded" in res6.json()["detail"]
+        assert res11.status_code == 429
+        assert "Retry-After" in res11.headers
+        assert int(res11.headers["Retry-After"]) > 0
+        assert "Rate limit exceeded" in res11.json()["detail"]
 
         # Different email from the SAME IP is NOT blocked
         res_diff_email = client.post(
@@ -153,34 +164,157 @@ def test_login_rate_limit_6th_attempt_blocked():
         )
         assert res_diff_email.status_code == 401
 
-        # Same email from a DIFFERENT IP is NOT blocked
-        res_diff_ip = client.post(
+
+def test_login_rate_limit_11th_attempt_blocked_with_rotating_x_forwarded_for():
+    """
+    The 11th login attempt for one email is 429 even when X-Forwarded-For changes
+    on every request. A different email is unaffected. X-Forwarded-For is ignored.
+    429 carries Retry-After.
+    """
+    mock_supabase = MagicMock()
+    mock_supabase.auth.sign_in_with_password.side_effect = Exception("Invalid login credentials")
+
+    with patch("routers.auth.get_supabase_client", return_value=mock_supabase):
+        target_email = "rotating_ip_user@example.com"
+
+        # 10 attempts with rotating spoofed X-Forwarded-For headers
+        for i in range(10):
+            res = client.post(
+                "/auth/login",
+                json={"email": target_email, "password": "WrongPassword123"},
+                headers={"X-Forwarded-For": f"198.51.100.{i + 10}"},
+            )
+            assert res.status_code == 401, f"Attempt {i+1} got unexpected status {res.status_code}"
+
+        # 11th attempt with yet another X-Forwarded-For header: MUST be blocked by email key
+        res11 = client.post(
             "/auth/login",
             json={"email": target_email, "password": "WrongPassword123"},
-            headers={"X-Forwarded-For": "198.51.100.2"},
+            headers={"X-Forwarded-For": "203.0.113.99"},
         )
-        assert res_diff_ip.status_code == 401
+        assert res11.status_code == 429
+        assert "Retry-After" in res11.headers
+        assert int(res11.headers["Retry-After"]) > 0
+        assert "Rate limit exceeded" in res11.json()["detail"]
+
+        # A different email is unaffected (not blocked)
+        res_diff = client.post(
+            "/auth/login",
+            json={"email": "different_account@example.com", "password": "WrongPassword123"},
+            headers={"X-Forwarded-For": "203.0.113.99"},
+        )
+        assert res_diff.status_code == 401
 
 
-def test_signup_rate_limit_3_per_hour_per_ip():
+def test_x_forwarded_for_is_ignored_and_x_real_ip_used():
     """
-    /auth/signup allows 3 per hour per IP.
-    The 4th attempt from the same IP must be blocked with HTTP 429 and Retry-After.
+    get_real_client_ip reads ONLY X-Real-IP in production (returns 'unknown' if missing).
+    X-Forwarded-For is never read anywhere.
+    In development, request.client.host is used.
+    """
+    from core.rate_limit import get_real_client_ip
+    from starlette.datastructures import Headers
+
+    # 1. Production: X-Forwarded-For present, X-Real-IP missing -> returns 'unknown'
+    req1 = MagicMock()
+    req1.headers = Headers({"x-forwarded-for": "198.51.100.1"})
+    req1.client = MagicMock(host="10.0.0.1")
+    with patch("core.config.settings.ENVIRONMENT", "production"):
+        assert get_real_client_ip(req1) == "unknown"
+
+    # 2. Production: X-Real-IP present -> returns X-Real-IP (X-Forwarded-For ignored)
+    req2 = MagicMock()
+    req2.headers = Headers({"x-forwarded-for": "198.51.100.1", "x-real-ip": "203.0.113.44"})
+    with patch("core.config.settings.ENVIRONMENT", "production"):
+        assert get_real_client_ip(req2) == "203.0.113.44"
+
+    # 3. Production: Neither header present -> returns 'unknown'
+    req3 = MagicMock()
+    req3.headers = Headers({})
+    with patch("core.config.settings.ENVIRONMENT", "production"):
+        assert get_real_client_ip(req3) == "unknown"
+
+    # 4. Development: uses request.client.host, X-Forwarded-For ignored
+    req_dev = MagicMock()
+    req_dev.headers = Headers({"x-forwarded-for": "198.51.100.1"})
+    req_dev.client = MagicMock(host="127.0.0.1")
+    with patch("core.config.settings.ENVIRONMENT", "development"):
+        assert get_real_client_ip(req_dev) == "127.0.0.1"
+
+
+def test_reset_password_rate_limit_10_wrong_codes():
+    """
+    /auth/reset-password returns 429 after 10 wrong codes for one email.
+    429 carries Retry-After. A different email is unaffected.
+    """
+    mock_pub = MagicMock()
+    mock_pub.auth.verify_otp.side_effect = Exception("Invalid or expired code")
+
+    with patch("routers.auth.get_supabase_pub_client", return_value=mock_pub):
+        target_email = "reset_victim@example.com"
+        headers = {"X-Real-IP": "198.51.100.77"}
+
+        # 10 wrong OTP codes for target email -> 400
+        for i in range(10):
+            res = client.post(
+                "/auth/reset-password",
+                json={
+                    "email": target_email,
+                    "token": f"00000{i}",
+                    "new_password": "NewValidPassword123",
+                },
+                headers=headers,
+            )
+            assert res.status_code == 400, f"Attempt {i+1} got unexpected status {res.status_code}"
+
+        # 11th attempt -> 429
+        res11 = client.post(
+            "/auth/reset-password",
+            json={
+                "email": target_email,
+                "token": "999999",
+                "new_password": "NewValidPassword123",
+            },
+            headers=headers,
+        )
+        assert res11.status_code == 429
+        assert "Retry-After" in res11.headers
+        assert int(res11.headers["Retry-After"]) > 0
+        assert "Rate limit exceeded" in res11.json()["detail"]
+
+        # Different email is unaffected (returns 400 for wrong code, not 429)
+        res_diff = client.post(
+            "/auth/reset-password",
+            json={
+                "email": "reset_other@example.com",
+                "token": "000001",
+                "new_password": "NewValidPassword123",
+            },
+            headers=headers,
+        )
+        assert res_diff.status_code == 400
+
+
+def test_signup_rate_limit_3_per_hour_per_email_and_ip():
+    """
+    /auth/signup allows 3 per hour per email, 20 per hour per IP, and 200 per hour globally.
+    4th attempt for the same email is blocked with HTTP 429 and Retry-After.
     """
     mock_supabase = MagicMock()
     mock_response = MagicMock()
     mock_response.user = MagicMock(id="user-sub", identities=[MagicMock()])
     mock_supabase.auth.sign_up.return_value = mock_response
 
-    headers = {"X-Forwarded-For": "203.0.113.10"}
+    headers = {"X-Real-IP": "203.0.113.10"}
+    target_email = "signup_limit@example.com"
 
     with patch("routers.auth.get_supabase_pub_client", return_value=mock_supabase):
-        # First 3 attempts succeed
+        # First 3 attempts for same email succeed
         for i in range(3):
             res = client.post(
                 "/auth/signup",
                 json={
-                    "email": f"signup_{i}@example.com",
+                    "email": target_email,
                     "password": "ValidPassword123",
                     "name": f"User {i}",
                 },
@@ -188,11 +322,11 @@ def test_signup_rate_limit_3_per_hour_per_ip():
             )
             assert res.status_code == 201
 
-        # 4th attempt is rate-limited
+        # 4th attempt for same email is rate-limited by email
         res4 = client.post(
             "/auth/signup",
             json={
-                "email": "signup_4@example.com",
+                "email": target_email,
                 "password": "ValidPassword123",
                 "name": "User 4",
             },
@@ -200,59 +334,70 @@ def test_signup_rate_limit_3_per_hour_per_ip():
         )
         assert res4.status_code == 429
         assert "Retry-After" in res4.headers
+        assert int(res4.headers["Retry-After"]) > 0
         assert "Rate limit exceeded" in res4.json()["detail"]
 
-        # A different IP is NOT blocked
-        res_diff_ip = client.post(
+        # A different email from the same IP succeeds
+        res_diff_email = client.post(
             "/auth/signup",
             json={
-                "email": "signup_diff_ip@example.com",
+                "email": "signup_diff@example.com",
                 "password": "ValidPassword123",
-                "name": "Different IP User",
+                "name": "Different User",
             },
-            headers={"X-Forwarded-For": "203.0.113.20"},
+            headers=headers,
         )
-        assert res_diff_ip.status_code == 201
+        assert res_diff_email.status_code == 201
 
 
-def test_forgot_password_rate_limit_3_per_hour_per_ip():
+def test_forgot_password_rate_limit_3_per_hour_per_email_and_ip():
     """
-    /auth/forgot-password allows 3 per hour per IP.
-    The 4th attempt from the same IP must be blocked with HTTP 429 and Retry-After.
+    /auth/forgot-password allows 3 per hour per email (and 20 per hour per IP).
+    The 4th attempt for the same email must be blocked with HTTP 429 and Retry-After.
     """
     mock_supabase = MagicMock()
     mock_supabase.auth.reset_password_for_email.return_value = None
 
-    headers = {"X-Forwarded-For": "203.0.113.50"}
+    headers = {"X-Real-IP": "203.0.113.50"}
+    target_email = "forgot_target@example.com"
 
     with patch("routers.auth.get_supabase_pub_client", return_value=mock_supabase):
         for i in range(3):
             res = client.post(
                 "/auth/forgot-password",
-                json={"email": f"forgot_{i}@example.com"},
+                json={"email": target_email},
                 headers=headers,
             )
             assert res.status_code == 200
 
         res4 = client.post(
             "/auth/forgot-password",
-            json={"email": "forgot_4@example.com"},
+            json={"email": target_email},
             headers=headers,
         )
         assert res4.status_code == 429
         assert "Retry-After" in res4.headers
+        assert int(res4.headers["Retry-After"]) > 0
         assert "Rate limit exceeded" in res4.json()["detail"]
 
+        # Different email is not blocked
+        res_diff = client.post(
+            "/auth/forgot-password",
+            json={"email": "forgot_different@example.com"},
+            headers=headers,
+        )
+        assert res_diff.status_code == 200
 
-def test_verify_otp_rate_limit_10_per_15min_per_ip_email():
+
+def test_verify_otp_rate_limit_10_per_15min_per_email_and_ip():
     """
-    /auth/verify-otp allows 10 per 15 min per IP+email.
-    The 11th attempt from the same IP+email must be blocked with HTTP 429 and Retry-After.
+    /auth/verify-otp allows 10 per 15 min per email (and 60 per 15 min per IP).
+    The 11th attempt for the same email must be blocked with HTTP 429 and Retry-After.
     """
     mock_supabase = MagicMock()
     mock_supabase.auth.verify_otp.side_effect = Exception("Token has expired or is invalid")
 
-    headers = {"X-Forwarded-For": "198.51.100.99"}
+    headers = {"X-Real-IP": "198.51.100.99"}
     email = "otp_target@example.com"
 
     with patch("routers.auth.get_supabase_pub_client", return_value=mock_supabase):
@@ -273,6 +418,7 @@ def test_verify_otp_rate_limit_10_per_15min_per_ip_email():
         )
         assert res11.status_code == 429
         assert "Retry-After" in res11.headers
+        assert int(res11.headers["Retry-After"]) > 0
         assert "Rate limit exceeded" in res11.json()["detail"]
 
 

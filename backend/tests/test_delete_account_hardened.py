@@ -236,3 +236,233 @@ def test_user_still_exists_after_delete_raises_500():
         )
         assert response.status_code == 500
         assert response.json()["detail"] == "Failed to delete account. Please try again."
+
+
+def test_storage_cleanup_capped_at_50_iterations_and_raises():
+    """1. Storage cleanup loop is capped at 50 iterations and raises 500 if objects still listed afterwards."""
+    user_id = "user-storage-infinite"
+    mock_supabase, mock_user = _setup_mock_supabase(user_id=user_id)
+
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+
+    # Storage bucket continuously returns items (e.g. all 50 iterations see objects)
+    mock_bucket = MagicMock()
+    mock_bucket.list.return_value = [{"name": "stuck_file.png"}]
+    mock_supabase.storage.from_.return_value = mock_bucket
+
+    with patch(
+        "core.dependencies.get_supabase_pub_client", return_value=mock_supabase
+    ), patch("routers.auth.get_supabase_client", return_value=mock_supabase):
+        response = client.delete(
+            "/auth/me",
+            headers={"Authorization": "Bearer token"},
+        )
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Failed to delete account. Please try again."
+
+        # The loop ran exactly 50 times, plus 1 check afterwards (51 total list calls)
+        assert mock_bucket.list.call_count == 51
+        assert mock_bucket.remove.call_count == 50
+
+        # auth.admin.delete_user should NOT have been called because cleanup failed
+        mock_supabase.auth.admin.delete_user.assert_not_called()
+
+
+def test_post_delete_check_user_uuid_contains_404_raises_500():
+    """2a. Post-delete check does not false-pass when a user UUID contains '404' and user still exists."""
+    user_id = "40404040-4040-4040-4040-404040404040"
+    mock_supabase, mock_user = _setup_mock_supabase(user_id=user_id)
+
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+    mock_supabase.storage.from_.return_value.list.return_value = []
+    mock_supabase.auth.admin.delete_user.return_value = None
+
+    # get_user_by_id returns a user (user still exists despite delete call)
+    mock_supabase.auth.admin.get_user_by_id.return_value = MagicMock(user=MagicMock(id=user_id))
+
+    with patch(
+        "core.dependencies.get_supabase_pub_client", return_value=mock_supabase
+    ), patch("routers.auth.get_supabase_client", return_value=mock_supabase):
+        response = client.delete(
+            "/auth/me",
+            headers={"Authorization": "Bearer token"},
+        )
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Failed to delete account. Please try again."
+
+
+def test_post_delete_check_auth_api_error_404_treated_as_deleted():
+    """2b. Post-delete check treats not-found 404 AuthApiError as successfully deleted -> 200."""
+    from supabase import AuthApiError
+
+    user_id = "user-auth-api-error-test"
+    mock_supabase, mock_user = _setup_mock_supabase(user_id=user_id)
+
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+    mock_supabase.storage.from_.return_value.list.return_value = []
+    mock_supabase.auth.admin.delete_user.return_value = None
+
+    # Supabase AuthApiError 404
+    mock_supabase.auth.admin.get_user_by_id.side_effect = AuthApiError("User not found", 404, "not_found")
+
+    with patch(
+        "core.dependencies.get_supabase_pub_client", return_value=mock_supabase
+    ), patch("routers.auth.get_supabase_client", return_value=mock_supabase):
+        response = client.delete(
+            "/auth/me",
+            headers={"Authorization": "Bearer token"},
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+
+
+def test_post_delete_check_other_exception_returns_500():
+    """2c. Post-delete check returns 500 if get_user_by_id raises any other exception (e.g. 500 DB down)."""
+    from supabase import AuthApiError
+
+    user_id = "user-get-error-500"
+    mock_supabase, mock_user = _setup_mock_supabase(user_id=user_id)
+
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+    mock_supabase.storage.from_.return_value.list.return_value = []
+    mock_supabase.auth.admin.delete_user.return_value = None
+
+    # AuthApiError with status 500
+    mock_supabase.auth.admin.get_user_by_id.side_effect = AuthApiError("Internal server error", 500, "internal_error")
+
+    with patch(
+        "core.dependencies.get_supabase_pub_client", return_value=mock_supabase
+    ), patch("routers.auth.get_supabase_client", return_value=mock_supabase):
+        response = client.delete(
+            "/auth/me",
+            headers={"Authorization": "Bearer token"},
+        )
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Failed to delete account. Please try again."
+
+
+def test_github_uninstall_not_called_when_shared_with_another_project():
+    """3a. Only call GitHub DELETE /app/installations/{id} when NO other github_installations row references it."""
+    user_id = "user-shared-gh"
+    mock_supabase, mock_user = _setup_mock_supabase(user_id=user_id)
+
+    def table_router(table_name):
+        mock_t = MagicMock()
+        if table_name == "projects":
+            mock_t.select.return_value.eq.return_value.execute.return_value = MagicMock(
+                data=[{"id": "proj-shared-1"}]
+            )
+            mock_t.delete.return_value.eq.return_value.execute.return_value = MagicMock(data=[{"id": "proj-shared-1"}])
+        elif table_name == "project_members":
+            mock_t.select.return_value.eq.return_value.order.return_value.execute.return_value = MagicMock(
+                data=[{"user_id": user_id, "joined_at": "2026-01-01T00:00:00Z"}]
+            )
+            mock_t.delete.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+        elif table_name == "github_installations":
+            def mock_select(fields):
+                mock_sel = MagicMock()
+                def mock_eq(field, val):
+                    mock_eq_obj = MagicMock()
+                    if field == "project_id":
+                        # query for project's own installations
+                        mock_eq_obj.execute.return_value = MagicMock(
+                            data=[{"installation_id": "inst-shared"}]
+                        )
+                    elif field == "installation_id":
+                        # query for other installations with same installation_id
+                        mock_neq_obj = MagicMock()
+                        mock_neq_obj.execute.return_value = MagicMock(
+                            data=[{"project_id": "proj-other"}]  # Another project references inst-shared!
+                        )
+                        mock_eq_obj.neq.return_value = mock_neq_obj
+                    return mock_eq_obj
+                mock_sel.eq.side_effect = mock_eq
+                return mock_sel
+
+            mock_t.select.side_effect = mock_select
+            mock_t.delete.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+        else:
+            mock_t.delete.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+        return mock_t
+
+    mock_supabase.table.side_effect = table_router
+    mock_supabase.storage.from_.return_value.list.return_value = []
+    mock_supabase.auth.admin.delete_user.return_value = None
+    mock_supabase.auth.admin.get_user_by_id.side_effect = Exception("User not found: 404")
+
+    mock_gh_response = MagicMock(status_code=204)
+    with patch(
+        "core.dependencies.get_supabase_pub_client", return_value=mock_supabase
+    ), patch("routers.auth.get_supabase_client", return_value=mock_supabase), patch(
+        "routers.auth.generate_app_jwt", return_value="mock.jwt.token"
+    ), patch("httpx.AsyncClient.delete", return_value=mock_gh_response) as mock_delete:
+        response = client.delete(
+            "/auth/me",
+            headers={"Authorization": "Bearer token"},
+        )
+        assert response.status_code == 200
+        # GitHub uninstall must NOT have been called because another project references inst-shared!
+        mock_delete.assert_not_called()
+
+
+def test_github_uninstall_called_when_no_other_project_references_installation():
+    """3b. Call GitHub DELETE /app/installations/{id} when NO other github_installations row references it."""
+    user_id = "user-sole-gh"
+    mock_supabase, mock_user = _setup_mock_supabase(user_id=user_id)
+
+    def table_router(table_name):
+        mock_t = MagicMock()
+        if table_name == "projects":
+            mock_t.select.return_value.eq.return_value.execute.return_value = MagicMock(
+                data=[{"id": "proj-sole-1"}]
+            )
+            mock_t.delete.return_value.eq.return_value.execute.return_value = MagicMock(data=[{"id": "proj-sole-1"}])
+        elif table_name == "project_members":
+            mock_t.select.return_value.eq.return_value.order.return_value.execute.return_value = MagicMock(
+                data=[{"user_id": user_id, "joined_at": "2026-01-01T00:00:00Z"}]
+            )
+            mock_t.delete.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+        elif table_name == "github_installations":
+            def mock_select(fields):
+                mock_sel = MagicMock()
+                def mock_eq(field, val):
+                    mock_eq_obj = MagicMock()
+                    if field == "project_id":
+                        mock_eq_obj.execute.return_value = MagicMock(
+                            data=[{"installation_id": "inst-sole"}]
+                        )
+                    elif field == "installation_id":
+                        mock_neq_obj = MagicMock()
+                        mock_neq_obj.execute.return_value = MagicMock(
+                            data=[]  # NO other project references inst-sole!
+                        )
+                        mock_eq_obj.neq.return_value = mock_neq_obj
+                    return mock_eq_obj
+                mock_sel.eq.side_effect = mock_eq
+                return mock_sel
+
+            mock_t.select.side_effect = mock_select
+            mock_t.delete.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+        else:
+            mock_t.delete.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+        return mock_t
+
+    mock_supabase.table.side_effect = table_router
+    mock_supabase.storage.from_.return_value.list.return_value = []
+    mock_supabase.auth.admin.delete_user.return_value = None
+    mock_supabase.auth.admin.get_user_by_id.side_effect = Exception("User not found: 404")
+
+    mock_gh_response = MagicMock(status_code=204)
+    with patch(
+        "core.dependencies.get_supabase_pub_client", return_value=mock_supabase
+    ), patch("routers.auth.get_supabase_client", return_value=mock_supabase), patch(
+        "routers.auth.generate_app_jwt", return_value="mock.jwt.token"
+    ), patch("httpx.AsyncClient.delete", return_value=mock_gh_response) as mock_delete:
+        response = client.delete(
+            "/auth/me",
+            headers={"Authorization": "Bearer token"},
+        )
+        assert response.status_code == 200
+        # GitHub uninstall MUST have been called!
+        mock_delete.assert_called_once()
+        assert "inst-sole" in mock_delete.call_args[0][0]

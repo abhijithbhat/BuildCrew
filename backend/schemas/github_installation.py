@@ -9,7 +9,7 @@ class GitHubInstallationBase(BaseModel):
 
 
 class GitHubInstallationCreate(BaseModel):
-    installation_id: str
+    installation_id: Optional[str] = ""
     repo_full_name: Optional[str] = None
     project_id: Optional[str] = None
 

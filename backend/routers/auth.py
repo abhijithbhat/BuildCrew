@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from core.config import settings
-from core.rate_limit import limiter, get_ip_key, get_ip_email_key
+from core.rate_limit import limiter, get_ip_key, get_email_key, get_global_key, get_ip_email_key
 from core.database import (
     get_supabase_client,
     get_supabase_pub_client,
@@ -11,6 +11,11 @@ from core.database import (
     _is_dev_fallback_error,
     is_dev_mode,
 )
+try:
+    from supabase import AuthApiError
+except ImportError:
+    class AuthApiError(Exception):
+        pass
 from core.dependencies import get_current_user, stable_dev_user_id
 from core.logging import logger
 from schemas.auth import (
@@ -33,7 +38,9 @@ DEV_USER_NAMES_DB: dict[str, str] = {}
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
-@limiter.limit("3/hour", key_func=get_ip_key)
+@limiter.limit("3/hour", key_func=get_email_key)
+@limiter.limit("20/hour", key_func=get_ip_key)
+@limiter.limit("200/hour", key_func=get_global_key)
 async def signup(request: Request, credentials: SignUpRequest):
     supabase = get_supabase_pub_client()
     try:
@@ -98,14 +105,22 @@ async def signup(request: Request, credentials: SignUpRequest):
                     "display_name": credentials.name,
                 },
             }
+        logger.warning(f"Signup failed for {credentials.email}: {err_msg}")
+        err_lower = err_msg.lower()
+        if any(s in err_lower for s in ("already registered", "already exists", "user already registered")):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email already exists. Please log in.",
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=err_msg,
+            detail="Request failed. Please try again.",
         )
 
 
 @router.post("/verify-otp", status_code=status.HTTP_200_OK)
-@limiter.limit("10/15minute", key_func=get_ip_email_key)
+@limiter.limit("10/15minute", key_func=get_email_key)
+@limiter.limit("60/15minute", key_func=get_ip_key)
 async def verify_otp(request: Request, req: VerifyOTPRequest):
     supabase = get_supabase_pub_client()
     try:
@@ -137,6 +152,8 @@ async def verify_otp(request: Request, req: VerifyOTPRequest):
             },
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         err_msg = str(e)
         if _is_dev_fallback_error(err_msg, service_name="Authentication"):
@@ -157,15 +174,22 @@ async def verify_otp(request: Request, req: VerifyOTPRequest):
                     "display_name": DEV_USER_NAMES_DB.get(req.email.lower()),
                 },
             }
+        logger.warning(f"Verify OTP failed for {req.email}: {err_msg}")
+        err_lower = err_msg.lower()
+        if any(s in err_lower for s in ("expired", "invalid", "otp", "token", "code")):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired code.",
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-
-            detail=err_msg,
+            detail="Request failed. Please try again.",
         )
 
 
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
-@limiter.limit("3/hour", key_func=get_ip_key)
+@limiter.limit("3/hour", key_func=get_email_key)
+@limiter.limit("20/hour", key_func=get_ip_key)
 async def forgot_password(request: Request, req: ForgotPasswordRequest):
     supabase = get_supabase_pub_client()
     try:
@@ -174,6 +198,8 @@ async def forgot_password(request: Request, req: ForgotPasswordRequest):
             "message": f"Password reset OTP sent to {req.email}",
             "email": req.email,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         err_msg = str(e)
         if _is_dev_fallback_error(err_msg, service_name="Authentication"):
@@ -187,25 +213,35 @@ async def forgot_password(request: Request, req: ForgotPasswordRequest):
                 "message": f"Password reset code sent to {req.email} (Local Dev OTP: 123456)",
                 "email": req.email,
             }
+        logger.warning(f"Forgot password failed for {req.email}: {err_msg}")
+        err_lower = err_msg.lower()
+        if "email not confirmed" in err_lower or "email not verified" in err_lower:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Please verify your email first.",
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=err_msg,
+            detail="Request failed. Please try again.",
         )
 
 
 @router.post("/reset-password", status_code=status.HTTP_200_OK)
-async def reset_password(req: ResetPasswordRequest):
+@limiter.limit("10/15minute", key_func=get_email_key)
+@limiter.limit("60/15minute", key_func=get_ip_key)
+async def reset_password(request: Request, req: ResetPasswordRequest):
     supabase = get_supabase_pub_client()
     try:
-        # Verify OTP code and update password
-        supabase.auth.verify_otp(
+        # Verify OTP code
+        response = supabase.auth.verify_otp(
             {
                 "email": req.email,
                 "token": req.token,
                 "type": "recovery",
             }
         )
-        return {"message": "Password reset successfully. Please log in with your new password."}
+    except HTTPException:
+        raise
     except Exception as e:
         err_msg = str(e)
         if _is_dev_fallback_error(err_msg, service_name="Authentication"):
@@ -222,14 +258,50 @@ async def reset_password(req: ResetPasswordRequest):
                 )
             DEV_USERS_DB[email_key] = req.new_password
             return {"message": "Password reset successfully (Local Dev Mode). Please log in."}
+        logger.warning(f"Reset password failed for {req.email}: {err_msg}")
+        err_lower = err_msg.lower()
+        if any(s in err_lower for s in ("expired", "invalid", "otp", "token", "code")):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired code.",
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=err_msg,
+            detail="Request failed. Please try again.",
         )
+
+    user_id = None
+    if response and getattr(response, "user", None):
+        user_id = getattr(response.user, "id", None)
+    elif isinstance(response, dict) and "user" in response:
+        u = response["user"]
+        user_id = u.get("id") if isinstance(u, dict) else getattr(u, "id", None)
+
+    admin_client = get_supabase_client()
+    try:
+        if not user_id:
+            raise ValueError("No user ID found in verify_otp response")
+        admin_client.auth.admin.update_user_by_id(str(user_id), {"password": req.new_password})
+    except Exception as e:
+        logger.exception(f"Could not reset password: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not reset password. Please try again.",
+        )
+
+    # Best-effort session revocation
+    try:
+        if response and getattr(response, "session", None) and getattr(response.session, "access_token", None):
+            admin_client.auth.admin.sign_out(response.session.access_token)
+    except Exception:
+        pass
+
+    return {"message": "Password reset successfully. Please log in with your new password."}
 
 
 @router.post("/login", status_code=status.HTTP_200_OK)
-@limiter.limit("5/15minute", key_func=get_ip_email_key)
+@limiter.limit("10/15minute", key_func=get_email_key)
+@limiter.limit("60/15minute", key_func=get_ip_key)
 async def login(request: Request, credentials: LoginRequest):
     supabase = get_supabase_client()
     try:
@@ -303,9 +375,26 @@ async def login(request: Request, credentials: LoginRequest):
                     "refresh_token": f"mock-dev-refresh-token-{credentials.email}",
                 },
             }
+        logger.warning(f"Login failed for {credentials.email}: {err_msg}")
+        err_lower = err_msg.lower()
+        if (
+            "invalid login credentials" in err_lower
+            or "invalid credentials" in err_lower
+            or "invalid login" in err_lower
+            or "invalid email or password" in err_lower
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password.",
+            )
+        if "email not confirmed" in err_lower or "email not verified" in err_lower:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Please verify your email first.",
+            )
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=err_msg,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Request failed. Please try again.",
         )
 
 
@@ -537,6 +626,7 @@ async def delete_my_account(current_user=Depends(get_current_user)):
             else:
                 # User is the only member: delete project and its dependents
                 # Before deleting github_installations row, call GitHub DELETE /app/installations/{installation_id}
+                # Only call GitHub's DELETE /app/installations/{id} when no OTHER github_installations row references the same installation_id (the uninstall removes the app from the whole GitHub account).
                 gh_res = (
                     supabase.table("github_installations")
                     .select("installation_id")
@@ -547,23 +637,46 @@ async def delete_my_account(current_user=Depends(get_current_user)):
                 for inst in (gh_res.data or []):
                     installation_id = inst.get("installation_id")
                     if installation_id:
-                        app_jwt = generate_app_jwt()
-                        if app_jwt:
-                            async with httpx.AsyncClient() as http_client:
-                                gh_resp = await http_client.delete(
-                                    f"https://api.github.com/app/installations/{installation_id}",
-                                    headers={
-                                        "Authorization": f"Bearer {app_jwt}",
-                                        "Accept": "application/vnd.github+json",
-                                        "X-GitHub-Api-Version": "2022-11-28",
-                                    },
-                                )
-                                if gh_resp.status_code != 404 and (gh_resp.status_code < 200 or gh_resp.status_code >= 300):
-                                    raise RuntimeError(
-                                        f"Failed to uninstall GitHub App installation {installation_id}: HTTP {gh_resp.status_code}"
+                        # Check if another project row references this installation_id
+                        other_inst_res = (
+                            supabase.table("github_installations")
+                            .select("project_id")
+                            .eq("installation_id", str(installation_id))
+                            .neq("project_id", pid)
+                            .execute()
+                        )
+                        has_other = bool(isinstance(other_inst_res.data, (list, tuple)) and len(other_inst_res.data) > 0)
+                        if is_dev_mode():
+                            from services.github_service import DEV_GITHUB_INSTALLATIONS_DB
+                            if any(
+                                other_pid != pid and str(inst_data.get("installation_id")) == str(installation_id)
+                                for other_pid, inst_data in DEV_GITHUB_INSTALLATIONS_DB.items()
+                            ):
+                                has_other = True
+
+                        if not has_other:
+                            app_jwt = generate_app_jwt()
+                            if app_jwt:
+                                async with httpx.AsyncClient() as http_client:
+                                    gh_resp = await http_client.delete(
+                                        f"https://api.github.com/app/installations/{installation_id}",
+                                        headers={
+                                            "Authorization": f"Bearer {app_jwt}",
+                                            "Accept": "application/vnd.github+json",
+                                            "X-GitHub-Api-Version": "2022-11-28",
+                                        },
                                     )
-                        elif getattr(settings, "GITHUB_APP_ID", None):
-                            raise RuntimeError("Failed to generate GitHub App JWT for uninstallation.")
+                                    if gh_resp.status_code != 404 and (gh_resp.status_code < 200 or gh_resp.status_code >= 300):
+                                        raise RuntimeError(
+                                            f"Failed to uninstall GitHub App installation {installation_id}: HTTP {gh_resp.status_code}"
+                                        )
+                            elif getattr(settings, "GITHUB_APP_ID", None):
+                                raise RuntimeError("Failed to generate GitHub App JWT for uninstallation.")
+                        else:
+                            logger.info(
+                                f"Skipping GitHub App uninstallation for installation_id {installation_id} "
+                                f"because it is referenced by other projects."
+                            )
 
                 supabase.table("contributions").delete().eq("project", pid).execute()
                 supabase.table("role_agreements").delete().eq("project_id", pid).execute()
@@ -571,20 +684,30 @@ async def delete_my_account(current_user=Depends(get_current_user)):
                 supabase.table("project_members").delete().eq("project_id", pid).execute()
                 supabase.table("projects").delete().eq("id", pid).execute()
 
-        # Step 2b: Delete every object under "{user_id}/" in the "evidence" storage bucket
+        # Step 2b: Delete every object under "{user_id}/" in the "evidence" storage bucket (capped at 50 iterations)
         storage_bucket = supabase.storage.from_("evidence")
-        while True:
+        objects_still_present = True
+        for _ in range(50):
             list_res = storage_bucket.list(path=str(user_id))
             if not list_res:
+                objects_still_present = False
                 break
             paths_to_remove = [
-                f"{user_id}/{obj["name"]}"
+                f"{user_id}/{obj['name']}"
                 for obj in list_res
                 if isinstance(obj, dict) and obj.get("name")
             ]
             if not paths_to_remove:
+                objects_still_present = False
                 break
             storage_bucket.remove(paths_to_remove)
+
+        if objects_still_present:
+            remaining_objects = storage_bucket.list(path=str(user_id))
+            if remaining_objects:
+                raise RuntimeError(
+                    f"Storage cleanup could not remove all objects for user {user_id} after 50 iterations."
+                )
 
         # Step 2c: Call supabase.auth.admin.delete_user(user_id) with the service-role client
         if not hasattr(supabase, "auth") or not hasattr(supabase.auth, "admin"):
@@ -593,17 +716,36 @@ async def delete_my_account(current_user=Depends(get_current_user)):
         supabase.auth.admin.delete_user(str(user_id))
 
         # Step 4: After deletion, confirm via supabase.auth.admin.get_user_by_id that the user no longer exists
+        still_exists = False
         try:
             check_user = supabase.auth.admin.get_user_by_id(str(user_id))
             if check_user is not None and getattr(check_user, "user", None) is not None:
-                raise RuntimeError(f"User {user_id} still exists in Supabase auth after deletion.")
-        except Exception as e:
-            err_str = str(e).lower()
-            if "not found" in err_str or "404" in err_str:
-                # Confirmed: user no longer exists
-                pass
+                still_exists = True
+        except AuthApiError as e:
+            status_code = getattr(e, "status", None)
+            err_msg = str(getattr(e, "message", "") or str(e)).lower()
+            code = str(getattr(e, "code", "") or "").lower()
+            if status_code == 404 or "not found" in err_msg or "not_found" in code or "404" in err_msg:
+                still_exists = False
             else:
-                raise
+                logger.error(f"AuthApiError verifying user deletion for {user_id}: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to delete account. Please try again.",
+                )
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "not found" in err_msg or "not_found" in err_msg:
+                still_exists = False
+            else:
+                logger.error(f"Unexpected error verifying user deletion for {user_id}: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to delete account. Please try again.",
+                )
+
+        if still_exists:
+            raise RuntimeError(f"User {user_id} still exists in Supabase auth after deletion.")
 
         # Clean up local development mock stores
         if email:

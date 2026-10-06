@@ -77,6 +77,8 @@ def test_startup_check_raises_runtime_error_if_keys_missing_in_production(monkey
     monkeypatch.setattr(settings, "SUPABASE_URL", "")
     monkeypatch.setattr(settings, "SUPABASE_SERVICE_KEY", "")
     monkeypatch.setattr(settings, "SUPABASE_PUBLISHABLE_KEY", "")
+    monkeypatch.setattr(settings, "APP_SECRET_KEY", "prod-app-secret-12345")
+    monkeypatch.setattr(settings, "GITHUB_WEBHOOK_SECRET", "prod-webhook-secret-12345")
 
     with pytest.raises(RuntimeError) as exc_info:
         asyncio.run(startup_check())
@@ -94,6 +96,8 @@ def test_startup_check_succeeds_in_production_when_keys_present(monkeypatch):
     monkeypatch.setattr(settings, "SUPABASE_URL", "https://example.supabase.co")
     monkeypatch.setattr(settings, "SUPABASE_SERVICE_KEY", "service-key-123")
     monkeypatch.setattr(settings, "SUPABASE_PUBLISHABLE_KEY", "pub-key-123")
+    monkeypatch.setattr(settings, "APP_SECRET_KEY", "prod-app-secret-12345")
+    monkeypatch.setattr(settings, "GITHUB_WEBHOOK_SECRET", "prod-webhook-secret-12345")
 
     # Should not raise any exception
     asyncio.run(startup_check())

@@ -37,7 +37,7 @@ def test_signup_endpoint_failure():
             json={"email": "invalid-email", "password": "SecurePassword123"},
         )
         assert response.status_code == 400
-        assert response.json()["detail"] == "Invalid email format"
+        assert response.json()["detail"] == "Request failed. Please try again."
 
 
 def test_login_endpoint_success():
@@ -80,7 +80,7 @@ def test_login_endpoint_invalid_credentials():
             json={"email": "test@example.com", "password": "wrongpassword"},
         )
         assert response.status_code == 401
-        assert response.json()["detail"] == "Invalid login credentials"
+        assert response.json()["detail"] == "Invalid email or password."
 
 
 def test_github_oauth_endpoint_success():
@@ -260,5 +260,130 @@ def test_delete_my_account_authenticated():
         assert data["status"] == "success"
         assert "deleted successfully" in data["message"]
         assert data["user_id"] == "user-delete-123"
+
+
+def test_reset_password_valid_otp_success():
+    """Valid OTP -> update_user_by_id called once with the new password -> 200."""
+    mock_pub = MagicMock()
+    mock_otp_resp = MagicMock()
+    mock_otp_resp.user = MagicMock(id="user-reset-456")
+    mock_otp_resp.session = MagicMock(access_token="temp-recovery-access-token")
+    mock_pub.auth.verify_otp.return_value = mock_otp_resp
+
+    mock_admin = MagicMock()
+    mock_admin.auth.admin.update_user_by_id.return_value = MagicMock()
+    mock_admin.auth.admin.sign_out.return_value = None
+
+    with patch("routers.auth.get_supabase_pub_client", return_value=mock_pub), \
+         patch("routers.auth.get_supabase_client", return_value=mock_admin):
+        response = client.post(
+            "/auth/reset-password",
+            json={
+                "email": "user@example.com",
+                "token": "654321",
+                "new_password": "ValidNewPassword123!",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "Password reset successfully" in data["message"]
+        # update_user_by_id called once with the new password
+        mock_admin.auth.admin.update_user_by_id.assert_called_once_with(
+            "user-reset-456",
+            {"password": "ValidNewPassword123!"},
+        )
+        # Session sign_out called with temporary access token
+        mock_admin.auth.admin.sign_out.assert_called_once_with("temp-recovery-access-token")
+        # Response body never contains access_token
+        assert "access_token" not in data
+        assert "token" not in data
+        assert "refresh_token" not in data
+
+
+def test_reset_password_invalid_otp_fails():
+    """Invalid OTP -> 400 'Invalid or expired code.' and update not called."""
+    mock_pub = MagicMock()
+    mock_pub.auth.verify_otp.side_effect = Exception("Token has expired or is invalid")
+
+    mock_admin = MagicMock()
+
+    with patch("routers.auth.get_supabase_pub_client", return_value=mock_pub), \
+         patch("routers.auth.get_supabase_client", return_value=mock_admin):
+        response = client.post(
+            "/auth/reset-password",
+            json={
+                "email": "user@example.com",
+                "token": "000000",
+                "new_password": "ValidNewPassword123!",
+            },
+        )
+        assert response.status_code == 400
+        data = response.json()
+        assert data["detail"] == "Invalid or expired code."
+        # Update must not be called
+        mock_admin.auth.admin.update_user_by_id.assert_not_called()
+        # Response body never contains access_token
+        assert "access_token" not in data
+
+
+def test_reset_password_update_raises_500():
+    """Valid OTP but update raises -> 500 'Could not reset password. Please try again.'."""
+    mock_pub = MagicMock()
+    mock_otp_resp = MagicMock()
+    mock_otp_resp.user = MagicMock(id="user-reset-456")
+    mock_otp_resp.session = MagicMock(access_token="temp-recovery-access-token")
+    mock_pub.auth.verify_otp.return_value = mock_otp_resp
+
+    mock_admin = MagicMock()
+    mock_admin.auth.admin.update_user_by_id.side_effect = Exception("Supabase Auth API timeout")
+
+    with patch("routers.auth.get_supabase_pub_client", return_value=mock_pub), \
+         patch("routers.auth.get_supabase_client", return_value=mock_admin):
+        response = client.post(
+            "/auth/reset-password",
+            json={
+                "email": "user@example.com",
+                "token": "654321",
+                "new_password": "ValidNewPassword123!",
+            },
+        )
+        assert response.status_code == 500
+        data = response.json()
+        assert data["detail"] == "Could not reset password. Please try again."
+        mock_admin.auth.admin.update_user_by_id.assert_called_once_with(
+            "user-reset-456",
+            {"password": "ValidNewPassword123!"},
+        )
+        # Response body never contains access_token
+        assert "access_token" not in data
+
+
+def test_reset_password_response_body_never_contains_access_token():
+    """Verify response body never contains access_token, refresh_token, or sensitive session data."""
+    mock_pub = MagicMock()
+    mock_otp_resp = MagicMock()
+    mock_otp_resp.user = MagicMock(id="user-789")
+    mock_otp_resp.session = MagicMock(access_token="super-secret-jwt", refresh_token="super-secret-refresh")
+    mock_pub.auth.verify_otp.return_value = mock_otp_resp
+
+    mock_admin = MagicMock()
+    mock_admin.auth.admin.update_user_by_id.return_value = MagicMock()
+
+    with patch("routers.auth.get_supabase_pub_client", return_value=mock_pub), \
+         patch("routers.auth.get_supabase_client", return_value=mock_admin):
+        response = client.post(
+            "/auth/reset-password",
+            json={
+                "email": "privacy@example.com",
+                "token": "112233",
+                "new_password": "NewSafePassword123!",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "access_token" not in data
+        assert "refresh_token" not in data
+        assert "session" not in data
+
 
 

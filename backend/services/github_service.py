@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import httpx
 import jwt
+from fastapi import HTTPException
 
 from core.config import settings
 from core.database import get_supabase_client
@@ -17,7 +18,8 @@ DEV_GITHUB_INSTALLATIONS_DB: dict[str, dict] = {}
 def _get_private_key_content() -> Optional[bytes]:
     """Retrieve the RSA private key bytes from env or file path."""
     if settings.GITHUB_PRIVATE_KEY and settings.GITHUB_PRIVATE_KEY.strip():
-        return settings.GITHUB_PRIVATE_KEY.encode("utf-8")
+        key_str = settings.GITHUB_PRIVATE_KEY.strip().replace("\\n", "\n")
+        return key_str.encode("utf-8")
 
     key_path = settings.GITHUB_PRIVATE_KEY_PATH
     if not key_path:
@@ -217,26 +219,43 @@ def store_installation(
     return record
 
 
-def get_any_active_installation_id() -> Optional[str]:
-    """Find any active installation ID from existing project links or DB."""
+def get_installation_id_for_lead(user_id: str) -> Optional[str]:
+    """Find active installation ID from projects led by this user (created_by == user_id)."""
+    if not user_id:
+        return None
+
     try:
         supabase = get_supabase_client()
-        res = (
-            supabase.table("github_installations")
-            .select("installation_id")
-            .order("connected_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if res.data and res.data[0].get("installation_id"):
-            return str(res.data[0]["installation_id"])
-    except Exception:
-        pass
+        p_res = supabase.table("projects").select("id").eq("created_by", user_id).execute()
+        lead_pids = [p["id"] for p in (p_res.data or []) if p.get("id")]
+        if lead_pids:
+            inst_res = (
+                supabase.table("github_installations")
+                .select("installation_id")
+                .in_("project_id", lead_pids)
+                .order("connected_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if inst_res.data and inst_res.data[0].get("installation_id"):
+                return str(inst_res.data[0]["installation_id"])
+    except Exception as e:
+        logger.debug(f"Supabase get_installation_id_for_lead failed: {e}")
 
-    for inst in DEV_GITHUB_INSTALLATIONS_DB.values():
-        if inst.get("installation_id"):
-            return str(inst["installation_id"])
+    from core.database import is_dev_mode
+    if is_dev_mode():
+        from routers.projects import DEV_PROJECTS_DB
+        dev_lead_pids = {pid for pid, p in DEV_PROJECTS_DB.items() if p.get("created_by") == user_id}
+        for pid in dev_lead_pids:
+            inst = DEV_GITHUB_INSTALLATIONS_DB.get(pid)
+            if inst and inst.get("installation_id"):
+                return str(inst["installation_id"])
 
+    return None
+
+
+def get_any_active_installation_id() -> Optional[str]:
+    """Deprecated: cross-team fallbacks stopped. Use get_installation_id_for_lead(user_id)."""
     return None
 
 
@@ -291,31 +310,37 @@ async def fetch_repository_commits(
     """Fetch recent commits from GitHub repository with optional branch/ref and since filtering."""
     token = await get_installation_access_token(installation_id)
     if not token:
-        # Return structured mock data for local testing
-        return [
-            {
-                "sha": "7f8b9a1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a",
-                "message": "feat(core): initialize GitHub App integration & repository tracking",
-                "author": "BuildCrew Developer",
-                "author_avatar": "https://avatars.githubusercontent.com/u/9919?v=4",
-                "date": datetime.now(timezone.utc).isoformat(),
-                "url": f"https://github.com/{repo_full_name}/commit/7f8b9a1",
-                "author_email": "dev@buildcrew.io",
-                "author_login": "buildcrew-dev",
-                "author_name": "BuildCrew Developer",
-            },
-            {
-                "sha": "3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b",
-                "message": "chore: configure multi-endpoint networking and fallback resilience",
-                "author": "BuildCrew Team",
-                "author_avatar": "https://avatars.githubusercontent.com/u/9919?v=4",
-                "date": datetime.now(timezone.utc).isoformat(),
-                "url": f"https://github.com/{repo_full_name}/commit/3a2b1c0",
-                "author_email": "team@buildcrew.io",
-                "author_login": "buildcrew-team",
-                "author_name": "BuildCrew Team",
-            },
-        ]
+        from core.database import is_dev_mode
+        if is_dev_mode():
+            # Return structured mock data for local testing in dev mode only
+            return [
+                {
+                    "sha": "7f8b9a1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a",
+                    "message": "feat(core): initialize GitHub App integration & repository tracking",
+                    "author": "BuildCrew Developer",
+                    "author_avatar": "https://avatars.githubusercontent.com/u/9919?v=4",
+                    "date": datetime.now(timezone.utc).isoformat(),
+                    "url": f"https://github.com/{repo_full_name}/commit/7f8b9a1",
+                    "author_email": "dev@buildcrew.io",
+                    "author_login": "buildcrew-dev",
+                    "author_name": "BuildCrew Developer",
+                },
+                {
+                    "sha": "3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b",
+                    "message": "chore: configure multi-endpoint networking and fallback resilience",
+                    "author": "BuildCrew Team",
+                    "author_avatar": "https://avatars.githubusercontent.com/u/9919?v=4",
+                    "date": datetime.now(timezone.utc).isoformat(),
+                    "url": f"https://github.com/{repo_full_name}/commit/3a2b1c0",
+                    "author_email": "team@buildcrew.io",
+                    "author_login": "buildcrew-team",
+                    "author_name": "BuildCrew Team",
+                },
+            ]
+        raise HTTPException(
+            status_code=502,
+            detail="GitHub is unavailable. Please try again.",
+        )
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -360,8 +385,22 @@ async def fetch_repository_commits(
                 logger.warning(
                     f"GitHub API returned {resp.status_code} fetching commits for {repo_full_name}: {resp.text}"
                 )
+                from core.database import is_dev_mode
+                if not is_dev_mode():
+                    raise HTTPException(
+                        status_code=502,
+                        detail="GitHub is unavailable. Please try again.",
+                    )
                 return []
+    except HTTPException:
+        raise
     except Exception as e:
+        from core.database import is_dev_mode
+        if not is_dev_mode():
+            raise HTTPException(
+                status_code=502,
+                detail="GitHub is unavailable. Please try again.",
+            )
         logger.error(f"Error fetching commits for {repo_full_name}: {e}")
         return []
 
@@ -376,23 +415,29 @@ async def fetch_repository_pulls(
     """Fetch pull requests for repository with author, branch, and status details."""
     token = await get_installation_access_token(installation_id)
     if not token:
-        return [
-            {
-                "id": 101,
-                "number": 1,
-                "title": "feat: Add GitHub App Integration for BuildCrew",
-                "state": "open",
-                "user": "buildcrew-dev",
-                "user_avatar": "https://avatars.githubusercontent.com/u/9919?v=4",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "merged_at": None,
-                "head_branch": "feature/github-app",
-                "base_branch": "main",
-                "url": f"https://github.com/{repo_full_name}/pull/1",
-                "draft": False,
-                "labels": [{"name": "enhancement", "color": "a2eeef"}],
-            }
-        ]
+        from core.database import is_dev_mode
+        if is_dev_mode():
+            return [
+                {
+                    "id": 101,
+                    "number": 1,
+                    "title": "feat: Add GitHub App Integration for BuildCrew",
+                    "state": "open",
+                    "user": "buildcrew-dev",
+                    "user_avatar": "https://avatars.githubusercontent.com/u/9919?v=4",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "merged_at": None,
+                    "head_branch": "feature/github-app",
+                    "base_branch": "main",
+                    "url": f"https://github.com/{repo_full_name}/pull/1",
+                    "draft": False,
+                    "labels": [{"name": "enhancement", "color": "a2eeef"}],
+                }
+            ]
+        raise HTTPException(
+            status_code=502,
+            detail="GitHub is unavailable. Please try again.",
+        )
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -428,8 +473,22 @@ async def fetch_repository_pulls(
                         "labels": labels,
                     })
                 return pulls
+            from core.database import is_dev_mode
+            if not is_dev_mode():
+                raise HTTPException(
+                    status_code=502,
+                    detail="GitHub is unavailable. Please try again.",
+                )
             return []
+    except HTTPException:
+        raise
     except Exception as e:
+        from core.database import is_dev_mode
+        if not is_dev_mode():
+            raise HTTPException(
+                status_code=502,
+                detail="GitHub is unavailable. Please try again.",
+            )
         logger.error(f"Error fetching pull requests for {repo_full_name}: {e}")
         return []
 
@@ -444,22 +503,28 @@ async def fetch_repository_issues(
     """Fetch issues for repository (excluding pull requests)."""
     token = await get_installation_access_token(installation_id)
     if not token:
-        return [
-            {
-                "id": 201,
-                "number": 1,
-                "title": "Set up CI/CD pipeline and automated test matrix",
-                "state": "open",
-                "user": "lead-architect",
-                "user_avatar": "https://avatars.githubusercontent.com/u/9919?v=4",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "closed_at": None,
-                "url": f"https://github.com/{repo_full_name}/issues/1",
-                "comments": 2,
-                "labels": [{"name": "devops", "color": "0075ca"}],
-                "assignees": ["lead-architect"],
-            }
-        ]
+        from core.database import is_dev_mode
+        if is_dev_mode():
+            return [
+                {
+                    "id": 201,
+                    "number": 1,
+                    "title": "Set up CI/CD pipeline and automated test matrix",
+                    "state": "open",
+                    "user": "lead-architect",
+                    "user_avatar": "https://avatars.githubusercontent.com/u/9919?v=4",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "closed_at": None,
+                    "url": f"https://github.com/{repo_full_name}/issues/1",
+                    "comments": 2,
+                    "labels": [{"name": "devops", "color": "0075ca"}],
+                    "assignees": ["lead-architect"],
+                }
+            ]
+        raise HTTPException(
+            status_code=502,
+            detail="GitHub is unavailable. Please try again.",
+        )
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -500,7 +565,89 @@ async def fetch_repository_issues(
                         "assignees": assignees,
                     })
                 return issues
+            from core.database import is_dev_mode
+            if not is_dev_mode():
+                raise HTTPException(
+                    status_code=502,
+                    detail="GitHub is unavailable. Please try again.",
+                )
             return []
+    except HTTPException:
+        raise
     except Exception as e:
+        from core.database import is_dev_mode
+        if not is_dev_mode():
+            raise HTTPException(
+                status_code=502,
+                detail="GitHub is unavailable. Please try again.",
+            )
         logger.error(f"Error fetching issues for {repo_full_name}: {e}")
         return []
+
+
+async def exchange_code_for_user_token(code: str) -> Optional[str]:
+    """
+    Exchange OAuth temporary code for a user access token via GitHub OAuth token endpoint:
+    POST https://github.com/login/oauth/access_token
+    """
+    client_id = settings.GITHUB_CLIENT_ID
+    client_secret = settings.GITHUB_CLIENT_SECRET
+    if not client_id or not client_secret:
+        logger.error("GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET is missing for OAuth code exchange.")
+        return None
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                "https://github.com/login/oauth/access_token",
+                headers={"Accept": "application/json"},
+                data={
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "code": code,
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                token = data.get("access_token")
+                if not token:
+                    logger.warning(f"No access_token in GitHub OAuth response: {data}")
+                return token
+            logger.warning(f"GitHub OAuth token exchange failed with status {resp.status_code}: {resp.text}")
+            return None
+    except Exception as e:
+        logger.error(f"Error exchanging GitHub OAuth code: {e}")
+        return None
+
+
+async def get_user_installations(user_token: str) -> List[Dict[str, Any]]:
+    """
+    Fetch the list of GitHub App installations accessible to the authenticated user:
+    GET https://api.github.com/user/installations
+    """
+    if not user_token:
+        return []
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://api.github.com/user/installations",
+                headers={
+                    "Authorization": f"Bearer {user_token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, dict):
+                    return data.get("installations", [])
+                if isinstance(data, list):
+                    return data
+                return []
+            logger.warning(f"GitHub user installations request failed with status {resp.status_code}: {resp.text}")
+            return []
+    except Exception as e:
+        logger.error(f"Error fetching user installations: {e}")
+        return []
+

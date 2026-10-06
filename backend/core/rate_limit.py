@@ -20,15 +20,24 @@ from slowapi.errors import RateLimitExceeded
 
 
 def get_real_client_ip(request: Request) -> str:
-    """Extract real client IP address, respecting X-Forwarded-For from reverse proxies."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        parts = [p.strip() for p in forwarded.split(",") if p.strip()]
-        if parts:
-            return parts[0]
-    if request.client and request.client.host:
-        return request.client.host
-    return "127.0.0.1"
+    """
+    Extract real client IP address.
+    In development use request.client.host.
+    Otherwise read ONLY the X-Real-IP header (Railway overwrites it with the real client IP);
+    if it is missing return the literal "unknown".
+    Never read X-Forwarded-For anywhere.
+    """
+    from core.config import settings
+
+    if getattr(settings, "ENVIRONMENT", "").lower() == "development":
+        if request.client and request.client.host:
+            return request.client.host
+        return "127.0.0.1"
+
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip and real_ip.strip():
+        return real_ip.strip()
+    return "unknown"
 
 
 def get_ip_key(request: Request) -> str:
@@ -36,16 +45,28 @@ def get_ip_key(request: Request) -> str:
     return get_real_client_ip(request)
 
 
-def get_ip_email_key(request: Request) -> str:
-    """Rate limit key combining client IP and lowercased email address."""
-    ip = get_real_client_ip(request)
+def get_email_key(request: Request) -> str:
+    """
+    Rate limit key based on the lowercased email from the cached JSON body:
+    "email:<lowercased email from the cached JSON body>",
+    falling back to the IP key when there is no email.
+    """
     email = ""
-
-    # Attempt to read cached request JSON body from request.state
     cached_body = getattr(request.state, "_cached_body", None)
+    if cached_body is None:
+        cached_body = getattr(request, "_body", None)
+
     if cached_body:
         try:
-            payload = json.loads(cached_body.decode("utf-8"))
+            if isinstance(cached_body, bytes):
+                payload = json.loads(cached_body.decode("utf-8"))
+            elif isinstance(cached_body, str):
+                payload = json.loads(cached_body)
+            elif isinstance(cached_body, dict):
+                payload = cached_body
+            else:
+                payload = {}
+
             if isinstance(payload, dict):
                 raw_email = payload.get("email")
                 if raw_email:
@@ -53,13 +74,26 @@ def get_ip_email_key(request: Request) -> str:
         except Exception:
             pass
 
-    # Fallback to query params if email was passed in query
-    if not email:
-        raw_email = request.query_params.get("email")
-        if raw_email:
-            email = str(raw_email).strip().lower()
+    if email:
+        return f"email:{email}"
+    return get_ip_key(request)
 
-    return f"{ip}:{email}" if email else ip
+
+def get_global_key(request: Request) -> str:
+    """Constant rate limit key for global/endpoint-wide rate limiting."""
+    return "global"
+
+
+get_constant_key = get_global_key
+
+
+def get_ip_email_key(request: Request) -> str:
+    """Legacy rate limit key combining client IP and lowercased email address."""
+    ip = get_real_client_ip(request)
+    email_key = get_email_key(request)
+    if email_key.startswith("email:"):
+        return f"{ip}:{email_key[6:]}"
+    return ip
 
 
 def _extract_user_id_from_jwt(token: str) -> Optional[str]:

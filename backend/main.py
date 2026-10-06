@@ -90,16 +90,26 @@ async def gate_docs_middleware(request: Request, call_next):
 async def startup_check():
     from core.config import settings
     if settings.ENVIRONMENT == "production":
-        missing = []
+        missing_supabase = []
         if not getattr(settings, "SUPABASE_URL", ""):
-            missing.append("SUPABASE_URL")
+            missing_supabase.append("SUPABASE_URL")
         if not getattr(settings, "SUPABASE_SERVICE_KEY", ""):
-            missing.append("SUPABASE_SERVICE_KEY")
+            missing_supabase.append("SUPABASE_SERVICE_KEY")
         if not getattr(settings, "SUPABASE_PUBLISHABLE_KEY", ""):
-            missing.append("SUPABASE_PUBLISHABLE_KEY")
-        if missing:
+            missing_supabase.append("SUPABASE_PUBLISHABLE_KEY")
+        if missing_supabase:
             raise RuntimeError(
-                f"Missing required Supabase environment variables in production: {', '.join(missing)}"
+                f"Missing required Supabase environment variables in production: {', '.join(missing_supabase)}"
+            )
+
+        missing_app = []
+        if not getattr(settings, "APP_SECRET_KEY", ""):
+            missing_app.append("APP_SECRET_KEY")
+        if not getattr(settings, "GITHUB_WEBHOOK_SECRET", ""):
+            missing_app.append("GITHUB_WEBHOOK_SECRET")
+        if missing_app:
+            raise RuntimeError(
+                f"Missing required environment variables in production: {', '.join(missing_app)}"
             )
     else:
         supabase_url = getattr(settings, "SUPABASE_URL", "")
@@ -242,7 +252,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,
-        proxy_headers=True,
-        forwarded_allow_ips="*",
     )
 

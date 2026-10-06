@@ -36,7 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _pushNotificationsEnabled = false;
 
   static const String _privacyPolicyUrl =
-      'https://github.com/abhijithbhat/BuildCrew/blob/main/PRIVACY.md';
+      'https://abhijithbhat.github.io/BuildCrew/privacy.html';
 
   @override
   void initState() {
