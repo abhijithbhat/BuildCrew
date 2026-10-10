@@ -1,5 +1,5 @@
 import time
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
@@ -14,7 +14,7 @@ from routers.projects import router as projects_router
 from core.config import settings
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
-from core.rate_limit import limiter, rate_limit_exceeded_handler
+from core.rate_limit import limiter, rate_limit_exceeded_handler, get_real_client_ip
 
 is_prod = settings.ENVIRONMENT == "production"
 
@@ -124,10 +124,11 @@ async def startup_check():
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.time()
+    client_ip = get_real_client_ip(request)
     response = await call_next(request)
     duration_ms = (time.time() - start_time) * 1000
     logger.info(
-        f"{request.method} {request.url.path} -> {response.status_code} ({duration_ms:.2f}ms)"
+        f"{client_ip} - {request.method} {request.url.path} -> {response.status_code} ({duration_ms:.2f}ms)"
     )
     return response
 
@@ -143,6 +144,8 @@ app.include_router(contributions_router)
 from typing import Optional
 from routers.contributions import get_project_passport, get_user_passport
 from schemas.contribution import ProjectPassportResponse, UserPassportResponse
+
+from core.templates import should_render_html, render_branded_error_page, templates
 
 @app.get(
     "/passport/{user_id}/{project_id}",
@@ -167,15 +170,21 @@ async def get_project_passport_endpoint(
     for a specific project. Returns ONLY published contributions, strictly excluding
     any unconfirmed, private, or disputed items.
     """
-    passport_data = await get_project_passport(user_id, project_id)
-
-    # If client specifically accepts text/html and passport.html exists, render Jinja2 template
-    import os
-    from core.templates import TEMPLATES_DIR, templates
-    template_path = os.path.join(TEMPLATES_DIR, "passport.html")
     accept_header = request.headers.get("accept", "")
+    is_html = should_render_html(accept_header, format)
 
-    if format != "json" and "text/html" in accept_header and os.path.exists(template_path):
+    if is_html:
+        try:
+            passport_data = await get_project_passport(user_id, project_id)
+        except HTTPException as exc:
+            return render_branded_error_page(exc.status_code, exc.detail)
+        except Exception as exc:
+            logger.exception(f"Unhandled error fetching passport: {exc}")
+            return render_branded_error_page(status.HTTP_503_SERVICE_UNAVAILABLE, "Temporarily unavailable, try again shortly")
+
+        base_url = str(request.base_url).rstrip("/")
+        og_image_url = passport_data.avatar_url or f"{base_url}/static/og-default.png"
+
         return templates.TemplateResponse(
             request=request,
             name="passport.html",
@@ -183,10 +192,11 @@ async def get_project_passport_endpoint(
                 "passport": passport_data.model_dump(),
                 "user_id": user_id,
                 "project_id": project_id,
+                "og_image_url": og_image_url,
             },
         )
 
-    return passport_data
+    return await get_project_passport(user_id, project_id)
 
 
 @app.get(
@@ -241,6 +251,14 @@ app.mount(
     "/static/evidence",
     StaticFiles(directory=uploads_dir),
     name="static_evidence",
+)
+
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+os.makedirs(static_dir, exist_ok=True)
+app.mount(
+    "/static",
+    StaticFiles(directory=static_dir),
+    name="static",
 )
 
 

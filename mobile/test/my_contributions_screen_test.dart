@@ -55,14 +55,14 @@ class FakeMyContributionsProjectService extends ProjectService {
   @override
   Future<List<ConfirmationRequest>> requestConfirmation({
     required String contributionId,
-    required List<String> reviewerIds,
+    List<String>? reviewerIds,
   }) async {
     if (shouldThrow) {
       throw 'Failed to request confirmation.';
     }
     lastRequestedContributionId = contributionId;
     lastRequestedReviewerIds = reviewerIds;
-    return reviewerIds
+    return (reviewerIds ?? ['all'])
         .map((rId) => ConfirmationRequest(
               id: 'req-$rId',
               contributionId: contributionId,
@@ -396,18 +396,25 @@ void main() {
       expect(find.text('Sara Designer'), findsOneWidget);
       expect(find.text('Bob DevOps'), findsOneWidget);
 
-      // Delayed validation test: submit button without selection shows error banner
+      // By default all teammates are preselected and CTA shows 'Ask the whole team (2)'
       final submitBtn = find.byKey(const Key('submit_request_confirmation_btn'));
       expect(submitBtn, findsOneWidget);
-      await tester.tap(submitBtn);
+      expect(find.text('Ask the whole team (2)'), findsOneWidget);
+
+      // Tap 'Deselect All' to test validation
+      await tester.tap(find.text('Deselect All'));
       await tester.pumpAndSettle();
 
+      // Submit without selection shows error banner
+      await tester.tap(submitBtn);
+      await tester.pumpAndSettle();
       expect(find.text('Please select at least one teammate to request confirmation.'), findsOneWidget);
 
       // Select Sara Designer
       final saraCheckbox = find.byKey(const Key('reviewer_checkbox_user-sara'));
       await tester.tap(saraCheckbox);
       await tester.pumpAndSettle();
+      expect(find.text('Ask 1 teammate'), findsOneWidget);
 
       // Now tap submit button
       await tester.tap(submitBtn);

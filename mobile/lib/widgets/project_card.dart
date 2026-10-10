@@ -152,6 +152,32 @@ class ProjectCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (project.isArchived) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.grey.shade400,
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          'Archived',
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
 
@@ -199,7 +225,7 @@ class ProjectCard extends StatelessWidget {
                     ),
                     Row(
                       children: [
-                        if (onInviteTap != null)
+                        if (onInviteTap != null && !project.isArchived)
                           InkWell(
                             onTap: onInviteTap,
                             borderRadius: BorderRadius.circular(8),

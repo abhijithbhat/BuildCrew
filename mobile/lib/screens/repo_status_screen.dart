@@ -310,20 +310,22 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                         final fullRepoName = r['full_name'] as String? ?? '';
                         final isSelected = fullRepoName == currentRepo;
 
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? AppColors.champagne
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppColors.emeraldInk
-                                  : AppColors.inputBorder,
-                              width: isSelected ? 1.5 : 1,
+                        return Material(
+                          color: isSelected
+                              ? AppColors.champagne
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.emeraldInk
+                                    : AppColors.inputBorder,
+                                width: isSelected ? 1.5 : 1,
+                              ),
                             ),
-                          ),
-                          child: ListTile(
+                            child: ListTile(
                             leading: Icon(
                               Icons.code_rounded,
                               color: isSelected ? AppColors.emeraldInk : AppColors.bodyText.withValues(alpha: 0.5),
@@ -344,8 +346,9 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                               await _switchRepository(projectId, fullRepoName);
                             },
                           ),
-                        );
-                      },
+                        ),
+                      );
+                    },
                     ),
                   ),
                 ],
@@ -735,6 +738,36 @@ class _RepoStatusScreenState extends State<RepoStatusScreen> {
                   ),
                 ),
               ),
+              if (isOwner) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isLoading
+                        ? null
+                        : () => _showRepositorySelectorDialog(projectId),
+                    icon: const Icon(Icons.swap_horiz_rounded,
+                        color: AppColors.champagne, size: 18),
+                    label: const Text(
+                      'Change repository',
+                      style: TextStyle(
+                        color: AppColors.champagne,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.emeraldInk,
+                      foregroundColor: AppColors.champagne,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

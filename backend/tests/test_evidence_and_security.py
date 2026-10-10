@@ -172,7 +172,7 @@ def test_passport_html_renders_evidence_anchor_only_for_http_or_https():
     }
     rendered_valid = templates.get_template("passport.html").render(context_valid)
     assert 'href="https://github.com/buildcrew/contracts/commit/abc"' in rendered_valid
-    assert "View Verified Deliverable Evidence" in rendered_valid
+    assert ("View on GitHub" in rendered_valid or "Evidence link (provided by contributor)" in rendered_valid)
 
     # Context with a non-http link (e.g. javascript or ftp)
     context_invalid = {

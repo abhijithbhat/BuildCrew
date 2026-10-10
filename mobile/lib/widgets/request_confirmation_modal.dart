@@ -87,6 +87,8 @@ class _RequestConfirmationModalContentState
       if (!mounted) return;
       setState(() {
         _teammates = parsed;
+        _selectedReviewerIds.clear();
+        _selectedReviewerIds.addAll(parsed.map((r) => r.userId));
         _isLoading = false;
       });
     } catch (e) {
@@ -113,9 +115,11 @@ class _RequestConfirmationModalContentState
     });
 
     try {
+      final isAllSelected =
+          _selectedReviewerIds.length == _teammates.length;
       await widget.projectService.requestConfirmation(
         contributionId: widget.contribution.id,
-        reviewerIds: _selectedReviewerIds.toList(),
+        reviewerIds: isAllSelected ? null : _selectedReviewerIds.toList(),
       );
 
       if (!mounted) return;
@@ -517,7 +521,10 @@ class _RequestConfirmationModalContentState
                   label: Text(
                     _isSubmitting
                         ? 'Sending Request...'
-                        : 'Send Confirmation Request (${_selectedReviewerIds.length})',
+                        : (_selectedReviewerIds.length == _teammates.length &&
+                                _teammates.isNotEmpty
+                            ? 'Ask the whole team (${_teammates.length})'
+                            : 'Ask ${_selectedReviewerIds.length} teammate${_selectedReviewerIds.length == 1 ? "" : "s"}'),
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,

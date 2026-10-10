@@ -17,12 +17,13 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
+from core.logging import logger
 
 
 def get_real_client_ip(request: Request) -> str:
     """
     Extract real client IP address.
-    In development use request.client.host.
+    In development use request.client.host (or X-Real-IP if provided).
     Otherwise read ONLY the X-Real-IP header (Railway overwrites it with the real client IP);
     if it is missing return the literal "unknown".
     Never read X-Forwarded-For anywhere.
@@ -30,6 +31,9 @@ def get_real_client_ip(request: Request) -> str:
     from core.config import settings
 
     if getattr(settings, "ENVIRONMENT", "").lower() == "development":
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip and real_ip.strip():
+            return real_ip.strip()
         if request.client and request.client.host:
             return request.client.host
         return "127.0.0.1"
@@ -155,6 +159,10 @@ limiter = Limiter(
 
 def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
     """Custom exception handler returning HTTP 429 with Retry-After header."""
+    client_ip = get_real_client_ip(request)
+    logger.warning(
+        f"Rate limit exceeded for IP {client_ip} on {request.method} {request.url.path}: {exc.detail}"
+    )
     retry_after = 60
     view_rate_limit = getattr(request.state, "view_rate_limit", None)
     if view_rate_limit and hasattr(limiter, "limiter"):

@@ -36,12 +36,16 @@ class FakePendingConfirmationsProjectService extends ProjectService {
     );
   }
 
+  String? lastDisputeReason;
+  String? lastWithdrawnId;
+
   @override
-  Future<Contribution> disputeContribution(String contributionId) async {
+  Future<Contribution> disputeContribution(String contributionId, {String? reason}) async {
     if (shouldThrow) {
       throw 'Failed to dispute contribution.';
     }
     lastDisputedId = contributionId;
+    lastDisputeReason = reason;
     mockRequests.removeWhere((r) => r.contributionId == contributionId);
     return Contribution(
       id: contributionId,
@@ -50,6 +54,25 @@ class FakePendingConfirmationsProjectService extends ProjectService {
       title: 'Disputed Deliverable',
       verificationStatus: 'needs-review',
       disputeState: 'disputed',
+      visibility: 'private',
+      createdAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<Contribution> withdrawDispute(String contributionId) async {
+    if (shouldThrow) {
+      throw 'Failed to withdraw dispute.';
+    }
+    lastWithdrawnId = contributionId;
+    mockRequests.removeWhere((r) => r.contributionId == contributionId);
+    return Contribution(
+      id: contributionId,
+      contributor: 'user-teammate',
+      project: 'proj-123',
+      title: 'Withdrawn Deliverable',
+      verificationStatus: 'pending',
+      disputeState: 'none',
       visibility: 'private',
       createdAt: DateTime.now(),
     );
@@ -194,24 +217,81 @@ void main() {
       await tester.tap(disputeBtn);
       await tester.pumpAndSettle();
 
-      // Verify dispute dialog is open
-      expect(find.text('Dispute Deliverable?'), findsOneWidget);
+      // Verify dispute bottom sheet is open
+      expect(find.text('Dispute Deliverable'), findsOneWidget);
       expect(
-        find.textContaining('Its status will become "Needs Review"'),
+        find.textContaining('flags this item as Needs Review'),
         findsOneWidget,
       );
+
+      // Enter optional reason
+      await tester.enterText(
+        find.byKey(const Key('dispute_reason_field')),
+        'Incomplete pipeline steps',
+      );
+      await tester.pumpAndSettle();
 
       // Tap confirm dispute button
       await tester.tap(find.byKey(const Key('confirm_dispute_dialog_btn')));
       await tester.pumpAndSettle();
 
       expect(fakeProjectService.lastDisputedId, 'contrib-2');
+      expect(fakeProjectService.lastDisputeReason, 'Incomplete pipeline steps');
       expect(
         find.text('Disputed "CI/CD GitHub Actions Pipeline". Set to Needs Review.'),
         findsOneWidget,
       );
       expect(find.text('CI/CD GitHub Actions Pipeline'), findsNothing);
       expect(find.text('Figma Mobile App Mockups'), findsOneWidget);
+    });
+
+    testWidgets('shows confirm disclaimer note on pending items', (tester) async {
+      fakeProjectService.mockRequests = List.from(sampleRequests);
+
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Your name will appear next to this item if the author publishes it.'),
+        findsWidgets,
+      );
+    });
+
+    testWidgets('shows Withdraw my dispute on disputed items and withdraws dispute', (tester) async {
+      fakeProjectService.mockRequests = [
+        ConfirmationRequest(
+          id: 'req-disputed',
+          contributionId: 'contrib-disputed',
+          projectId: 'proj-mobile',
+          requestedBy: 'user-sara',
+          reviewerId: 'user-alex',
+          status: 'disputed',
+          contributionTitle: 'Disputed Architecture Doc',
+          projectName: 'BuildCrew Mobile',
+          contributorName: 'Sara Designer',
+          category: 'documentation',
+          description: 'Software architecture design document.',
+          createdAt: DateTime.parse('2026-08-25T10:00:00Z'),
+        ),
+      ];
+
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      expect(find.text('You disputed this deliverable.'), findsOneWidget);
+      final withdrawBtn = find.byKey(const Key('withdraw_dispute_btn_req-disputed'));
+      expect(withdrawBtn, findsOneWidget);
+      expect(find.text('Withdraw my dispute'), findsOneWidget);
+
+      await tester.tap(withdrawBtn);
+      await tester.pumpAndSettle();
+
+      expect(fakeProjectService.lastWithdrawnId, 'contrib-disputed');
+      expect(
+        find.text('Withdrew dispute for "Disputed Architecture Doc".'),
+        findsOneWidget,
+      );
+      expect(find.text('Disputed Architecture Doc'), findsNothing);
     });
 
     testWidgets('displays error state and retries on load failure', (tester) async {

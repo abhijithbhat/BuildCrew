@@ -47,6 +47,83 @@ def _render_error_html(title: str, message: str, status_code: int = 400) -> HTML
     return HTMLResponse(content=content, status_code=status_code)
 
 
+def _render_branded_page(title: str, message: str, status_code: int = 200, badge: str = "BuildCrew") -> HTMLResponse:
+    """Render a styled HTML confirmation/update page with emerald (#064E3B) and champagne (#F8E7C9) aesthetic."""
+    safe_title = html.escape(str(title))
+    safe_message = html.escape(str(message))
+    safe_badge = html.escape(str(badge))
+    content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{safe_title} — BuildCrew</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        body {{
+            background-color: #064E3B;
+            color: #F8E7C9;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }}
+        .card {{
+            background: rgba(4, 56, 42, 0.95);
+            border: 1px solid rgba(248, 231, 201, 0.35);
+            border-radius: 16px;
+            padding: 44px 32px;
+            max-width: 460px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+        }}
+        .badge {{
+            display: inline-block;
+            background: #F8E7C9;
+            color: #064E3B;
+            font-weight: 700;
+            font-size: 13px;
+            padding: 5px 14px;
+            border-radius: 9999px;
+            margin-bottom: 20px;
+            letter-spacing: 0.05em;
+        }}
+        h1 {{
+            color: #F8E7C9;
+            font-size: 24px;
+            font-weight: 700;
+            line-height: 1.3;
+            margin-bottom: 14px;
+        }}
+        p {{
+            color: rgba(248, 231, 201, 0.85);
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }}
+        .brand-link {{
+            color: #F8E7C9;
+            font-size: 13px;
+            text-decoration: none;
+            opacity: 0.75;
+        }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="badge">{safe_badge}</div>
+        <h1>{safe_title}</h1>
+        <p>{safe_message}</p>
+        <span class="brand-link">BuildCrew GitHub Integration</span>
+    </div>
+</body>
+</html>"""
+    return HTMLResponse(content=content, status_code=status_code)
+
+
 def _check_user_project_access(project_id: str, user_id: str, lead_only: bool = False) -> Dict[str, Any]:
     """Helper to check if user has access to a project."""
     # Check Supabase first
@@ -212,9 +289,9 @@ async def github_app_callback(
     state: Optional[str] = Query(None),
     code: Optional[str] = Query(None),
 ):
-    """Callback endpoint for GitHub App installation redirect."""
+    state_present = bool(state and str(state).strip())
     logger.info(
-        f"GitHub App Callback received at {request.url.path}: installation_id={installation_id}, action={setup_action}, state={state}"
+        f"GitHub App Callback received at {request.url.path}: installation_id={installation_id}, action={setup_action}, state_present={state_present}"
     )
 
     if not is_dev_mode():
@@ -223,6 +300,18 @@ async def github_app_callback(
         # Missing, invalid or expired state -> HTTP 400 with a generic HTML page and NO database write.
         if not state or not str(state).strip():
             logger.warning("Missing state parameter in GitHub App callback in production mode.")
+            if installation_id:
+                if "application/json" in request.headers.get("accept", ""):
+                    return JSONResponse(
+                        status_code=status.HTTP_200_OK,
+                        content={"status": "updated", "message": "GitHub updated. Open BuildCrew and tap Connect again."},
+                    )
+                return _render_branded_page(
+                    title="GitHub Updated",
+                    message="GitHub updated. Open BuildCrew and tap Connect again.",
+                    status_code=200,
+                    badge="GitHub App",
+                )
             return _render_error_html("Invalid Request", "Missing state parameter. Please initiate connection from BuildCrew.", 400)
 
         secret = settings.APP_SECRET_KEY
@@ -235,6 +324,24 @@ async def github_app_callback(
         except jwt.ExpiredSignatureError:
             logger.warning("Expired state token received in GitHub App callback.")
             return _render_error_html("Session Expired", "The GitHub installation session has expired. Please try connecting again.", 400)
+        except jwt.InvalidSignatureError:
+            logger.warning("Invalid signature in state token received in GitHub App callback.")
+            return _render_error_html("Invalid State", "Invalid state token. Please try connecting again.", 400)
+        except jwt.DecodeError:
+            if installation_id:
+                logger.info("Invalid non-JWT state token with installation_id present in production callback.")
+                if "application/json" in request.headers.get("accept", ""):
+                    return JSONResponse(
+                        status_code=status.HTTP_200_OK,
+                        content={"status": "updated", "message": "GitHub updated. Open BuildCrew and tap Connect again."},
+                    )
+                return _render_branded_page(
+                    title="GitHub Updated",
+                    message="GitHub updated. Open BuildCrew and tap Connect again.",
+                    status_code=200,
+                    badge="GitHub App",
+                )
+            return _render_error_html("Invalid State", "Invalid state token. Please try connecting again.", 400)
         except Exception as e:
             logger.warning(f"Invalid state token received in GitHub App callback: {e}")
             return _render_error_html("Invalid State", "Invalid state token. Please try connecting again.", 400)
@@ -417,92 +524,15 @@ async def github_app_callback(
             }
         )
 
-    # Sleek HTML confirmation page with HTML-escaped interpolated values
-    safe_title = html.escape("GitHub Connected!")
+    # Branded emerald (#064E3B) and champagne (#F8E7C9) confirmation page
     safe_repo = html.escape(str(repo_linked or ""))
-    safe_pid = html.escape(str(project_id or ""))
-    safe_inst = html.escape(str(installation_id or ""))
-
-    html_content = f"""<!DOCTYPE html>
-<html>
-<head>
-    <title>BuildCrew - {safe_title}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #0B0F19 0%, #111827 100%);
-            color: #FFFFFF;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            padding: 1rem;
-        }}
-        .card {{
-            background: #1E293B;
-            padding: 2.5rem 2rem;
-            border-radius: 20px;
-            text-align: center;
-            max-width: 440px;
-            width: 100%;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }}
-        .icon {{
-            font-size: 3.5rem;
-            margin-bottom: 1rem;
-            animation: pop 0.4s ease-out;
-        }}
-        h1 {{
-            font-size: 1.6rem;
-            font-weight: 700;
-            margin: 0 0 0.5rem 0;
-            background: linear-gradient(135deg, #60A5FA, #A78BFA);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }}
-        p {{
-            color: #94A3B8;
-            font-size: 0.95rem;
-            line-height: 1.6;
-            margin: 0 0 1.5rem 0;
-        }}
-        .badge {{
-            display: inline-block;
-            background: rgba(34, 197, 94, 0.15);
-            color: #4ADE80;
-            padding: 0.4rem 0.9rem;
-            border-radius: 9999px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            border: 1px solid rgba(74, 222, 128, 0.3);
-            margin-bottom: 1.5rem;
-        }}
-        .repo {{
-            color: #60A5FA;
-            font-family: monospace;
-            background: rgba(15, 23, 42, 0.6);
-            padding: 0.3rem 0.6rem;
-            border-radius: 6px;
-        }}
-        @keyframes pop {{
-            0% {{ transform: scale(0.6); opacity: 0; }}
-            100% {{ transform: scale(1); opacity: 1; }}
-        }}
-    </style>
-</head>
-<body>
-    <div class="card">
-        <div class="icon">🚀</div>
-        <div class="badge">🟢 Installation Successful</div>
-        <h1>{safe_title}</h1>
-        <p>Your GitHub repository {f'<span class="repo">{safe_repo}</span>' if safe_repo else ''} is now linked to BuildCrew. You can safely close this browser window and return to your app.</p>
-    </div>
-</body>
-</html>"""
-    return HTMLResponse(content=html_content, status_code=200)
+    success_msg = f"Your GitHub repository {safe_repo} is now linked to BuildCrew. You can safely close this window and return to the app." if safe_repo else "Your GitHub account is connected. Return to BuildCrew."
+    return _render_branded_page(
+        title="Connected. Return to BuildCrew.",
+        message=success_msg,
+        status_code=200,
+        badge="Connected",
+    )
 
 
 @router.get("/projects/{project_id}/github/install-url")
@@ -512,6 +542,9 @@ async def get_github_install_url(
 ):
     """Retrieve the GitHub App install URL with project state parameter."""
     _check_user_project_access(project_id, current_user.id)
+    from routers.projects import is_project_archived
+    if is_project_archived(project_id):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project is archived.")
     slug = settings.GITHUB_APP_SLUG or "buildcrew-app"
 
     if is_dev_mode():
@@ -546,39 +579,27 @@ async def link_github_installation(
 ):
     """Explicitly link a GitHub installation ID and repo to a project."""
     _check_user_project_access(project_id, current_user.id, lead_only=True)
+    from routers.projects import is_project_archived
+    if is_project_archived(project_id):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project is archived.")
 
+    # 1. Resolve installation_id
+    installation_id: Optional[str] = None
     if is_dev_mode():
-        installation_id = str(payload.installation_id).strip() if payload.installation_id else ""
-        if not installation_id or installation_id in ("", "auto", "0"):
-            found_id = github_service.get_any_active_installation_id()
-            if found_id:
-                installation_id = found_id
-            else:
-                installation_id = "4635635"
+        raw_id = str(payload.installation_id).strip() if payload.installation_id else ""
+        if raw_id and raw_id not in ("", "auto", "0"):
+            installation_id = raw_id
 
-        repo_full_name = payload.repo_full_name
-        if not repo_full_name or not repo_full_name.strip():
-            repos = await github_service.get_installation_repositories(installation_id)
-            if repos:
-                repo_full_name = repos[0].get("full_name", "")
-            else:
-                repo_full_name = "buildcrew/project-repo"
-
-        record = github_service.store_installation(
-            project_id=project_id,
-            installation_id=installation_id,
-            repo_full_name=repo_full_name.strip(),
-        )
-        return record
-
-    # Production mode:
-    # A project may use only its own github_installations row, or one belonging to another project led by the same user.
-    # POST /github/install returns 400 when neither exists.
-    # Delete the hardcoded installation id "4635635" and the "buildcrew/project-repo" placeholder.
-    installation = github_service.get_project_installation(project_id)
-    installation_id = installation.get("installation_id") if installation else None
     if not installation_id:
-        installation_id = github_service.get_installation_id_for_lead(str(current_user.id))
+        # Check this project's existing installation row first
+        installation = github_service.get_project_installation(project_id)
+        if installation and installation.get("installation_id"):
+            installation_id = str(installation["installation_id"])
+        else:
+            # Check other projects led by this user
+            lead_inst_id = github_service.get_installation_id_for_lead(str(current_user.id))
+            if lead_inst_id:
+                installation_id = str(lead_inst_id)
 
     if not installation_id:
         raise HTTPException(
@@ -586,15 +607,30 @@ async def link_github_installation(
             detail="No active GitHub App installation found for this project or lead. Please install the GitHub App first.",
         )
 
+    # 2. Retrieve allowed repos and validate repo_full_name
+    repos = await github_service.get_installation_repositories(str(installation_id))
+    allowed_names = [r.get("full_name") for r in repos if isinstance(r, dict) and r.get("full_name")]
+
     repo_full_name = str(payload.repo_full_name or "").strip()
     if not repo_full_name:
-        repos = await github_service.get_installation_repositories(str(installation_id))
-        if repos:
-            repo_full_name = repos[0].get("full_name", "")
+        if allowed_names:
+            repo_full_name = allowed_names[0]
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No repositories available for this GitHub installation.",
+            )
+    else:
+        # Validate repo_full_name against get_installation_repositories(installation_id) (400 otherwise)
+        if allowed_names and repo_full_name not in allowed_names:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Repository '{repo_full_name}' is not in the granted repositories for this installation.",
+            )
+        elif not allowed_names and not is_dev_mode():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Repository '{repo_full_name}' is not in the granted repositories for this installation.",
             )
 
     record = github_service.store_installation(
@@ -613,7 +649,7 @@ async def get_project_github_installation(
     """Get active GitHub installation details for a project."""
     _check_user_project_access(project_id, current_user.id)
     installation = github_service.get_project_installation(project_id)
-    if not installation:
+    if not installation or not installation.get("repo_full_name"):
         return {"connected": False, "installation": None}
 
     return {
@@ -629,6 +665,9 @@ async def unlink_project_github_installation(
 ):
     """Disconnect/unlink GitHub repository from project (Team Lead only)."""
     _check_user_project_access(project_id, current_user.id, lead_only=True)
+    from routers.projects import is_project_archived
+    if is_project_archived(project_id):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project is archived.")
     success = github_service.remove_project_installation(project_id)
     return {
         "success": success,
@@ -671,6 +710,9 @@ async def select_project_github_repository(
 ):
     """Switch or link the project to a specific repository under the active installation."""
     _check_user_project_access(project_id, current_user.id, lead_only=True)
+    from routers.projects import is_project_archived
+    if is_project_archived(project_id):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project is archived.")
     installation = github_service.get_project_installation(project_id)
     installation_id = installation.get("installation_id") if installation else None
     if not installation_id:
@@ -694,15 +736,18 @@ async def select_project_github_repository(
 
     clean_name = str(repo_full_name).strip()
 
-    if not is_dev_mode():
-        # Requirement 3: select-repository must check that repo_full_name is in get_installation_repositories(installation_id) for that installation, else 400.
-        repos = await github_service.get_installation_repositories(str(installation_id))
-        allowed_names = [r.get("full_name") for r in repos if isinstance(r, dict) and r.get("full_name")]
-        if clean_name not in allowed_names:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Repository '{clean_name}' is not in the granted repositories for this installation.",
-            )
+    repos = await github_service.get_installation_repositories(str(installation_id))
+    allowed_names = [r.get("full_name") for r in repos if isinstance(r, dict) and r.get("full_name")]
+    if allowed_names and clean_name not in allowed_names:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Repository '{clean_name}' is not in the granted repositories for this installation.",
+        )
+    elif not allowed_names and not is_dev_mode():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Repository '{clean_name}' is not in the granted repositories for this installation.",
+        )
 
     record = github_service.store_installation(
         project_id=project_id,

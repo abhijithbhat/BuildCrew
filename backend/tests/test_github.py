@@ -39,8 +39,7 @@ def test_github_callback_success_html():
     """Callback with installation_id returns 200 OK with success screen."""
     response = client.get("/github/callback?installation_id=999888")
     assert response.status_code == 200
-    assert "GitHub Connected!" in response.text
-    assert "Installation Successful" in response.text
+    assert "Connected. Return to BuildCrew." in response.text
 
 
 def test_github_callback_json_response():
@@ -167,7 +166,9 @@ def test_unlink_github_installation_by_lead():
     )
     assert response.status_code == 200
     assert response.json()["success"] is True
-    assert "proj-1" not in DEV_GITHUB_INSTALLATIONS_DB
+    assert "proj-1" in DEV_GITHUB_INSTALLATIONS_DB
+    assert DEV_GITHUB_INSTALLATIONS_DB["proj-1"]["repo_full_name"] == ""
+    assert DEV_GITHUB_INSTALLATIONS_DB["proj-1"]["installation_id"] == "554433"
 
 
 def test_get_commits_pulls_issues():
@@ -392,14 +393,19 @@ def prod_mode(monkeypatch):
     monkeypatch.setattr(settings, "SUPABASE_PUBLISHABLE_KEY", "supabase_anon_key_test")
 
 
-def test_production_callback_without_state_returns_400_and_no_db_write(prod_mode):
-    """Production callback without state returns 400 and store_installation is never called."""
+def test_production_callback_stateless_returns_200_friendly_page_and_no_db_write(prod_mode):
+    """Production callback with installation_id but missing state returns 200 friendly page and store_installation is never called."""
     with patch("services.github_service.store_installation") as mock_store:
         for path in ["/github/callback", "/callback", "/api/github/callback", "/setup", "/github/setup", "/"]:
             resp = client.get(f"{path}?installation_id=12345")
-            assert resp.status_code == 400
-            assert "Missing state parameter" in resp.text
+            assert resp.status_code == 200
+            assert "GitHub updated. Open BuildCrew and tap Connect again." in resp.text
             mock_store.assert_not_called()
+
+        # Completely missing both state and installation_id still returns 400
+        resp_empty = client.get("/github/callback")
+        assert resp_empty.status_code == 400
+        mock_store.assert_not_called()
 
 
 def test_production_callback_forged_or_expired_state(prod_mode):
@@ -559,10 +565,9 @@ def test_production_callback_valid_state_links_installation(prod_mode):
             "repo_full_name": "buildcrew/buildcrew-core",
         }
 
-        # HTML response
         resp = client.get(f"/github/callback?installation_id=12345&state={valid_token}&code=valid_code_789")
         assert resp.status_code == 200
-        assert "GitHub Connected!" in resp.text
+        assert "Connected. Return to BuildCrew." in resp.text
         assert "buildcrew/buildcrew-core" in resp.text
         mock_store.assert_called_once_with(
             project_id="proj-1",
@@ -860,6 +865,161 @@ async def test_github_service_exchange_code_and_get_user_installations():
 
     # 4. Empty token returns empty list
     assert await github_service.get_user_installations("") == []
+
+
+def test_stateless_callback_returns_200_friendly_page_and_zero_writes(prod_mode):
+    """Callback in production with missing or invalid state but installation_id returns 200 friendly page and zero database writes."""
+    with patch("services.github_service.store_installation") as mock_store:
+        # Missing state
+        resp = client.get("/github/callback?installation_id=98765")
+        assert resp.status_code == 200
+        assert "GitHub updated. Open BuildCrew and tap Connect again." in resp.text
+        mock_store.assert_not_called()
+
+        # Invalid/malformed non-JWT state
+        resp_invalid = client.get("/github/callback?installation_id=98765&state=not-a-valid-jwt-token")
+        assert resp_invalid.status_code == 200
+        assert "GitHub updated. Open BuildCrew and tap Connect again." in resp_invalid.text
+        mock_store.assert_not_called()
+
+        # JSON Accept header format
+        resp_json = client.get(
+            "/github/callback?installation_id=98765",
+            headers={"Accept": "application/json"},
+        )
+        assert resp_json.status_code == 200
+        assert resp_json.json()["status"] == "updated"
+        assert "GitHub updated. Open BuildCrew and tap Connect again." in resp_json.json()["message"]
+        mock_store.assert_not_called()
+
+
+def test_unlink_keeps_installation_row():
+    """DELETE /projects/{id}/github/installation clears repo_full_name but keeps installation row."""
+    mock_user = MagicMock(id="lead-1", email="lead@example.com")
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    DEV_PROJECTS_DB["proj-keep"] = {
+        "id": "proj-keep",
+        "name": "BuildCrew Core",
+        "created_by": "lead-1",
+    }
+    DEV_GITHUB_INSTALLATIONS_DB["proj-keep"] = {
+        "id": "inst-keep-1",
+        "project_id": "proj-keep",
+        "installation_id": "inst-777888",
+        "repo_full_name": "buildcrew/original-repo",
+        "connected_at": "2026-08-19T10:00:00Z",
+    }
+
+    # Unlink project
+    del_resp = client.delete(
+        "/projects/proj-keep/github/installation",
+        headers={"Authorization": "Bearer token"},
+    )
+    assert del_resp.status_code == 200
+    assert del_resp.json()["success"] is True
+
+    # Row is kept with cleared repo_full_name
+    assert "proj-keep" in DEV_GITHUB_INSTALLATIONS_DB
+    kept_record = DEV_GITHUB_INSTALLATIONS_DB["proj-keep"]
+    assert kept_record["installation_id"] == "inst-777888"
+    assert kept_record["repo_full_name"] == ""
+
+    # GET /installation reports disconnected
+    get_resp = client.get(
+        "/projects/proj-keep/github/installation",
+        headers={"Authorization": "Bearer token"},
+    )
+    assert get_resp.status_code == 200
+    assert get_resp.json()["connected"] is False
+    assert get_resp.json()["installation"] is None
+
+
+def test_reconnect_via_post_github_install_works():
+    """After unlinking, POST /github/install without installation_id reconnects using the kept installation row."""
+    mock_user = MagicMock(id="lead-1", email="lead@example.com")
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    DEV_PROJECTS_DB["proj-reconn"] = {
+        "id": "proj-reconn",
+        "name": "BuildCrew Core",
+        "created_by": "lead-1",
+    }
+    # Existing row with cleared repo (unlinked state)
+    DEV_GITHUB_INSTALLATIONS_DB["proj-reconn"] = {
+        "id": "inst-reconn-1",
+        "project_id": "proj-reconn",
+        "installation_id": "inst-444555",
+        "repo_full_name": "",
+        "connected_at": "2026-08-19T10:00:00Z",
+    }
+
+    mock_repos = [
+        {"full_name": "lead-org/approved-repo"},
+        {"full_name": "lead-org/second-repo"},
+    ]
+
+    with patch("services.github_service.get_installation_repositories", AsyncMock(return_value=mock_repos)):
+        # Reconnect without providing installation_id
+        reconn_resp = client.post(
+            "/projects/proj-reconn/github/install",
+            json={"repo_full_name": "lead-org/second-repo"},
+            headers={"Authorization": "Bearer token"},
+        )
+        assert reconn_resp.status_code == 201
+        data = reconn_resp.json()
+        assert data["installation_id"] == "inst-444555"
+        assert data["repo_full_name"] == "lead-org/second-repo"
+
+        # Check that GET /installation now reports connected
+        get_resp = client.get(
+            "/projects/proj-reconn/github/installation",
+            headers={"Authorization": "Bearer token"},
+        )
+        assert get_resp.status_code == 200
+        assert get_resp.json()["connected"] is True
+        assert get_resp.json()["installation"]["repo_full_name"] == "lead-org/second-repo"
+
+
+def test_repo_outside_installation_returns_400():
+    """Attempting to link or select a repo outside the installation's granted repositories returns 400."""
+    mock_user = MagicMock(id="lead-1", email="lead@example.com")
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    DEV_PROJECTS_DB["proj-outside"] = {
+        "id": "proj-outside",
+        "name": "BuildCrew Core",
+        "created_by": "lead-1",
+    }
+    DEV_GITHUB_INSTALLATIONS_DB["proj-outside"] = {
+        "id": "inst-outside-1",
+        "project_id": "proj-outside",
+        "installation_id": "inst-111222",
+        "repo_full_name": "",
+        "connected_at": "2026-08-19T10:00:00Z",
+    }
+
+    mock_granted = [{"full_name": "my-org/granted-repo"}]
+
+    with patch("services.github_service.get_installation_repositories", AsyncMock(return_value=mock_granted)):
+        # 1. POST /github/install with ungranted repository -> 400
+        resp_install = client.post(
+            "/projects/proj-outside/github/install",
+            json={"repo_full_name": "evil-org/unauthorized-repo"},
+            headers={"Authorization": "Bearer token"},
+        )
+        assert resp_install.status_code == 400
+        assert "not in the granted repositories" in resp_install.json()["detail"]
+
+        # 2. POST /github/select-repository with ungranted repository -> 400
+        resp_select = client.post(
+            "/projects/proj-outside/github/select-repository",
+            json={"repo_full_name": "evil-org/unauthorized-repo"},
+            headers={"Authorization": "Bearer token"},
+        )
+        assert resp_select.status_code == 400
+        assert "not in the granted repositories" in resp_select.json()["detail"]
+
 
 
 

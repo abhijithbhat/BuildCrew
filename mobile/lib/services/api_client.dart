@@ -204,7 +204,7 @@ class ApiClient {
     // 2. Email/password users: backend POST /auth/refresh
     final storedRefreshToken = await _storageService.getRefreshToken();
     if (storedRefreshToken == null || storedRefreshToken.trim().isEmpty) {
-      throw Exception('No refresh token stored');
+      throw const AuthException('No refresh token stored', statusCode: '401');
     }
 
     // Use isolated Dio instance to prevent interceptor recursion
@@ -255,12 +255,16 @@ class ApiClient {
         final isConnError = e.type == DioExceptionType.connectionError ||
             e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
             (e.message != null &&
                 (e.message!.contains('Connection refused') ||
                     e.message!.contains('No route to host') ||
                     e.message!.contains('SocketException')));
-        if (isConnError) {
-          debugPrint('ApiClient: Connection error on $baseUrl. Trying next fallback...');
+        final is5xx = e.response?.statusCode != null &&
+            e.response!.statusCode! >= 500 &&
+            e.response!.statusCode! < 600;
+        if (isConnError || is5xx) {
+          debugPrint('ApiClient: Connection/Server error on $baseUrl. Trying next fallback...');
           continue;
         }
         // Non-connection error (e.g. 401 INVALID_REFRESH_TOKEN) -> rethrow immediately
@@ -268,6 +272,95 @@ class ApiClient {
       }
     }
     throw lastException ?? Exception('Failed to connect to backend for token refresh');
+  }
+
+  /// Determines if a token refresh error represents an authoritative session termination:
+  /// - HTTP 400, 401, or 403 from POST /auth/refresh
+  /// - Supabase AuthException indicating invalid/expired refresh token (and NOT AuthRetryableFetchException)
+  /// - Missing stored refresh token
+  /// Returns false for connection errors, timeouts, 5xx server errors, or Supabase AuthRetryableFetchException.
+  bool isAuthoritativeRefreshFailure(dynamic error) {
+    if (error == null) return false;
+
+    // 1. Missing stored refresh token
+    if (error is AuthException && error.message.toLowerCase().contains('no refresh token')) {
+      return true;
+    }
+    final errorStr = error.toString().toLowerCase();
+    if (errorStr.contains('no refresh token stored') ||
+        errorStr.contains('no refresh token available')) {
+      return true;
+    }
+
+    // 2. Supabase AuthRetryableFetchException is explicitly retryable / non-authoritative
+    if (error is AuthRetryableFetchException) {
+      return false;
+    }
+
+    // 3. Network or Timeout errors are non-authoritative
+    if (error is TimeoutException) {
+      return false;
+    }
+    if (errorStr.contains('connection refused') ||
+        errorStr.contains('socketexception') ||
+        errorStr.contains('failed host lookup') ||
+        errorStr.contains('network is unreachable') ||
+        errorStr.contains('connection timeout') ||
+        errorStr.contains('receive timeout') ||
+        errorStr.contains('send timeout') ||
+        errorStr.contains('handshakeexception') ||
+        errorStr.contains('timed out')) {
+      return false;
+    }
+
+    // 4. DioException checks
+    if (error is DioException) {
+      final type = error.type;
+      if (type == DioExceptionType.connectionError ||
+          type == DioExceptionType.connectionTimeout ||
+          type == DioExceptionType.receiveTimeout ||
+          type == DioExceptionType.sendTimeout) {
+        return false;
+      }
+      final status = error.response?.statusCode;
+      if (status != null) {
+        if (status >= 500 && status < 600) {
+          return false;
+        }
+        if (status == 400 || status == 401 || status == 403) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // 5. Supabase AuthException
+    if (error is AuthException) {
+      final statusStr = error.statusCode;
+      if (statusStr != null) {
+        final code = int.tryParse(statusStr);
+        if (code != null && code >= 500 && code < 600) {
+          return false;
+        }
+        if (code == 400 || code == 401 || code == 403) {
+          return true;
+        }
+      }
+      final msg = error.message.toLowerCase();
+      if (msg.contains('invalid') ||
+          msg.contains('expired') ||
+          msg.contains('revoked') ||
+          msg.contains('grant') ||
+          msg.contains('not found') ||
+          msg.contains('empty session') ||
+          msg.contains('unauthorized')) {
+        return true;
+      }
+      // Any other non-retryable AuthException from refreshSession is authoritative
+      return true;
+    }
+
+    return false;
   }
 
   /// Clears stored tokens, broadcasts global logout event, and routes to /login.
@@ -350,8 +443,12 @@ class _AuthRefreshInterceptor extends QueuedInterceptor {
       final response = await _client._retryDio.fetch(requestOptions);
       return handler.resolve(response);
     } catch (refreshErr) {
-      debugPrint('ApiClient: Token refresh failed ($refreshErr). Forcing global logout.');
-      await _client.handleForceLogout();
+      if (_client.isAuthoritativeRefreshFailure(refreshErr)) {
+        debugPrint('ApiClient: Token refresh failed authoritatively ($refreshErr). Forcing global logout.');
+        await _client.handleForceLogout();
+      } else {
+        debugPrint('ApiClient: Token refresh failed with non-authoritative / network error ($refreshErr). Keeping tokens, skipping logout.');
+      }
       return handler.next(err);
     }
   }

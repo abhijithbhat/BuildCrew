@@ -15,16 +15,21 @@ class FakeGoTrueClient extends Fake implements GoTrueClient {
   @override
   final Session? currentSession;
   final AuthResponse? refreshResponse;
+  final Object? refreshError;
   bool refreshSessionCalled = false;
 
   FakeGoTrueClient({
     this.currentSession,
     this.refreshResponse,
+    this.refreshError,
   });
 
   @override
   Future<AuthResponse> refreshSession([String? refreshToken]) async {
     refreshSessionCalled = true;
+    if (refreshError != null) {
+      throw refreshError!;
+    }
     if (refreshResponse != null) {
       return refreshResponse!;
     }
@@ -255,7 +260,7 @@ void main() {
     expect(await storageService.getRefreshToken(), 'fresh-refresh-xyz');
   });
 
-  test('QueuedInterceptor forces logout and clears tokens if refresh fails', () async {
+  test('refresh 401 -> logout', () async {
     await storageService.saveTokens(
       accessToken: 'expired-token',
       refreshToken: 'dead-refresh-token',
@@ -327,6 +332,231 @@ void main() {
     expect(forceLogoutTriggered, isTrue);
     expect(await storageService.getAccessToken(), isNull);
     expect(await storageService.getRefreshToken(), isNull);
+
+    await sub.cancel();
+  });
+
+  test('refresh timeout -> tokens kept and no logout', () async {
+    await storageService.saveTokens(
+      accessToken: 'expired-token',
+      refreshToken: 'valid-refresh-token',
+    );
+
+    final testDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    final refreshDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    final retryDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    bool forceLogoutTriggered = false;
+    final sub = ApiClient.onForceLogout.stream.listen((_) {
+      forceLogoutTriggered = true;
+    });
+
+    final mockInterceptor = InterceptorsWrapper(
+      onRequest: (options, handler) {
+        if (options.path == '/projects') {
+          return handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response(
+                requestOptions: options,
+                statusCode: 401,
+                data: {'detail': 'Token is expired'},
+              ),
+            ),
+            true,
+          );
+        } else if (options.path == '/auth/refresh') {
+          return handler.reject(
+            DioException(
+              requestOptions: options,
+              type: DioExceptionType.connectionTimeout,
+              message: 'Connection timed out',
+            ),
+            true,
+          );
+        }
+        return handler.next(options);
+      },
+    );
+
+    final client = ApiClient(
+      dio: testDio,
+      refreshDio: refreshDio,
+      retryDio: retryDio,
+      storageService: storageService,
+    );
+
+    testDio.interceptors.add(mockInterceptor);
+    refreshDio.interceptors.add(mockInterceptor);
+    retryDio.interceptors.add(mockInterceptor);
+
+    await expectLater(
+      client.dio.get(
+        '/projects',
+        options: Options(headers: {'Authorization': 'Bearer expired-token'}),
+      ),
+      throwsA(isA<DioException>()),
+    );
+
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    expect(forceLogoutTriggered, isFalse);
+    expect(await storageService.getAccessToken(), 'expired-token');
+    expect(await storageService.getRefreshToken(), 'valid-refresh-token');
+
+    await sub.cancel();
+  });
+
+  test('refresh 503 -> no logout', () async {
+    await storageService.saveTokens(
+      accessToken: 'expired-token',
+      refreshToken: 'valid-refresh-token',
+    );
+
+    final testDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    final refreshDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    final retryDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    bool forceLogoutTriggered = false;
+    final sub = ApiClient.onForceLogout.stream.listen((_) {
+      forceLogoutTriggered = true;
+    });
+
+    final mockInterceptor = InterceptorsWrapper(
+      onRequest: (options, handler) {
+        if (options.path == '/projects') {
+          return handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response(
+                requestOptions: options,
+                statusCode: 401,
+                data: {'detail': 'Token is expired'},
+              ),
+            ),
+            true,
+          );
+        } else if (options.path == '/auth/refresh') {
+          return handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response(
+                requestOptions: options,
+                statusCode: 503,
+                data: {'detail': 'Service temporarily unavailable. Please try again.'},
+              ),
+            ),
+            true,
+          );
+        }
+        return handler.next(options);
+      },
+    );
+
+    final client = ApiClient(
+      dio: testDio,
+      refreshDio: refreshDio,
+      retryDio: retryDio,
+      storageService: storageService,
+    );
+
+    testDio.interceptors.add(mockInterceptor);
+    refreshDio.interceptors.add(mockInterceptor);
+    retryDio.interceptors.add(mockInterceptor);
+
+    await expectLater(
+      client.dio.get(
+        '/projects',
+        options: Options(headers: {'Authorization': 'Bearer expired-token'}),
+      ),
+      throwsA(isA<DioException>()),
+    );
+
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    expect(forceLogoutTriggered, isFalse);
+    expect(await storageService.getAccessToken(), 'expired-token');
+    expect(await storageService.getRefreshToken(), 'valid-refresh-token');
+
+    await sub.cancel();
+  });
+
+  test('OAuth refreshSession network failure -> no logout', () async {
+    await storageService.saveTokens(
+      accessToken: 'old-oauth-access-token',
+      refreshToken: 'old-oauth-refresh-token',
+    );
+
+    final dummyUser = User(
+      id: 'oauth-user-id',
+      appMetadata: {},
+      userMetadata: {'full_name': 'OAuth User'},
+      aud: 'authenticated',
+      createdAt: DateTime.now().toIso8601String(),
+    );
+
+    final activeSession = Session(
+      accessToken: 'old-oauth-access-token',
+      refreshToken: 'old-oauth-refresh-token',
+      tokenType: 'bearer',
+      user: dummyUser,
+    );
+
+    // Fake GoTrue client configured to throw AuthRetryableFetchException on refreshSession
+    final fakeAuth = FakeGoTrueClient(
+      currentSession: activeSession,
+      refreshError: AuthRetryableFetchException(message: 'Network connection unavailable'),
+    );
+    final fakeSupabase = FakeSupabaseClient(fakeAuth);
+
+    final testDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    final refreshDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    final retryDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    bool forceLogoutTriggered = false;
+    final sub = ApiClient.onForceLogout.stream.listen((_) {
+      forceLogoutTriggered = true;
+    });
+
+    final mockInterceptor = InterceptorsWrapper(
+      onRequest: (options, handler) {
+        if (options.path == '/projects') {
+          return handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response(
+                requestOptions: options,
+                statusCode: 401,
+                data: {'detail': 'Token expired'},
+              ),
+            ),
+            true,
+          );
+        }
+        return handler.next(options);
+      },
+    );
+
+    final client = ApiClient(
+      dio: testDio,
+      refreshDio: refreshDio,
+      retryDio: retryDio,
+      storageService: storageService,
+      supabaseClient: fakeSupabase,
+    );
+
+    testDio.interceptors.add(mockInterceptor);
+
+    await expectLater(
+      client.dio.get(
+        '/projects',
+        options: Options(headers: {'Authorization': 'Bearer old-oauth-access-token'}),
+      ),
+      throwsA(isA<DioException>()),
+    );
+
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    expect(forceLogoutTriggered, isFalse);
+    expect(await storageService.getAccessToken(), 'old-oauth-access-token');
+    expect(await storageService.getRefreshToken(), 'old-oauth-refresh-token');
 
     await sub.cancel();
   });

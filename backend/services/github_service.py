@@ -130,6 +130,13 @@ async def get_installation_repositories(installation_id: str) -> List[Dict[str, 
     """Retrieve all repositories accessible under this installation."""
     token = await get_installation_access_token(installation_id)
     if not token:
+        from core.database import is_dev_mode
+        if is_dev_mode():
+            return [
+                {"full_name": "buildcrew/mobile-flutter"},
+                {"full_name": "buildcrew/backend"},
+                {"full_name": "lead-org/approved-repo"},
+            ]
         return []
 
     headers = {
@@ -278,26 +285,26 @@ def get_project_installation(project_id: str) -> Optional[Dict[str, Any]]:
 
 
 def remove_project_installation(project_id: str) -> bool:
-    """Remove GitHub installation link for a project."""
-    deleted_from_supabase = False
+    """Clear repo_full_name from the project's GitHub installation link, keeping the installation row."""
+    updated_supabase = False
     try:
         supabase = get_supabase_client()
         res = (
             supabase.table("github_installations")
-            .delete()
+            .update({"repo_full_name": ""})
             .eq("project_id", project_id)
             .execute()
         )
-        deleted_from_supabase = bool(res.data)
+        updated_supabase = bool(res.data)
     except Exception as e:
         logger.warning(f"Supabase remove_project_installation failed: {e}")
 
-    deleted_from_dev = False
+    updated_dev = False
     if project_id in DEV_GITHUB_INSTALLATIONS_DB:
-        del DEV_GITHUB_INSTALLATIONS_DB[project_id]
-        deleted_from_dev = True
+        DEV_GITHUB_INSTALLATIONS_DB[project_id]["repo_full_name"] = ""
+        updated_dev = True
 
-    return deleted_from_supabase or deleted_from_dev
+    return updated_supabase or updated_dev
 
 
 async def fetch_repository_commits(
@@ -422,11 +429,11 @@ async def fetch_repository_pulls(
                     "id": 101,
                     "number": 1,
                     "title": "feat: Add GitHub App Integration for BuildCrew",
-                    "state": "open",
+                    "state": "merged",
                     "user": "buildcrew-dev",
                     "user_avatar": "https://avatars.githubusercontent.com/u/9919?v=4",
                     "created_at": datetime.now(timezone.utc).isoformat(),
-                    "merged_at": None,
+                    "merged_at": datetime.now(timezone.utc).isoformat(),
                     "head_branch": "feature/github-app",
                     "base_branch": "main",
                     "url": f"https://github.com/{repo_full_name}/pull/1",

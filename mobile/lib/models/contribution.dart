@@ -16,6 +16,13 @@ class Contribution {
   final DateTime? updatedAt;
   final String? contributorName;
   final Map<String, dynamic>? contributorProfile;
+  final String? disputedByName;
+  final String? disputeReason;
+  final bool isDisputeOrphaned;
+  final bool canReopen;
+  final List<ConfirmationVoteInfo> confirmations;
+  final int confirmCount;
+  final int teamSize;
 
   Contribution({
     required this.id,
@@ -35,6 +42,13 @@ class Contribution {
     this.updatedAt,
     this.contributorName,
     this.contributorProfile,
+    this.disputedByName,
+    this.disputeReason,
+    this.isDisputeOrphaned = false,
+    this.canReopen = false,
+    this.confirmations = const [],
+    this.confirmCount = 0,
+    this.teamSize = 0,
   });
 
   factory Contribution.fromJson(Map<String, dynamic> json) {
@@ -47,6 +61,8 @@ class Contribution {
         return null;
       }
     }
+
+    final rawConfirmations = json['confirmations'] as List<dynamic>? ?? [];
 
     return Contribution(
       id: json['id']?.toString() ?? '',
@@ -70,6 +86,15 @@ class Contribution {
       contributorProfile: json['contributor_profile'] is Map<String, dynamic>
           ? json['contributor_profile'] as Map<String, dynamic>
           : null,
+      disputedByName: json['disputed_by_name']?.toString(),
+      disputeReason: json['dispute_reason']?.toString(),
+      isDisputeOrphaned: json['is_dispute_orphaned'] == true || json['can_reopen'] == true,
+      canReopen: json['can_reopen'] == true || json['is_dispute_orphaned'] == true,
+      confirmations: rawConfirmations
+          .map((c) => ConfirmationVoteInfo.fromJson(Map<String, dynamic>.from(c as Map)))
+          .toList(),
+      confirmCount: json['confirm_count'] as int? ?? rawConfirmations.length,
+      teamSize: json['team_size'] as int? ?? 0,
     );
   }
 
@@ -92,6 +117,12 @@ class Contribution {
       'updated_at': updatedAt?.toIso8601String(),
       if (contributorName != null) 'contributor_name': contributorName,
       if (contributorProfile != null) 'contributor_profile': contributorProfile,
+      if (disputedByName != null) 'disputed_by_name': disputedByName,
+      if (disputeReason != null) 'dispute_reason': disputeReason,
+      'is_dispute_orphaned': isDisputeOrphaned,
+      'can_reopen': canReopen,
+      'confirm_count': confirmCount,
+      'team_size': teamSize,
     };
   }
 
@@ -106,6 +137,95 @@ class Contribution {
       verificationStatus == 'confirmation-pending' ||
       verificationStatus == 'pending-confirmation';
   bool get isDraft => !isConfirmed;
+}
+
+class ConfirmationVoteInfo {
+  final String name;
+  final DateTime? at;
+
+  ConfirmationVoteInfo({
+    required this.name,
+    this.at,
+  });
+
+  factory ConfirmationVoteInfo.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      if (value is DateTime) return value;
+      try {
+        return DateTime.parse(value.toString());
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return ConfirmationVoteInfo(
+      name: json['name']?.toString() ?? 'Teammate',
+      at: parseDate(json['at']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    if (at != null) 'at': at!.toIso8601String(),
+  };
+}
+
+class LedgerEntry {
+  final String id;
+  final String contributorId;
+  final String? contributorName;
+  final String title;
+  final String? category;
+  final String? description;
+  final String? evidenceLink;
+  final String verificationStatus;
+  final List<ConfirmationVoteInfo> confirmations;
+  final bool waitingOnMe;
+  final DateTime? createdAt;
+
+  LedgerEntry({
+    required this.id,
+    required this.contributorId,
+    this.contributorName,
+    required this.title,
+    this.category,
+    this.description,
+    this.evidenceLink,
+    required this.verificationStatus,
+    this.confirmations = const [],
+    this.waitingOnMe = false,
+    this.createdAt,
+  });
+
+  factory LedgerEntry.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      if (value is DateTime) return value;
+      try {
+        return DateTime.parse(value.toString());
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final rawConfirmations = json['confirmations'] as List<dynamic>? ?? [];
+    return LedgerEntry(
+      id: json['id']?.toString() ?? '',
+      contributorId: json['contributor_id']?.toString() ?? '',
+      contributorName: json['contributor_name']?.toString(),
+      title: json['title']?.toString() ?? 'Untitled Deliverable',
+      category: json['category']?.toString(),
+      description: json['description']?.toString(),
+      evidenceLink: json['evidence_link']?.toString(),
+      verificationStatus: json['verification_status']?.toString() ?? 'pending',
+      confirmations: rawConfirmations
+          .map((c) => ConfirmationVoteInfo.fromJson(Map<String, dynamic>.from(c as Map)))
+          .toList(),
+      waitingOnMe: json['waiting_on_me'] == true,
+      createdAt: parseDate(json['created_at']),
+    );
+  }
 }
 
 class ConfirmationRequest {

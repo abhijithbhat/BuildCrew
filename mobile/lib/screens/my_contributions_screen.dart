@@ -7,6 +7,7 @@ import '../theme/app_colors.dart';
 import '../utils/error_messages.dart';
 import '../widgets/contribution_card.dart';
 import '../widgets/empty_state_view.dart';
+import '../widgets/connection_error_retry_widget.dart';
 import '../widgets/request_confirmation_modal.dart';
 import 'add_contribution_screen.dart';
 import 'publish_selection_screen.dart';
@@ -466,6 +467,30 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
     }
   }
 
+  Future<void> _reopenContribution(Contribution c) async {
+    try {
+      await _projectService.reopenContribution(c.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Reopened "${c.title}"! Status reset to pending.'),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _loadContributions();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to reopen: ${friendlyError(e)}'),
+          backgroundColor: const Color(0xFFE11D48),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   Future<void> _openRequestConfirmationModal(Contribution c) async {
     final targetProjectId =
         c.project.isNotEmpty ? c.project : (_resolvedProjectId ?? '');
@@ -588,30 +613,10 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
           children: [
             // Error banner
             if (_errorMessage != null) ...[
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF1F2),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFFECDD3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline_rounded, color: Color(0xFFE11D48), size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: const TextStyle(color: Color(0xFFBE123C), fontSize: 13),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _loadContributions,
-                      child: const Text('Retry', style: TextStyle(color: Color(0xFFE11D48), fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
+              ConnectionErrorRetryWidget(
+                message: _errorMessage,
+                onRetry: _loadContributions,
+                isCompact: true,
               ),
             ],
             if (needsReviewCount > 0) ...[
@@ -642,7 +647,7 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                           ),
                           const SizedBox(height: 2),
                           const Text(
-                            'Disputed items are hidden from your public passport until resolved.',
+                            'Ask teammates to withdraw disputes, or delete items and log corrected ones.',
                             style: TextStyle(
                               color: Color(0xFFBE123C),
                               fontSize: 11,
@@ -843,6 +848,10 @@ class _MyContributionsScreenState extends State<MyContributionsScreen> {
                   contribution: c,
                   isContributor: true,
                   currentUserId: _currentUserId,
+                  projectName: widget.project?.name,
+                  onReopen: (c.isDisputeOrphaned || c.canReopen)
+                      ? () => _reopenContribution(c)
+                      : null,
                   onRequestConfirmation: () => _openRequestConfirmationModal(c),
                   onTap: () {
                     if (c.evidenceLink != null && c.evidenceLink!.isNotEmpty) {

@@ -7,6 +7,7 @@ class Project {
   final DateTime? updatedAt;
   final String? role;
   final DateTime? joinedAt;
+  final DateTime? archivedAt;
 
   Project({
     required this.id,
@@ -17,7 +18,10 @@ class Project {
     this.updatedAt,
     this.role,
     this.joinedAt,
+    this.archivedAt,
   });
+
+  bool get isArchived => archivedAt != null;
 
   factory Project.fromJson(Map<String, dynamic> json) {
     DateTime? parseDate(dynamic dateVal) {
@@ -39,6 +43,7 @@ class Project {
       updatedAt: parseDate(json['updated_at']),
       role: json['role'] as String? ?? json['my_role'] as String?,
       joinedAt: parseDate(json['joined_at']),
+      archivedAt: parseDate(json['archived_at']),
     );
   }
 
@@ -52,6 +57,7 @@ class Project {
       if (updatedAt != null) 'updated_at': updatedAt?.toIso8601String(),
       if (role != null) 'role': role,
       if (joinedAt != null) 'joined_at': joinedAt?.toIso8601String(),
+      if (archivedAt != null) 'archived_at': archivedAt?.toIso8601String(),
     };
   }
 }

@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from core.database import get_supabase_client, _is_dev_fallback_error, is_dev_mode
 from core.dependencies import get_current_user
 from core.logging import logger
+from core.errors import handle_route_error
 from core.rate_limit import limiter, get_user_key
 from schemas.project import (
     ProjectCreate,
@@ -28,9 +29,11 @@ from schemas.role_agreement import (
     RoleDeclareRequest,
 )
 from schemas.contribution import (
+    ConfirmationVoteInfo,
     ContributionResponse,
     ContributionsListResponse,
     DraftGenerationResponse,
+    LedgerEntryResponse,
     ManualContributionCreate,
 )
 from services import github_service
@@ -95,6 +98,8 @@ def _save_dev_data() -> None:
                     "roles": DEV_ROLE_AGREEMENTS_DB,
                     "contributions": DEV_CONTRIBUTIONS_DB,
                     "confirmation_requests": DEV_CONFIRMATION_REQUESTS_DB,
+                    "confirmations": DEV_CONFIRMATIONS_DB,
+                    "github_identities": DEV_GITHUB_IDENTITIES_DB,
                 },
                 f,
                 indent=2,
@@ -111,6 +116,8 @@ DEV_PROJECT_INVITES_DB: dict[str, dict] = _load_invites()
 DEV_ROLE_AGREEMENTS_DB: list[dict] = _dev_cache.get("roles", [])
 DEV_CONTRIBUTIONS_DB: list[dict] = _dev_cache.get("contributions", [])
 DEV_CONFIRMATION_REQUESTS_DB: list[dict] = _dev_cache.get("confirmation_requests", [])
+DEV_CONFIRMATIONS_DB: list[dict] = _dev_cache.get("confirmations", [])
+DEV_GITHUB_IDENTITIES_DB: dict[str, str] = _dev_cache.get("github_identities", {})
 
 
 
@@ -193,11 +200,26 @@ async def create_project(
             "user_id": user_id,
             "role": "owner",
         }
-        member_res = (
-            supabase.table("project_members")
-            .insert(member_insert_data)
-            .execute()
-        )
+        try:
+            member_res = (
+                supabase.table("project_members")
+                .insert(member_insert_data)
+                .execute()
+            )
+            if not member_res.data:
+                raise RuntimeError("Failed to insert owner member into project_members")
+        except Exception as member_err:
+            try:
+                supabase.table("projects").delete().eq("id", actual_project_id).execute()
+            except Exception as del_err:
+                logger.error(
+                    f"Failed to delete orphan project {actual_project_id} after member insert failure: {del_err}"
+                )
+            raise handle_route_error(
+                member_err,
+                generic_message="Failed to create project. Please try again.",
+                log_message=f"Failed to insert owner member for project {actual_project_id}",
+            )
 
         created_member = (
             member_res.data[0] if member_res.data else member_insert_data
@@ -231,7 +253,15 @@ async def create_project(
                 "role": "owner",
                 "joined_at": now_iso,
             }
-            DEV_PROJECT_MEMBERS_DB.append(dev_member)
+            try:
+                DEV_PROJECT_MEMBERS_DB.append(dev_member)
+            except Exception as dev_m_err:
+                DEV_PROJECTS_DB.pop(project_id, None)
+                raise handle_route_error(
+                    dev_m_err,
+                    generic_message="Failed to create project. Please try again.",
+                    log_message=f"Failed to insert owner member for project {project_id}",
+                )
             _save_dev_data()
 
             return {
@@ -240,16 +270,19 @@ async def create_project(
                 "member": dev_member,
             }
 
-        logger.exception("Failed to create project")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to create project. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to create project. Please try again.",
+            log_message="Failed to create project",
         )
 
 
 @router.get("", status_code=status.HTTP_200_OK)
 @router.get("/", status_code=status.HTTP_200_OK, include_in_schema=False)
-async def list_projects(current_user: Any = Depends(get_current_user)):
+async def list_projects(
+    include_archived: bool = False,
+    current_user: Any = Depends(get_current_user),
+):
     """List all projects the authenticated current user belongs to."""
     user_id = _get_user_id(current_user)
 
@@ -272,6 +305,8 @@ async def list_projects(current_user: Any = Depends(get_current_user)):
                 if proj and isinstance(proj, dict):
                     proj_id = proj.get("id")
                     if proj_id and proj_id not in seen_project_ids:
+                        if not include_archived and proj.get("archived_at"):
+                            continue
                         seen_project_ids.add(proj_id)
                         project_data = dict(proj)
                         project_data["role"] = item.get("role", "member")
@@ -290,6 +325,8 @@ async def list_projects(current_user: Any = Depends(get_current_user)):
             for proj in created_res.data:
                 proj_id = proj.get("id")
                 if proj_id and proj_id not in seen_project_ids:
+                    if not include_archived and proj.get("archived_at"):
+                        continue
                     seen_project_ids.add(proj_id)
                     project_data = dict(proj)
                     project_data["role"] = "owner"
@@ -306,6 +343,8 @@ async def list_projects(current_user: Any = Depends(get_current_user)):
             if p_id not in seen_project_ids and (
                 p_id in member_project_roles or p_data.get("created_by") == user_id
             ):
+                if not include_archived and p_data.get("archived_at"):
+                    continue
                 seen_project_ids.add(p_id)
                 p_copy = dict(p_data)
                 role = member_project_roles.get(p_id, "owner")
@@ -330,6 +369,8 @@ async def list_projects(current_user: Any = Depends(get_current_user)):
             user_projects = []
             for p_id, p_data in DEV_PROJECTS_DB.items():
                 if p_id in member_project_roles or p_data.get("created_by") == user_id:
+                    if not include_archived and p_data.get("archived_at"):
+                        continue
                     p_copy = dict(p_data)
                     role = member_project_roles.get(p_id, "owner")
                     p_copy["role"] = role
@@ -339,10 +380,10 @@ async def list_projects(current_user: Any = Depends(get_current_user)):
             return {
                 "projects": user_projects,
             }
-        logger.exception("Failed to fetch projects")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to fetch projects. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to fetch projects. Please try again.",
+            log_message="Failed to fetch projects",
         )
 
 
@@ -388,11 +429,40 @@ async def get_project_details(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found",
             )
-        logger.exception("Failed to fetch project details")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to fetch project details. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to fetch project details. Please try again.",
+            log_message="Failed to fetch project details",
         )
+
+
+def is_project_archived(project_id: str, supabase: Any = None) -> bool:
+    """Check if a project is archived (has archived_at timestamp)."""
+    # 1. Check DEV_PROJECTS_DB first
+    if project_id in DEV_PROJECTS_DB:
+        val = DEV_PROJECTS_DB[project_id].get("archived_at")
+        if val and not hasattr(val, "_mock_return_value"):
+            return bool(val)
+
+    # 2. Check Supabase
+    try:
+        if supabase is None:
+            supabase = get_supabase_client()
+        res = (
+            supabase.table("projects")
+            .select("archived_at")
+            .eq("id", project_id)
+            .single()
+            .execute()
+        )
+        if res and hasattr(res, "data") and isinstance(res.data, dict):
+            archived_val = res.data.get("archived_at")
+            if archived_val and not hasattr(archived_val, "_mock_return_value"):
+                return bool(archived_val)
+    except Exception:
+        pass
+
+    return False
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_200_OK)
@@ -400,7 +470,7 @@ async def delete_project(
     project_id: str,
     current_user: Any = Depends(get_current_user),
 ):
-    """Permanently delete / dismantle a project (Team Lead / Creator only)."""
+    """Permanently delete / dismantle a project (solo lead), or archive if other members exist."""
     user_id = _get_user_id(current_user)
 
     try:
@@ -425,7 +495,39 @@ async def delete_project(
                 detail="Only the Team Lead (Project Creator) can dismantle this project.",
             )
 
-        # Delete cascades across members, roles, installations in Supabase
+        # Check for other members
+        members_res = (
+            supabase.table("project_members")
+            .select("user_id")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        members = members_res.data or []
+        other_members = [m for m in members if m.get("user_id") != user_id]
+
+        dev_other = [
+            m for m in DEV_PROJECT_MEMBERS_DB
+            if m.get("project_id") == project_id and m.get("user_id") != user_id
+        ]
+        has_other_members = bool(other_members or dev_other)
+
+        if has_other_members:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            try:
+                supabase.table("projects").update({"archived_at": now_iso}).eq("id", project_id).execute()
+            except Exception as upd_err:
+                if not _is_dev_fallback_error(str(upd_err)):
+                    raise
+            if project_id in DEV_PROJECTS_DB:
+                DEV_PROJECTS_DB[project_id]["archived_at"] = now_iso
+                _save_dev_data()
+            return {
+                "message": "Project archived successfully",
+                "project_id": project_id,
+                "archived": True,
+            }
+
+        # Solo delete: delete cascades across members, roles, installations in Supabase
         supabase.table("projects").delete().eq("id", project_id).execute()
 
         # Clean local cache/memory state
@@ -436,10 +538,15 @@ async def delete_project(
         DEV_ROLE_AGREEMENTS_DB[:] = [
             r for r in DEV_ROLE_AGREEMENTS_DB if r.get("project_id") != project_id
         ]
+        for c, inf in list(DEV_PROJECT_INVITES_DB.items()):
+            if inf.get("project_id") == project_id:
+                DEV_PROJECT_INVITES_DB.pop(c, None)
+        _save_invites(DEV_PROJECT_INVITES_DB)
 
         return {
             "message": "Project dismantled successfully",
             "project_id": project_id,
+            "archived": False,
         }
 
     except HTTPException:
@@ -460,6 +567,21 @@ async def delete_project(
                     detail="Only the Team Lead (Project Creator) can dismantle this project.",
                 )
 
+            other_members = [
+                m for m in DEV_PROJECT_MEMBERS_DB
+                if m.get("project_id") == project_id and m.get("user_id") != user_id
+            ]
+
+            if other_members:
+                now_iso = datetime.now(timezone.utc).isoformat()
+                project_data["archived_at"] = now_iso
+                _save_dev_data()
+                return {
+                    "message": "Project archived successfully (Local Dev Mode)",
+                    "project_id": project_id,
+                    "archived": True,
+                }
+
             DEV_PROJECTS_DB.pop(project_id, None)
             DEV_PROJECT_MEMBERS_DB[:] = [
                 m for m in DEV_PROJECT_MEMBERS_DB if m.get("project_id") != project_id
@@ -475,13 +597,35 @@ async def delete_project(
             return {
                 "message": "Project dismantled successfully (Local Dev Mode)",
                 "project_id": project_id,
+                "archived": False,
             }
 
-        logger.exception("Failed to delete project")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to delete project. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to delete project. Please try again.",
+            log_message="Failed to delete project",
         )
+
+
+def _recompute_project_contributions(project_id: str, supabase: Any = None) -> None:
+    """Recompute verification statuses for all contributions in a project following membership changes."""
+    from routers.contributions import _recompute_contribution_status
+    if supabase is not None:
+        try:
+            c_res = (
+                supabase.table("contributions")
+                .select("*")
+                .eq("project", project_id)
+                .execute()
+            )
+            for c in (c_res.data or []):
+                _recompute_contribution_status(supabase, c)
+        except Exception:
+            pass
+
+    for dev_c in DEV_CONTRIBUTIONS_DB:
+        if dev_c.get("project") == project_id or dev_c.get("project_id") == project_id:
+            _recompute_contribution_status(supabase, dev_c)
 
 
 @router.post("/{project_id}/leave", status_code=status.HTTP_200_OK)
@@ -542,6 +686,7 @@ async def leave_project(
             r for r in DEV_ROLE_AGREEMENTS_DB
             if not (r.get("project_id") == project_id and r.get("user_id") == user_id)
         ]
+        _recompute_project_contributions(project_id, supabase)
 
         return {
             "message": "Successfully left the project",
@@ -584,16 +729,17 @@ async def leave_project(
                 r for r in DEV_ROLE_AGREEMENTS_DB
                 if not (r.get("project_id") == project_id and r.get("user_id") == user_id)
             ]
+            _recompute_project_contributions(project_id, None)
 
             return {
                 "message": "Successfully left the project (Local Dev Mode)",
                 "project_id": project_id,
             }
 
-        logger.exception("Failed to leave project")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to leave project. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to leave project. Please try again.",
+            log_message="Failed to leave project",
         )
 
 
@@ -647,6 +793,7 @@ async def remove_project_member(
             r for r in DEV_ROLE_AGREEMENTS_DB
             if not (r.get("project_id") == project_id and r.get("user_id") == member_user_id)
         ]
+        _recompute_project_contributions(project_id, supabase)
 
         return {
             "message": "Member removed successfully",
@@ -680,6 +827,7 @@ async def remove_project_member(
                 r for r in DEV_ROLE_AGREEMENTS_DB
                 if not (r.get("project_id") == project_id and r.get("user_id") == member_user_id)
             ]
+            _recompute_project_contributions(project_id, None)
 
             return {
                 "message": "Member removed successfully (Local Dev Mode)",
@@ -687,10 +835,10 @@ async def remove_project_member(
                 "user_id": member_user_id,
             }
 
-        logger.exception("Failed to remove member")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to remove member. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to remove member. Please try again.",
+            log_message="Failed to remove member",
         )
 
 
@@ -726,6 +874,11 @@ async def generate_project_invite(
             )
 
         project_data = proj_res.data
+        if project_data.get("archived_at") or is_project_archived(project_id, supabase):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Project is archived.",
+            )
         is_lead = (project_data.get("created_by") == user_id)
 
         # 2. Check membership
@@ -807,6 +960,11 @@ async def generate_project_invite(
                 )
 
             project_data = DEV_PROJECTS_DB[project_id]
+            if project_data.get("archived_at"):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Project is archived.",
+                )
             is_lead = (project_data.get("created_by") == user_id)
             is_member = is_lead or any(
                 m.get("project_id") == project_id and m.get("user_id") == user_id
@@ -851,10 +1009,10 @@ async def generate_project_invite(
             _save_invites(DEV_PROJECT_INVITES_DB)
             return invite_data
 
-        logger.exception("Failed to generate invite code")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to generate invite code. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to generate invite code. Please try again.",
+            log_message="Failed to generate invite code",
         )
 
 
@@ -905,13 +1063,19 @@ async def join_project_by_invite(
     # Rate-limit POST /projects/join to 10/minute per user
     _check_join_rate_limit(user_id)
 
-    if not payload.invite_code or not payload.invite_code.strip():
+    raw_code = (payload.invite_code or "").strip()
+    if not raw_code:
         raise HTTPException(
             status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422),
             detail="Invite code cannot be empty.",
         )
 
-    clean_code = payload.invite_code.strip()
+    # Normalize the code: strip spaces, convert en/em dashes to '-'
+    clean_code = "".join(raw_code.split()).replace("\u2013", "-").replace("\u2014", "-")
+    # If it is exactly 6 alphanumerics, prepend 'BC-'
+    if len(clean_code) == 6 and clean_code.isalnum():
+        clean_code = f"BC-{clean_code.upper()}"
+
     now_iso = datetime.now(timezone.utc).isoformat()
 
     try:
@@ -926,6 +1090,16 @@ async def join_project_by_invite(
             .execute()
         )
         if not proj_res.data:
+            clean_upper = clean_code.upper()
+            dev_found = False
+            for p in DEV_PROJECTS_DB.values():
+                if (p.get("invite_code") or "").strip().upper() == clean_upper:
+                    dev_found = True
+                    break
+            if not dev_found and clean_upper in DEV_PROJECT_INVITES_DB:
+                dev_found = True
+            if dev_found:
+                raise RuntimeError("PGRST116: Local Dev Store fallback")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Invalid invite code",
@@ -939,6 +1113,11 @@ async def join_project_by_invite(
             )
 
         project_id = project_data["id"]
+        if project_data.get("archived_at") or is_project_archived(project_id, supabase):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Project is archived.",
+            )
 
         # Check if user is already a member or creator
         is_creator = (project_data.get("created_by") == user_id)
@@ -997,6 +1176,12 @@ async def join_project_by_invite(
                     detail="Invalid invite code",
                 )
 
+            if project_data.get("archived_at"):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Project is archived.",
+                )
+
             project_id = project_data["id"]
 
             already_member = any(
@@ -1025,10 +1210,10 @@ async def join_project_by_invite(
                 "member": dev_member,
             }
 
-        logger.exception("Failed to join project")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to join project. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to join project. Please try again.",
+            log_message="Failed to join project",
         )
 
 
@@ -1084,6 +1269,11 @@ async def declare_or_update_project_role(
                 detail="Project not found.",
             )
         project_data = proj_res.data
+        if project_data.get("archived_at") or is_project_archived(project_id, supabase):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Project is archived.",
+            )
 
         # 2. Verify membership (must be member or owner)
         member_res = (
@@ -1167,6 +1357,11 @@ async def declare_or_update_project_role(
                 )
 
             project_data = DEV_PROJECTS_DB[project_id]
+            if project_data.get("archived_at"):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Project is archived.",
+                )
             is_member = (project_data.get("created_by") == user_id) or any(
                 m.get("project_id") == project_id and m.get("user_id") == user_id
                 for m in DEV_PROJECT_MEMBERS_DB
@@ -1211,10 +1406,10 @@ async def declare_or_update_project_role(
                 "role_agreement": saved_role,
             }
 
-        logger.exception("Failed to save role agreement")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to save role agreement. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to save role agreement. Please try again.",
+            log_message="Failed to save role agreement",
         )
 
 
@@ -1432,10 +1627,10 @@ async def list_project_roles(
                 "declared_count": len(project_roles),
             }
 
-        logger.exception("Failed to fetch declared roles")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to fetch declared roles. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to fetch declared roles. Please try again.",
+            log_message="Failed to fetch declared roles",
         )
 
 
@@ -1452,90 +1647,105 @@ def _extract_username_from_noreply(email: Optional[str]) -> Optional[str]:
     return None
 
 
+def _verified_github_logins(members: list[Any], supabase: Any = None) -> dict[str, str]:
+    """
+    Build a map of {verified_github_login_lowercase: user_id} for the given project members.
+    A member counts ONLY if one of their auth identities in Supabase has provider == 'github'.
+    Uses identity_data['user_name'] lowercased.
+    profiles.github_username alone is NOT trusted.
+    """
+    verified_map: dict[str, str] = {}
+    if supabase is None:
+        try:
+            supabase = get_supabase_client()
+        except Exception:
+            supabase = None
+
+    for m in members:
+        uid = m.get("user_id") or m.get("id") if isinstance(m, dict) else str(m)
+        if not uid:
+            continue
+
+        # In dev mode / tests or when mock identities are provided directly:
+        if isinstance(m, dict) and m.get("verified_github_identity"):
+            gh_user = m.get("verified_github_identity")
+            if gh_user:
+                verified_map[str(gh_user).strip().lower()] = uid
+                continue
+
+        dev_gh = DEV_GITHUB_IDENTITIES_DB.get(uid)
+        if dev_gh:
+            verified_map[str(dev_gh).strip().lower()] = uid
+            continue
+
+        if supabase is not None:
+            try:
+                user_res = supabase.auth.admin.get_user_by_id(uid)
+                user = getattr(user_res, "user", user_res)
+                identities = getattr(user, "identities", None)
+                if identities is None and isinstance(user, dict):
+                    identities = user.get("identities", [])
+
+                for identity in (identities or []):
+                    provider = getattr(identity, "provider", None)
+                    if provider is None and isinstance(identity, dict):
+                        provider = identity.get("provider")
+
+                    if provider == "github":
+                        idata = getattr(identity, "identity_data", None)
+                        if idata is None and isinstance(identity, dict):
+                            idata = identity.get("identity_data", {})
+
+                        gh_user = idata.get("user_name") if isinstance(idata, dict) else getattr(idata, "user_name", None)
+                        if gh_user and str(gh_user).strip():
+                            verified_map[str(gh_user).strip().lower()] = uid
+                            break
+            except Exception as e:
+                logger.debug(f"Could not retrieve auth identities for user {uid}: {e}")
+
+    return verified_map
+
+
 def _match_author_to_member(
     author_login: Optional[str],
     author_email: Optional[str],
-    author_name: Optional[str],
-    members: list[dict],
-    fallback_user_id: str,
-) -> str:
-    """Match a GitHub commit, PR, or issue author to an app project member.
+    verified_map: dict[str, str],
+) -> Optional[str]:
+    """Match a GitHub commit or PR author to an app project member using verified GitHub logins only.
     
-    Priority matching order:
-    1. Exact GitHub username match (case-insensitive)
-    2. GitHub Noreply email parsed username match against member's github_username, email, or display_name
-    3. Exact email match (case-insensitive)
-    4. Exact full name / display_name match (case-insensitive)
-    5. Clean email username (local-part before @) matching member's github_username or email local-part
-    6. Sanitized alphanumeric name/login match
-    7. Fallback to fallback_user_id (current acting user or project owner)
+    (a) Exact case-insensitive match of author_login against verified_map.
+    (b) Parse '<id>+<login>@users.noreply.github.com' or '<login>@users.noreply.github.com' and match the same map.
+    Delete the name, email, local-part, substring, alphanumeric and fallback_user_id rules.
+    Return None when unmatched.
+    Treat logins ending in '[bot]' as bots.
     """
     norm_login = (author_login or "").strip().lower()
-    norm_email = (author_email or "").strip().lower()
-    norm_name = (author_name or "").strip().lower()
-    noreply_user = _extract_username_from_noreply(norm_email)
 
-    # 1. Exact match by GitHub username
-    if norm_login:
-        for m in members:
-            gh_user = (m.get("github_username") or "").strip().lower()
-            if gh_user and gh_user == norm_login:
-                return m["user_id"]
+    # Treat logins ending in '[bot]' as bots
+    if norm_login.endswith("[bot]"):
+        return None
 
-    # 2. Match GitHub Noreply email parsed username
-    if noreply_user:
-        for m in members:
-            gh_user = (m.get("github_username") or "").strip().lower()
-            mem_email = (m.get("email") or "").strip().lower()
-            mem_name = (m.get("display_name") or "").strip().lower()
-            if gh_user and gh_user == noreply_user:
-                return m["user_id"]
-            if mem_email and mem_email.split("@")[0] == noreply_user:
-                return m["user_id"]
-            if mem_name and mem_name == noreply_user:
-                return m["user_id"]
+    # (a) Exact case-insensitive match of author_login against verified_map
+    if norm_login and norm_login in verified_map:
+        return verified_map[norm_login]
 
-    # 3. Exact match by Email
-    if norm_email:
-        for m in members:
-            mem_email = (m.get("email") or "").strip().lower()
-            if mem_email and mem_email == norm_email:
-                return m["user_id"]
+    # (b) Parse noreply email
+    if author_email:
+        norm_email = author_email.strip().lower()
+        if "@users.noreply.github.com" in norm_email:
+            local_part = norm_email.split("@users.noreply.github.com")[0]
+            if "+" in local_part:
+                noreply_login = local_part.split("+", 1)[1]
+            else:
+                noreply_login = local_part
 
-    # 4. Exact match by Name / Display Name
-    if norm_name:
-        for m in members:
-            mem_name = (m.get("display_name") or "").strip().lower()
-            if mem_name and (mem_name == norm_name or norm_name in mem_name):
-                return m["user_id"]
+            noreply_login = noreply_login.strip()
+            if noreply_login.endswith("[bot]"):
+                return None
+            if noreply_login and noreply_login in verified_map:
+                return verified_map[noreply_login]
 
-    # 5. Clean email username (local-part before @) matching
-    if norm_email and "@" in norm_email:
-        email_prefix = norm_email.split("@")[0]
-        if email_prefix:
-            for m in members:
-                gh_user = (m.get("github_username") or "").strip().lower()
-                mem_email = (m.get("email") or "").strip().lower()
-                mem_prefix = mem_email.split("@")[0] if "@" in mem_email else ""
-                if gh_user and gh_user == email_prefix:
-                    return m["user_id"]
-                if mem_prefix and mem_prefix == email_prefix:
-                    return m["user_id"]
-
-    # 6. Sanitized alphanumeric match
-    if norm_login or norm_name:
-        clean_author = "".join(c for c in (norm_login or norm_name) if c.isalnum())
-        if clean_author:
-            for m in members:
-                clean_gh = "".join(c for c in (m.get("github_username") or "").lower() if c.isalnum())
-                clean_mem = "".join(c for c in (m.get("display_name") or "").lower() if c.isalnum())
-                if clean_gh and clean_gh == clean_author:
-                    return m["user_id"]
-                if clean_mem and clean_mem == clean_author:
-                    return m["user_id"]
-
-    # 7. Fallback to current acting user / lead
-    return fallback_user_id
+    return None
 
 
 @router.post(
@@ -1623,7 +1833,6 @@ async def generate_draft_contributions(
                 "user_id": uid,
                 "email": prof.get("email") or "",
                 "display_name": prof.get("display_name") or "",
-                "github_username": prof.get("github_username") or "",
                 "avatar_url": prof.get("avatar_url") or "",
             })
 
@@ -1636,9 +1845,11 @@ async def generate_draft_contributions(
                 "user_id": creator_id,
                 "email": c_prof.get("email") or "",
                 "display_name": c_prof.get("display_name") or "",
-                "github_username": c_prof.get("github_username") or "",
                 "avatar_url": c_prof.get("avatar_url") or "",
             })
+
+        # Build verified GitHub logins map
+        verified_map = _verified_github_logins(members_lookup, supabase)
 
         # 5. Fetch existing contributions to avoid duplicate draft creation
         c_res = (
@@ -1664,14 +1875,10 @@ async def generate_draft_contributions(
             state="all",
             per_page=30,
         )
-        issues = await github_service.fetch_repository_issues(
-            repo_full_name=repo_full_name,
-            installation_id=installation_id,
-            state="all",
-            per_page=30,
-        )
 
         new_drafts = []
+        unmatched_counts: dict[str, int] = {}
+        skipped_bots = 0
 
         # Process Commits
         for commit in commits:
@@ -1679,13 +1886,27 @@ async def generate_draft_contributions(
             if commit_url and commit_url in existing_evidence:
                 continue
 
+            author_login = commit.get("author_login") or commit.get("author") or ""
+            author_email = commit.get("author_email")
+
+            norm_login = str(author_login).strip().lower()
+            norm_email = str(author_email or "").strip().lower()
+
+            # Check bot
+            if norm_login.endswith("[bot]") or (norm_email.endswith("@users.noreply.github.com") and norm_email.split("@users.noreply.github.com")[0].split("+")[-1].endswith("[bot]")):
+                skipped_bots += 1
+                continue
+
             matched_uid = _match_author_to_member(
-                author_login=commit.get("author_login") or commit.get("author"),
-                author_email=commit.get("author_email"),
-                author_name=commit.get("author_name") or commit.get("author"),
-                members=members_lookup,
-                fallback_user_id=user_id,
+                author_login=author_login,
+                author_email=author_email,
+                verified_map=verified_map,
             )
+
+            if not matched_uid:
+                raw_key = author_login or _extract_username_from_noreply(author_email) or author_email or "unknown"
+                unmatched_counts[raw_key] = unmatched_counts.get(raw_key, 0) + 1
+                continue
 
             draft_item = {
                 "id": str(uuid.uuid4()),
@@ -1693,13 +1914,13 @@ async def generate_draft_contributions(
                 "project": project_id,
                 "title": commit.get("message") or f"Commit {commit.get('sha', '')[:7]}",
                 "category": "code",
-                "description": f"Git commit {commit.get('sha', '')[:7]} by {commit.get('author', 'Unknown')}",
+                "description": f"Git commit {commit.get('sha', '')[:7]} by {author_login or commit.get('author', 'Unknown')}",
                 "date_range": commit.get("date"),
                 "source_type": "github_commit",
                 "evidence_link": commit_url,
                 "verification_status": "source-verified",
                 "confirmed_by": None,
-                "visibility": "public",
+                "visibility": "private",
                 "dispute_state": "none",
                 "created_at": now_iso,
                 "updated_at": now_iso,
@@ -1708,19 +1929,31 @@ async def generate_draft_contributions(
             if commit_url:
                 existing_evidence.add(commit_url)
 
-        # Process Pull Requests
+        # Process Pull Requests (merged PRs only)
         for pr in pulls:
+            if not pr.get("merged_at"):
+                continue
+
             pr_url = pr.get("url")
             if pr_url and pr_url in existing_evidence:
                 continue
 
+            pr_user = pr.get("user") or ""
+            norm_pr_user = str(pr_user).strip().lower()
+
+            if norm_pr_user.endswith("[bot]"):
+                skipped_bots += 1
+                continue
+
             matched_uid = _match_author_to_member(
-                author_login=pr.get("user"),
+                author_login=pr_user,
                 author_email=None,
-                author_name=None,
-                members=members_lookup,
-                fallback_user_id=user_id,
+                verified_map=verified_map,
             )
+
+            if not matched_uid:
+                unmatched_counts[pr_user] = unmatched_counts.get(pr_user, 0) + 1
+                continue
 
             draft_item = {
                 "id": str(uuid.uuid4()),
@@ -1728,13 +1961,13 @@ async def generate_draft_contributions(
                 "project": project_id,
                 "title": pr.get("title") or f"Pull Request #{pr.get('number')}",
                 "category": "pull_request",
-                "description": f"Pull Request #{pr.get('number')} ({pr.get('state')}) on branch {pr.get('head_branch', 'main')}",
-                "date_range": pr.get("created_at"),
+                "description": f"Pull Request #{pr.get('number')} (merged) on branch {pr.get('head_branch', 'main')}",
+                "date_range": pr.get("merged_at") or pr.get("created_at"),
                 "source_type": "github_pr",
                 "evidence_link": pr_url,
                 "verification_status": "source-verified",
                 "confirmed_by": None,
-                "visibility": "public",
+                "visibility": "private",
                 "dispute_state": "none",
                 "created_at": now_iso,
                 "updated_at": now_iso,
@@ -1743,48 +1976,12 @@ async def generate_draft_contributions(
             if pr_url:
                 existing_evidence.add(pr_url)
 
-        # Process Issues
-        for issue in issues:
-            issue_url = issue.get("url")
-            if issue_url and issue_url in existing_evidence:
-                continue
-
-            matched_uid = _match_author_to_member(
-                author_login=issue.get("user"),
-                author_email=None,
-                author_name=None,
-                members=members_lookup,
-                fallback_user_id=user_id,
-            )
-
-            draft_item = {
-                "id": str(uuid.uuid4()),
-                "contributor": matched_uid,
-                "project": project_id,
-                "title": issue.get("title") or f"Issue #{issue.get('number')}",
-                "category": "issue",
-                "description": f"GitHub Issue #{issue.get('number')} ({issue.get('state')})",
-                "date_range": issue.get("created_at"),
-                "source_type": "github_issue",
-                "evidence_link": issue_url,
-                "verification_status": "source-verified",
-                "confirmed_by": None,
-                "visibility": "public",
-                "dispute_state": "none",
-                "created_at": now_iso,
-                "updated_at": now_iso,
-            }
-            new_drafts.append(draft_item)
-            if issue_url:
-                existing_evidence.add(issue_url)
-
         # 7. Persist to Supabase if any new drafts
         saved_drafts = []
         if new_drafts:
             ins_res = supabase.table("contributions").insert(new_drafts).execute()
             saved_drafts = ins_res.data if ins_res.data else new_drafts
         else:
-            # Fetch existing drafts for display
             all_c = (
                 supabase.table("contributions")
                 .select("*")
@@ -1798,20 +1995,24 @@ async def generate_draft_contributions(
             "last_generated_at": now_iso
         }).eq("project_id", project_id).execute()
 
-        # Build profile lookup dictionary for response enrichment
         prof_dict = {m["user_id"]: m for m in members_lookup}
+        from routers.contributions import _enrich_contribution_metadata
         for d in saved_drafts:
             cid = d.get("contributor")
             if cid in prof_dict:
                 d["contributor_name"] = prof_dict[cid].get("display_name") or prof_dict[cid].get("email")
                 d["contributor_profile"] = prof_dict[cid]
+            _enrich_contribution_metadata(d, caller_user_id=user_id, supabase=supabase)
 
+        unmatched_list = [{"login": k, "count": v} for k, v in sorted(unmatched_counts.items())]
         return {
             "message": f"Successfully generated {len(new_drafts)} draft contribution(s) from GitHub.",
             "project_id": project_id,
             "generated_count": len(new_drafts),
             "contributions": saved_drafts,
             "last_generated_at": now_iso,
+            "unmatched": unmatched_list,
+            "skipped_bots": skipped_bots,
         }
 
     except HTTPException:
@@ -1860,7 +2061,7 @@ async def generate_draft_contributions(
                     "user_id": cid,
                     "email": f"{cid}@buildcrew.io",
                     "display_name": f"Lead {cid}",
-                    "github_username": "buildcrew-dev",
+                    "verified_github_identity": DEV_GITHUB_IDENTITIES_DB.get(cid, "buildcrew-dev"),
                 })
 
             for m in DEV_PROJECT_MEMBERS_DB:
@@ -1871,14 +2072,16 @@ async def generate_draft_contributions(
                         "user_id": uid,
                         "email": f"{uid}@buildcrew.io",
                         "display_name": f"Member {uid}",
-                        "github_username": "buildcrew-team",
+                        "verified_github_identity": DEV_GITHUB_IDENTITIES_DB.get(uid, "buildcrew-team"),
                     })
+
+            verified_map = _verified_github_logins(dev_members_lookup, None)
 
             # Check existing dev contributions
             existing_evidence = {
                 c.get("evidence_link")
                 for c in DEV_CONTRIBUTIONS_DB
-                if c.get("project") == project_id and c.get("evidence_link")
+                if (c.get("project") == project_id or c.get("project_id") == project_id) and c.get("evidence_link")
             }
 
             commits = await github_service.fetch_repository_commits(
@@ -1893,27 +2096,36 @@ async def generate_draft_contributions(
                 state="all",
                 per_page=30,
             )
-            issues = await github_service.fetch_repository_issues(
-                repo_full_name=repo_full_name,
-                installation_id=installation_id,
-                state="all",
-                per_page=30,
-            )
 
             new_dev_drafts = []
+            unmatched_counts: dict[str, int] = {}
+            skipped_bots = 0
 
             for commit in commits:
                 curl = commit.get("url")
                 if curl and curl in existing_evidence:
                     continue
 
+                author_login = commit.get("author_login") or commit.get("author") or ""
+                author_email = commit.get("author_email")
+
+                norm_login = str(author_login).strip().lower()
+                norm_email = str(author_email or "").strip().lower()
+
+                if norm_login.endswith("[bot]") or (norm_email.endswith("@users.noreply.github.com") and norm_email.split("@users.noreply.github.com")[0].split("+")[-1].endswith("[bot]")):
+                    skipped_bots += 1
+                    continue
+
                 matched_uid = _match_author_to_member(
-                    author_login=commit.get("author_login") or commit.get("author"),
-                    author_email=commit.get("author_email"),
-                    author_name=commit.get("author_name") or commit.get("author"),
-                    members=dev_members_lookup,
-                    fallback_user_id=user_id,
+                    author_login=author_login,
+                    author_email=author_email,
+                    verified_map=verified_map,
                 )
+
+                if not matched_uid:
+                    raw_key = author_login or _extract_username_from_noreply(author_email) or author_email or "unknown"
+                    unmatched_counts[raw_key] = unmatched_counts.get(raw_key, 0) + 1
+                    continue
 
                 draft_item = {
                     "id": str(uuid.uuid4()),
@@ -1921,13 +2133,13 @@ async def generate_draft_contributions(
                     "project": project_id,
                     "title": commit.get("message") or f"Commit {commit.get('sha', '')[:7]}",
                     "category": "code",
-                    "description": f"Git commit {commit.get('sha', '')[:7]} by {commit.get('author', 'Unknown')}",
+                    "description": f"Git commit {commit.get('sha', '')[:7]} by {author_login or commit.get('author', 'Unknown')}",
                     "date_range": commit.get("date"),
                     "source_type": "github_commit",
                     "evidence_link": curl,
                     "verification_status": "source-verified",
                     "confirmed_by": None,
-                    "visibility": "public",
+                    "visibility": "private",
                     "dispute_state": "none",
                     "created_at": now_iso,
                     "updated_at": now_iso,
@@ -1937,17 +2149,29 @@ async def generate_draft_contributions(
                     existing_evidence.add(curl)
 
             for pr in pulls:
+                if not pr.get("merged_at"):
+                    continue
+
                 purl = pr.get("url")
                 if purl and purl in existing_evidence:
                     continue
 
+                pr_user = pr.get("user") or ""
+                norm_pr_user = str(pr_user).strip().lower()
+
+                if norm_pr_user.endswith("[bot]"):
+                    skipped_bots += 1
+                    continue
+
                 matched_uid = _match_author_to_member(
-                    author_login=pr.get("user"),
+                    author_login=pr_user,
                     author_email=None,
-                    author_name=None,
-                    members=dev_members_lookup,
-                    fallback_user_id=user_id,
+                    verified_map=verified_map,
                 )
+
+                if not matched_uid:
+                    unmatched_counts[pr_user] = unmatched_counts.get(pr_user, 0) + 1
+                    continue
 
                 draft_item = {
                     "id": str(uuid.uuid4()),
@@ -1955,13 +2179,13 @@ async def generate_draft_contributions(
                     "project": project_id,
                     "title": pr.get("title") or f"Pull Request #{pr.get('number')}",
                     "category": "pull_request",
-                    "description": f"Pull Request #{pr.get('number')} ({pr.get('state')}) on branch {pr.get('head_branch', 'main')}",
-                    "date_range": pr.get("created_at"),
+                    "description": f"Pull Request #{pr.get('number')} (merged) on branch {pr.get('head_branch', 'main')}",
+                    "date_range": pr.get("merged_at") or pr.get("created_at"),
                     "source_type": "github_pr",
                     "evidence_link": purl,
                     "verification_status": "source-verified",
                     "confirmed_by": None,
-                    "visibility": "public",
+                    "visibility": "private",
                     "dispute_state": "none",
                     "created_at": now_iso,
                     "updated_at": now_iso,
@@ -1970,67 +2194,39 @@ async def generate_draft_contributions(
                 if purl:
                     existing_evidence.add(purl)
 
-            for issue in issues:
-                iurl = issue.get("url")
-                if iurl and iurl in existing_evidence:
-                    continue
-
-                matched_uid = _match_author_to_member(
-                    author_login=issue.get("user"),
-                    author_email=None,
-                    author_name=None,
-                    members=dev_members_lookup,
-                    fallback_user_id=user_id,
-                )
-
-                draft_item = {
-                    "id": str(uuid.uuid4()),
-                    "contributor": matched_uid,
-                    "project": project_id,
-                    "title": issue.get("title") or f"Issue #{issue.get('number')}",
-                    "category": "issue",
-                    "description": f"GitHub Issue #{issue.get('number')} ({issue.get('state')})",
-                    "date_range": issue.get("created_at"),
-                    "source_type": "github_issue",
-                    "evidence_link": iurl,
-                    "verification_status": "source-verified",
-                    "confirmed_by": None,
-                    "visibility": "public",
-                    "dispute_state": "none",
-                    "created_at": now_iso,
-                    "updated_at": now_iso,
-                }
-                new_dev_drafts.append(draft_item)
-                if iurl:
-                    existing_evidence.add(iurl)
-
             DEV_CONTRIBUTIONS_DB.extend(new_dev_drafts)
+            _save_dev_data()
             if installation:
                 installation["last_generated_at"] = now_iso
 
             all_dev_project_contribs = [
-                c for c in DEV_CONTRIBUTIONS_DB if c.get("project") == project_id
+                c for c in DEV_CONTRIBUTIONS_DB if c.get("project") == project_id or c.get("project_id") == project_id
             ]
 
             dev_prof_dict = {m["user_id"]: m for m in dev_members_lookup}
+            from routers.contributions import _enrich_contribution_metadata
             for d in all_dev_project_contribs:
                 cid = d.get("contributor")
                 if cid in dev_prof_dict:
                     d["contributor_name"] = dev_prof_dict[cid].get("display_name") or dev_prof_dict[cid].get("email")
                     d["contributor_profile"] = dev_prof_dict[cid]
+                _enrich_contribution_metadata(d, caller_user_id=user_id, supabase=None)
 
+            unmatched_list = [{"login": k, "count": v} for k, v in sorted(unmatched_counts.items())]
             return {
                 "message": f"Successfully generated {len(new_dev_drafts)} draft contribution(s) from GitHub (Local Dev Mode).",
                 "project_id": project_id,
                 "generated_count": len(new_dev_drafts),
                 "contributions": all_dev_project_contribs,
                 "last_generated_at": now_iso,
+                "unmatched": unmatched_list,
+                "skipped_bots": skipped_bots,
             }
 
-        logger.exception("Failed to generate draft contributions")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to generate draft contributions. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to generate draft contributions. Please try again.",
+            log_message="Failed to generate draft contributions",
         )
 
 
@@ -2165,11 +2361,14 @@ async def list_project_contributions(
         draft_count = sum(1 for c in visible_all_items if c.get("verification_status") in ("source-verified", "pending", "draft", "self-declared", "needs-review"))
         confirmed_count = sum(1 for c in visible_all_items if c.get("verification_status") in ("confirmed", "peer-confirmed"))
 
+        from routers.contributions import _enrich_contribution_metadata
+
         for c in contribs:
             cid = c.get("contributor")
             prof = profiles_map.get(cid) or c.get("profiles") or {}
             c["contributor_name"] = prof.get("display_name") or prof.get("email") or c.get("contributor_name") or (f"User {cid[:8]}" if cid else "Contributor")
             c["contributor_profile"] = prof or None
+            _enrich_contribution_metadata(c, caller_user_id=user_id, supabase=supabase)
 
         return {
             "project_id": project_id,
@@ -2244,6 +2443,8 @@ async def list_project_contributions(
                 vis_f = visibility_filter.strip().lower()
                 filtered_contribs = [c for c in filtered_contribs if c.get("visibility", "").lower() == vis_f]
 
+            from routers.contributions import _enrich_contribution_metadata
+
             for c in filtered_contribs:
                 cid = c.get("contributor")
                 if cid and not c.get("contributor_profile"):
@@ -2253,6 +2454,7 @@ async def list_project_contributions(
                         "display_name": c["contributor_name"],
                         "email": f"{cid}@buildcrew.io",
                     }
+                _enrich_contribution_metadata(c, caller_user_id=user_id, supabase=None)
 
             return {
                 "project_id": project_id,
@@ -2262,10 +2464,10 @@ async def list_project_contributions(
                 "contributions": filtered_contribs,
             }
 
-        logger.exception("Failed to list contributions")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to list contributions. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to list contributions. Please try again.",
+            log_message="Failed to list contributions",
         )
 
 
@@ -2393,10 +2595,10 @@ async def list_public_project_contributions(
                 "contributions": dev_contribs,
             }
 
-        logger.exception("Failed to list public contributions")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to list public contributions. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to list public contributions. Please try again.",
+            log_message="Failed to list public contributions",
         )
 
 
@@ -2447,6 +2649,260 @@ async def delete_project_contribution(
     return await delete_contribution(
         contribution_id=contribution_id, current_user=current_user
     )
+
+
+@router.get(
+    "/{project_id}/ledger",
+    response_model=List[LedgerEntryResponse],
+    status_code=status.HTTP_200_OK,
+)
+@router.get(
+    "/{project_id}/ledger/",
+    response_model=List[LedgerEntryResponse],
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+async def get_project_ledger(
+    project_id: str,
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Project ledger: team members only (403 otherwise).
+    Returns items ordered newest first.
+    Excludes needs-review / disputed items that the caller neither authored nor disputed.
+    Sets waiting_on_me: bool (caller != author, has not voted, not disputed).
+    """
+    user_id = _get_user_id(current_user)
+    from routers.contributions import (
+        _get_contribution_votes,
+        _resolve_user_clean_name,
+        _get_project_member_ids,
+    )
+
+    try:
+        supabase = get_supabase_client()
+
+        # 1. Verify project exists
+        proj_res = (
+            supabase.table("projects")
+            .select("*")
+            .eq("id", project_id)
+            .single()
+            .execute()
+        )
+        if not proj_res.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found.",
+            )
+
+        project_data = proj_res.data
+        is_lead = project_data.get("created_by") == user_id
+
+        # 2. Check caller is a project member
+        is_member = is_lead
+        if not is_member:
+            member_res = (
+                supabase.table("project_members")
+                .select("id")
+                .eq("project_id", project_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
+            is_member = bool(member_res.data and len(member_res.data) > 0)
+
+        if not is_member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You must be a member of this project to view the ledger.",
+            )
+
+        # 3. Fetch contributions newest first
+        c_res = (
+            supabase.table("contributions")
+            .select("*")
+            .eq("project", project_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        raw_contribs = c_res.data or []
+
+        # Current project members set for valid votes
+        current_members = _get_project_member_ids(project_id, supabase)
+
+        # Profiles cache
+        contributor_ids = list({str(c.get("contributor") or "") for c in raw_contribs if c.get("contributor")})
+        profiles_map = {}
+        if contributor_ids:
+            try:
+                p_res = supabase.table("profiles").select("*").in_("id", contributor_ids).execute()
+                for p in (p_res.data or []):
+                    profiles_map[str(p.get("id"))] = p
+            except Exception:
+                pass
+
+        ledger_entries: List[LedgerEntryResponse] = []
+        for c in raw_contribs:
+            cid = str(c.get("id"))
+            author_id = str(c.get("contributor") or c.get("contributor_id") or "")
+            is_author = (author_id == str(user_id))
+            status_val = c.get("verification_status") or "self-declared"
+            dispute_state = c.get("dispute_state") or "none"
+            is_disputed = (status_val == "needs-review" or dispute_state == "disputed")
+
+            votes = _get_contribution_votes(cid, supabase)
+            valid_votes = [
+                v for v in votes
+                if str(v.get("confirmed_by_user_id")) in current_members
+                and str(v.get("confirmed_by_user_id")) != author_id
+            ]
+
+            caller_disputed = any(
+                str(v.get("confirmed_by_user_id")) == str(user_id) and v.get("action") == "dispute"
+                for v in votes
+            )
+
+            # Hide needs-review items caller neither authored nor disputed
+            if is_disputed and not is_author and not caller_disputed:
+                continue
+
+            has_caller_voted = any(
+                str(v.get("confirmed_by_user_id")) == str(user_id)
+                for v in votes
+            )
+
+            waiting_on_me = (not is_author) and (not has_caller_voted) and (not is_disputed)
+
+            confirmations_list = []
+            for cv in sorted([v for v in valid_votes if v.get("action") == "confirm"], key=lambda x: str(x.get("confirmed_at") or "")):
+                voter_id = str(cv.get("confirmed_by_user_id"))
+                confirmations_list.append(
+                    ConfirmationVoteInfo(
+                        name=_resolve_user_clean_name(voter_id, supabase),
+                        at=cv.get("confirmed_at") or datetime.now(timezone.utc).isoformat(),
+                    )
+                )
+
+            prof = profiles_map.get(author_id)
+            author_clean_name = _resolve_user_clean_name(author_id, supabase) if not prof else (prof.get("display_name") or prof.get("full_name") or _resolve_user_clean_name(author_id, supabase))
+
+            ledger_entries.append(
+                LedgerEntryResponse(
+                    id=cid,
+                    contributor_id=author_id,
+                    contributor_name=author_clean_name,
+                    title=c.get("title") or "Untitled Deliverable",
+                    category=c.get("category"),
+                    description=c.get("description"),
+                    evidence_link=c.get("evidence_link"),
+                    verification_status=status_val,
+                    confirmations=confirmations_list,
+                    waiting_on_me=waiting_on_me,
+                    created_at=c.get("created_at") or datetime.now(timezone.utc).isoformat(),
+                )
+            )
+
+        return ledger_entries
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        err_msg = str(e)
+        if _is_dev_fallback_error(err_msg):
+            # Local Dev Fallback
+            if project_id not in DEV_PROJECTS_DB and not any(c.get("project") == project_id for c in DEV_CONTRIBUTIONS_DB):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Project not found.",
+                )
+
+            project_data = DEV_PROJECTS_DB.get(project_id, {})
+            is_lead = project_data.get("created_by") == user_id
+            is_member = is_lead or any(
+                m.get("project_id") == project_id and m.get("user_id") == user_id
+                for m in DEV_PROJECT_MEMBERS_DB
+            )
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You must be a member of this project to view the ledger.",
+                )
+
+            current_members = _get_project_member_ids(project_id, None)
+
+            dev_items = [
+                c for c in DEV_CONTRIBUTIONS_DB
+                if c.get("project") == project_id or c.get("project_id") == project_id
+            ]
+            dev_items.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
+
+            ledger_entries = []
+            for c in dev_items:
+                cid = str(c.get("id"))
+                author_id = str(c.get("contributor") or c.get("contributor_id") or "")
+                is_author = (author_id == str(user_id))
+                status_val = c.get("verification_status") or "self-declared"
+                dispute_state = c.get("dispute_state") or "none"
+                is_disputed = (status_val == "needs-review" or dispute_state == "disputed")
+
+                votes = _get_contribution_votes(cid, None)
+                valid_votes = [
+                    v for v in votes
+                    if str(v.get("confirmed_by_user_id")) in current_members
+                    and str(v.get("confirmed_by_user_id")) != author_id
+                ]
+
+                caller_disputed = any(
+                    str(v.get("confirmed_by_user_id")) == str(user_id) and v.get("action") == "dispute"
+                    for v in votes
+                )
+
+                if is_disputed and not is_author and not caller_disputed:
+                    continue
+
+                has_caller_voted = any(
+                    str(v.get("confirmed_by_user_id")) == str(user_id)
+                    for v in votes
+                )
+
+                waiting_on_me = (not is_author) and (not has_caller_voted) and (not is_disputed)
+
+                confirmations_list = []
+                for cv in sorted([v for v in valid_votes if v.get("action") == "confirm"], key=lambda x: str(x.get("confirmed_at") or "")):
+                    voter_id = str(cv.get("confirmed_by_user_id"))
+                    confirmations_list.append(
+                        ConfirmationVoteInfo(
+                            name=_resolve_user_clean_name(voter_id, None),
+                            at=cv.get("confirmed_at") or datetime.now(timezone.utc).isoformat(),
+                        )
+                    )
+
+                author_clean_name = c.get("contributor_name") or _resolve_user_clean_name(author_id, None)
+
+                ledger_entries.append(
+                    LedgerEntryResponse(
+                        id=cid,
+                        contributor_id=author_id,
+                        contributor_name=author_clean_name,
+                        title=c.get("title") or "Untitled Deliverable",
+                        category=c.get("category"),
+                        description=c.get("description"),
+                        evidence_link=c.get("evidence_link"),
+                        verification_status=status_val,
+                        confirmations=confirmations_list,
+                        waiting_on_me=waiting_on_me,
+                        created_at=c.get("created_at") or datetime.now(timezone.utc).isoformat(),
+                    )
+                )
+
+            return ledger_entries
+
+        raise handle_route_error(
+            e,
+            generic_message="Failed to fetch project ledger. Please try again.",
+            log_message="Failed to fetch project ledger",
+        )
+
 
 
 

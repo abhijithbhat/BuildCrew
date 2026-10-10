@@ -27,8 +27,8 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
   late final GitHubService _gitHubService;
   bool _isLoading = false;
   String? _errorMessage;
+  String? _connectedRepo;
   final TextEditingController _repoNameController = TextEditingController();
-  final TextEditingController _instIdController = TextEditingController();
 
   List<Map<String, dynamic>> _availableRepos = [];
 
@@ -40,6 +40,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final projectId = _getEffectiveProjectId();
       if (projectId.isNotEmpty) {
+        _checkIfAlreadyConnected(projectId, silent: true);
         _fetchAvailableRepos(projectId);
       }
     });
@@ -49,7 +50,6 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _repoNameController.dispose();
-    _instIdController.dispose();
     super.dispose();
   }
 
@@ -86,6 +86,9 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
     try {
       await _gitHubService.selectRepository(projectId, repoFullName);
       if (mounted) {
+        setState(() {
+          _connectedRepo = repoFullName;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -104,7 +107,6 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
             ),
           ),
         );
-        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
@@ -143,25 +145,31 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
     try {
       final data = await _gitHubService.getInstallation(projectId);
       if (data['connected'] == true && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text('GitHub repository successfully connected!'),
-                ),
-              ],
+        final inst = data['installation'];
+        final repo = inst is Map ? inst['repo_full_name'] as String? : null;
+        setState(() {
+          _connectedRepo = repo;
+        });
+        if (!silent) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text('GitHub repository successfully connected!'),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF10B981),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            backgroundColor: const Color(0xFF10B981),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
-        Navigator.pop(context, true);
+          );
+        }
       } else if (!silent && mounted) {
         setState(() {
           _errorMessage =
@@ -185,7 +193,6 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
 
   Future<void> _linkDirectly(String projectId) async {
     final repoName = _repoNameController.text.trim();
-    final instId = _instIdController.text.trim();
 
     if (repoName.isEmpty) {
       setState(() {
@@ -202,11 +209,13 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
     try {
       await _gitHubService.linkInstallation(
         projectId,
-        instId.isNotEmpty ? instId : 'auto',
         repoFullName: repoName,
       );
 
       if (mounted) {
+        setState(() {
+          _connectedRepo = repoName;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Linked "$repoName" successfully!'),
@@ -217,7 +226,6 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
             ),
           ),
         );
-        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
@@ -241,6 +249,42 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
     });
 
     try {
+      // 1. Try to link directly without a GitHub trip if the lead already has an installation
+      try {
+        final installData = await _gitHubService.linkInstallation(projectId);
+        if (mounted) {
+          final repoLinked = installData['repo_full_name'] as String? ?? '';
+          setState(() {
+            _connectedRepo = repoLinked.isNotEmpty ? repoLinked : null;
+          });
+          await _fetchAvailableRepos(projectId);
+          if (mounted) {
+            _showRepositoryPickerModal(projectId);
+          }
+          return;
+        }
+      } catch (linkError) {
+        final errStr = linkError.toString().toLowerCase();
+        final isNoInstallation = errStr.contains('no active github app installation') ||
+            errStr.contains('no installation') ||
+            errStr.contains('install the github app first') ||
+            errStr.contains('install the app first') ||
+            errStr.contains('no active installation') ||
+            errStr.contains('400') ||
+            errStr.contains('bad request');
+
+        if (!isNoInstallation) {
+          // If it was another error (not 'no installation'), display it
+          if (mounted) {
+            setState(() {
+              _errorMessage = friendlyError(linkError);
+            });
+          }
+          return;
+        }
+      }
+
+      // 2. Only when server answers 'no installation' does the app open install-url
       final launched = await _gitHubService.launchInstallFlow(projectId);
       if (!launched && mounted) {
         setState(() {
@@ -282,6 +326,160 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
         });
       }
     }
+  }
+
+  Future<void> _showRepositoryPickerModal(String projectId) async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return FutureBuilder<Map<String, dynamic>>(
+          future: _gitHubService.getInstallationRepositories(projectId),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.emeraldInk),
+                ),
+              );
+            }
+
+            if (snapshot.hasError || !snapshot.hasData) {
+              return Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 36),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Failed to fetch repositories: ${snapshot.error ?? "No data"}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.bodyText, fontSize: 13),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final data = snapshot.data!;
+            final currentRepo = _connectedRepo ?? (data['current_repo'] as String? ?? '');
+            final rawRepos = data['repositories'] as List<dynamic>? ?? [];
+            final repos = rawRepos.map((r) => Map<String, dynamic>.from(r as Map)).toList();
+
+            if (repos.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.folder_open_rounded, color: AppColors.emeraldInk, size: 48),
+                    SizedBox(height: 12),
+                    Text(
+                      'No Repositories Found',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'No repositories found under this installation.',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.emeraldInk.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.swap_horiz_rounded, color: AppColors.emeraldInk, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Select Repository',
+                        style: TextStyle(
+                          color: AppColors.emeraldInk,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Choose which repository to link to this project:',
+                    style: TextStyle(color: AppColors.bodyText.withValues(alpha: 0.7), fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: repos.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final r = repos[index];
+                        final fullRepoName = r['full_name'] as String? ?? '';
+                        final isSelected = fullRepoName == currentRepo;
+
+                        return Material(
+                          color: isSelected ? AppColors.champagne : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected ? AppColors.emeraldInk : AppColors.inputBorder,
+                                width: isSelected ? 1.5 : 1,
+                              ),
+                            ),
+                            child: ListTile(
+                            leading: Icon(
+                              Icons.code_rounded,
+                              color: isSelected ? AppColors.emeraldInk : AppColors.bodyText.withValues(alpha: 0.5),
+                            ),
+                            title: Text(
+                              fullRepoName,
+                              style: TextStyle(
+                                color: isSelected ? AppColors.emeraldInk : AppColors.bodyText,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                fontSize: 14,
+                              ),
+                            ),
+                            trailing: isSelected
+                                ? const Icon(Icons.check_circle_rounded, color: AppColors.emeraldInk)
+                                : null,
+                            onTap: () async {
+                              Navigator.pop(ctx);
+                              await _selectRepoDirectly(projectId, fullRepoName);
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -386,6 +584,10 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
               ),
 
               const SizedBox(height: 24),
+
+              // Connected Repository Card (with prominent Change repository action)
+              if (_connectedRepo != null && _connectedRepo!.isNotEmpty)
+                _buildConnectedRepoCard(effectiveProjectId),
 
               // Available / Detected GitHub Repositories (1-Tap Direct Connect)
               _buildAvailableRepositoriesSection(effectiveProjectId),
@@ -722,6 +924,119 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
     );
   }
 
+  Widget _buildConnectedRepoCard(String projectId) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF10B981), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF10B981).withValues(alpha: 0.1),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  color: Color(0xFF10B981),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Connected Repository',
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _connectedRepo!,
+                      style: const TextStyle(
+                        color: AppColors.emeraldInk,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _showRepositoryPickerModal(projectId),
+                  icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                  label: const Text(
+                    'Change repository',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.emeraldInk,
+                    foregroundColor: AppColors.champagne,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pushReplacementNamed(
+                    context,
+                    '/repo-status',
+                    arguments: {'projectId': projectId},
+                  );
+                },
+                icon: const Icon(Icons.dashboard_rounded, size: 18),
+                label: const Text(
+                  'Status',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.emeraldInk,
+                  side: const BorderSide(color: AppColors.emeraldInk, width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAvailableRepositoriesSection(String projectId) {
     if (_availableRepos.isEmpty) return const SizedBox.shrink();
 
@@ -791,12 +1106,15 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
             final fullName = r['full_name'] as String? ?? '';
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
-              decoration: BoxDecoration(
+              child: Material(
                 color: AppColors.champagne,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: ListTile(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: ListTile(
                 dense: true,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
                 leading: const Icon(
@@ -831,8 +1149,10 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                   ),
                 ),
               ),
-            );
-          }),
+            ),
+          ),
+        );
+      }),
         ],
       ),
     );

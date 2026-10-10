@@ -164,15 +164,30 @@ class ProjectService {
   }
 
   /// List all projects for current user via GET /projects.
-  Future<List<Project>> listProjects() async {
+  Future<List<Project>> listProjects({bool includeArchived = false}) async {
     try {
       final options = await _getAuthOptions();
-      final response = await _getWithFallback('/projects', options: options);
+      final path = includeArchived ? '/projects?include_archived=true' : '/projects';
+      final response = await _getWithFallback(path, options: options);
       final data = response.data as Map<String, dynamic>;
       final list = data['projects'] as List<dynamic>? ?? [];
       return list
           .map((item) => Project.fromJson(item as Map<String, dynamic>))
           .toList();
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Get project details via GET /projects/{projectId}.
+  Future<Map<String, dynamic>> getProjectDetails(String projectId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _getWithFallback(
+        '/projects/$projectId',
+        options: options,
+      );
+      return response.data as Map<String, dynamic>;
     } catch (e) {
       throw _parseDioError(e);
     }
@@ -510,11 +525,14 @@ class ProjectService {
   /// Request peer confirmation from selected teammates for a logged deliverable.
   Future<List<ConfirmationRequest>> requestConfirmation({
     required String contributionId,
-    required List<String> reviewerIds,
+    List<String>? reviewerIds,
   }) async {
     try {
       final options = await _getAuthOptions();
-      final payload = {'reviewer_ids': reviewerIds};
+      final payload = <String, dynamic>{};
+      if (reviewerIds != null && reviewerIds.isNotEmpty) {
+        payload['reviewer_ids'] = reviewerIds;
+      }
       final response = await _postWithFallback(
         '/contributions/$contributionId/request-confirmation',
         payload,
@@ -565,17 +583,73 @@ class ProjectService {
     }
   }
 
-  /// Dispute a teammate's contribution.
-  Future<Contribution> disputeContribution(String contributionId) async {
+  /// Dispute a teammate's contribution with optional reason (max 280 chars).
+  Future<Contribution> disputeContribution(
+    String contributionId, {
+    String? reason,
+  }) async {
+    try {
+      final options = await _getAuthOptions();
+      final payload = <String, dynamic>{};
+      if (reason != null && reason.trim().isNotEmpty) {
+        payload['reason'] = reason.trim();
+      }
+      final response = await _postWithFallback(
+        '/contributions/$contributionId/dispute',
+        payload,
+        options: options,
+      );
+      final data = response.data as Map<String, dynamic>;
+      return Contribution.fromJson(data);
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Withdraw a peer dispute on a contribution.
+  Future<Contribution> withdrawDispute(String contributionId) async {
     try {
       final options = await _getAuthOptions();
       final response = await _postWithFallback(
-        '/contributions/$contributionId/dispute',
+        '/contributions/$contributionId/withdraw-dispute',
         {},
         options: options,
       );
       final data = response.data as Map<String, dynamic>;
       return Contribution.fromJson(data);
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Reopen an orphaned disputed contribution (author only).
+  Future<Contribution> reopenContribution(String contributionId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _postWithFallback(
+        '/contributions/$contributionId/reopen',
+        {},
+        options: options,
+      );
+      final data = response.data as Map<String, dynamic>;
+      return Contribution.fromJson(data);
+    } catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  /// Fetch project team ledger grouped by teammates.
+  Future<List<LedgerEntry>> getProjectLedger(String projectId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _getWithFallback(
+        '/projects/$projectId/ledger',
+        options: options,
+      );
+      final rawList = response.data as List<dynamic>? ?? [];
+      return rawList
+          .map((item) => LedgerEntry.fromJson(item as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       throw _parseDioError(e);
     }

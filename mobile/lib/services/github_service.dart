@@ -37,17 +37,18 @@ class GitHubService {
     if (error is DioException) {
       if (error.response != null && error.response!.data != null) {
         final data = error.response!.data;
-        if (data is Map<String, dynamic>) {
-          if (data.containsKey('detail')) {
-            final detail = data['detail'];
+        if (data is Map) {
+          final detail = data['detail'] ?? data['message'] ?? data['error'];
+          if (detail != null) {
             if (detail is List && detail.isNotEmpty) {
-              return detail.map((e) => e['msg'] ?? e.toString()).join('\n');
+              return detail
+                  .map((e) => e is Map ? (e['msg'] ?? e.toString()) : e.toString())
+                  .join('\n');
             }
             return detail.toString();
           }
-          if (data.containsKey('message')) {
-            return data['message'].toString();
-          }
+        } else if (data is String && data.trim().isNotEmpty && !data.startsWith('<')) {
+          return data.trim();
         }
         return 'Server error: ${error.response!.statusCode}';
       }
@@ -63,12 +64,38 @@ class GitHubService {
     final options = await _getAuthOptions();
     dynamic lastError;
 
-    for (final baseUrl in fallbackBaseUrls) {
+    final endpoints = <String>[
+      if (ApiClient.activeBaseUrl.isNotEmpty && fallbackBaseUrls.contains(ApiClient.activeBaseUrl))
+        ApiClient.activeBaseUrl,
+      ...fallbackBaseUrls.where((u) => u != ApiClient.activeBaseUrl),
+    ];
+
+    for (final baseUrl in endpoints) {
       try {
         final response = await requestFn(baseUrl, options);
         if (response.data != null) {
+          ApiClient.activeBaseUrl = baseUrl;
           return response.data!;
         }
+      } on DioException catch (e) {
+        lastError = e;
+        // Only fallback on connection/network failures, never on 4xx/5xx HTTP responses
+        final isConnError = e.type == DioExceptionType.connectionError ||
+            e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
+            (e.message != null &&
+                (e.message!.contains('Connection refused') ||
+                    e.message!.contains('No route to host') ||
+                    e.message!.contains('SocketException')));
+        if (isConnError) {
+          debugPrint('GitHubService fallback failed on $baseUrl due to connection error. Retrying next...');
+          continue;
+        }
+        // If the server answered with an HTTP status code (4xx, 5xx),
+        // we reached the server! Do not fallback to another URL.
+        ApiClient.activeBaseUrl = baseUrl;
+        throw _parseDioError(e);
       } catch (e) {
         lastError = e;
         debugPrint('GitHubService fallback failed on $baseUrl: $e');
@@ -85,8 +112,11 @@ class GitHubService {
         options: options,
       ),
     );
-    return data['url'] as String? ??
-        'https://github.com/apps/BuildCrew-App/installations/new?state=$projectId';
+    final url = data['url'] as String?;
+    if (url == null || url.isEmpty) {
+      throw "Couldn't start GitHub connection. Try again.";
+    }
+    return url;
   }
 
   /// Retrieve connected GitHub repository status for a project.
@@ -99,15 +129,19 @@ class GitHubService {
     );
   }
 
-  /// Explicitly link an installation to a project.
+  /// Explicitly link an installation to a project, or link existing lead installation without a GitHub trip.
   Future<Map<String, dynamic>> linkInstallation(
-    String projectId,
-    String installationId, {
+    String projectId, {
+    String? installationId,
     String? repoFullName,
   }) async {
-    final payload = <String, dynamic>{
-      'installation_id': installationId,
-    };
+    final payload = <String, dynamic>{};
+    if (installationId != null &&
+        installationId.isNotEmpty &&
+        installationId != 'auto' &&
+        installationId != '0') {
+      payload['installation_id'] = installationId;
+    }
     if (repoFullName != null && repoFullName.isNotEmpty) {
       payload['repo_full_name'] = repoFullName;
     }
@@ -193,15 +227,7 @@ class GitHubService {
 
   /// Opens the GitHub App installation flow directly in the browser.
   Future<bool> launchInstallFlow(String projectId) async {
-    String urlString;
-    try {
-      urlString = await getInstallUrl(projectId);
-    } catch (e) {
-      debugPrint('Could not fetch dynamic install URL, using fallback: $e');
-      urlString =
-          'https://github.com/apps/BuildCrew-App/installations/new?state=$projectId';
-    }
-
+    final urlString = await getInstallUrl(projectId);
     final uri = Uri.parse(urlString);
 
     try {

@@ -103,6 +103,17 @@ class ContributionUpdate(BaseModel):
         return _validate_evidence_link(v)
 
 
+class ConfirmationVoteInfo(BaseModel):
+    name: str
+    at: Union[datetime, str]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DisputeContributionPayload(BaseModel):
+    reason: Optional[str] = None
+
+
 class ContributionResponse(ContributionBase):
     id: str
     contributor: str
@@ -111,11 +122,48 @@ class ContributionResponse(ContributionBase):
     updated_at: Union[datetime, str]
     contributor_name: Optional[str] = None
     contributor_profile: Optional[dict] = None
+    confirmations: List[ConfirmationVoteInfo] = []
+    confirm_count: int = 0
+    team_size: int = 0
+    disputed_by_name: Optional[str] = None
+    dispute_reason: Optional[str] = None
+    confirmer_names: List[str] = []
+    confirmation_label: Optional[str] = None
+    can_reopen: bool = False
+    is_dispute_orphaned: bool = False
 
     @field_validator("evidence_link", mode="before")
     @classmethod
     def sanitize_evidence_link_for_response(cls, v: Any) -> Optional[str]:
         return _sanitize_existing_evidence_link(v)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LedgerEntryResponse(BaseModel):
+    id: str
+    contributor_id: str
+    contributor_name: Optional[str] = None
+    title: str
+    category: Optional[str] = None
+    description: Optional[str] = None
+    evidence_link: Optional[str] = None
+    verification_status: str
+    confirmations: List[ConfirmationVoteInfo] = []
+    waiting_on_me: bool = False
+    created_at: Union[datetime, str]
+
+    @field_validator("evidence_link", mode="before")
+    @classmethod
+    def sanitize_evidence_link(cls, v: Any) -> Optional[str]:
+        return _sanitize_existing_evidence_link(v)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UnmatchedAuthorInfo(BaseModel):
+    login: str
+    count: int
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -126,6 +174,10 @@ class DraftGenerationResponse(BaseModel):
     generated_count: int
     contributions: List[ContributionResponse]
     last_generated_at: str
+    unmatched: List[UnmatchedAuthorInfo] = []
+    skipped_bots: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ContributionsListResponse(BaseModel):
@@ -145,7 +197,7 @@ class EvidenceUploadResponse(BaseModel):
 
 
 class RequestConfirmationPayload(BaseModel):
-    reviewer_ids: List[str]
+    reviewer_ids: Optional[List[str]] = None
 
 
 class ConfirmationRequestResponse(BaseModel):
@@ -203,6 +255,10 @@ class ProjectPassportResponse(BaseModel):
     user_id: str
     project_id: str
     project_name: Optional[str] = None
+    project_description: Optional[str] = None
+    team_size: int = 1
+    repository: Optional[str] = None
+    repository_url: Optional[str] = None
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
     github_username: Optional[str] = None
@@ -210,6 +266,13 @@ class ProjectPassportResponse(BaseModel):
     role_category: Optional[str] = None
     total_contributions: int
     confirmed_count: int
+    evidence_count: int = 0
+    github_matched_count: int = 0
+    peer_confirmed_count: int = 0
+    confirmer_names: List[str] = []
+    summary_line: Optional[str] = None
+    is_archived: bool = False
+    archived_at: Optional[Union[datetime, str]] = None
     contributions: List[ContributionResponse]
 
     model_config = ConfigDict(from_attributes=True)

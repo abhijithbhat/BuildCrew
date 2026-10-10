@@ -7,15 +7,66 @@ import 'package:mobile/services/github_service.dart';
 class MockGitHubService extends GitHubService {
   final bool shouldSucceed;
   final bool isConnected;
+  final bool leadHasInstallation;
   final Map<String, dynamic>? customInstallation;
   bool launchCalled = false;
   bool unlinkCalled = false;
+  bool linkInstallationCalled = false;
+  String? selectedRepo;
 
   MockGitHubService({
     this.shouldSucceed = true,
     this.isConnected = true,
+    this.leadHasInstallation = false,
     this.customInstallation,
   });
+
+  @override
+  Future<Map<String, dynamic>> linkInstallation(
+    String projectId, {
+    String? installationId,
+    String? repoFullName,
+  }) async {
+    linkInstallationCalled = true;
+    if (!leadHasInstallation) {
+      throw 'No active GitHub App installation found. Please install the app first.';
+    }
+    if (!shouldSucceed) {
+      throw 'Failed to connect to GitHub installation endpoint.';
+    }
+    return {
+      'project_id': projectId,
+      'installation_id': 12345,
+      'repo_full_name': repoFullName ?? 'lead-org/existing-repo',
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> getInstallationRepositories(String projectId) async {
+    if (!shouldSucceed) {
+      throw 'Failed to fetch repositories.';
+    }
+    return {
+      'installation_id': 12345,
+      'current_repo': selectedRepo ?? 'lead-org/existing-repo',
+      'repositories': [
+        {'full_name': 'lead-org/existing-repo'},
+        {'full_name': 'lead-org/secondary-repo'},
+      ],
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> selectRepository(
+    String projectId,
+    String repoFullName,
+  ) async {
+    selectedRepo = repoFullName;
+    return {
+      'success': true,
+      'repo_full_name': repoFullName,
+    };
+  }
 
   @override
   Future<bool> launchInstallFlow(String projectId) async {
@@ -137,6 +188,72 @@ void main() {
       );
     });
 
+    testWidgets(
+        'when lead already has installation, tapping Connect links directly and shows repo picker without launching browser',
+        (WidgetTester tester) async {
+      final mockService = MockGitHubService(
+        shouldSucceed: true,
+        isConnected: false,
+        leadHasInstallation: true,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConnectRepositoryScreen(
+            projectId: 'proj-123',
+            projectName: 'BuildCrew Core',
+            gitHubService: mockService,
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Tap Connect Button
+      await tester.ensureVisible(find.text('Open GitHub in Browser'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open GitHub in Browser'));
+      await tester.pumpAndSettle();
+
+      // Verified: linkInstallation was called, browser was NOT opened
+      expect(mockService.linkInstallationCalled, isTrue);
+      expect(mockService.launchCalled, isFalse);
+      // Repository picker modal opens
+      expect(find.text('Select Repository'), findsOneWidget);
+      expect(find.text('lead-org/existing-repo'), findsWidgets);
+    });
+
+    testWidgets(
+        'displays connected repository and prominent Change repository action when connected',
+        (WidgetTester tester) async {
+      final mockService = MockGitHubService(
+        shouldSucceed: true,
+        isConnected: true,
+        customInstallation: {
+          'id': 'inst-uuid-1',
+          'project_id': 'proj-123',
+          'installation_id': '4635635',
+          'repo_full_name': 'BuildCrew-Org/buildcrew-core',
+          'connected_at': '2026-08-19T10:00:00Z',
+        },
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConnectRepositoryScreen(
+            projectId: 'proj-123',
+            projectName: 'BuildCrew Core',
+            gitHubService: mockService,
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Connected Repository'), findsOneWidget);
+      expect(find.text('BuildCrew-Org/buildcrew-core'), findsWidgets);
+      expect(find.text('Change repository'), findsOneWidget);
+    });
   });
 
   group('RepoStatusScreen Tests', () {
@@ -162,6 +279,9 @@ void main() {
       expect(find.text('BuildCrew-Org/buildcrew-core'), findsOneWidget);
       expect(find.text('View on GitHub (BuildCrew-Org/buildcrew-core)'),
           findsOneWidget);
+
+      // Verify Prominent Change repository button is rendered for owner
+      expect(find.text('Change repository'), findsOneWidget);
 
       // Verify Installation Details
       expect(find.text('Integration Details'), findsOneWidget);

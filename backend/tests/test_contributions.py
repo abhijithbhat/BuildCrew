@@ -10,6 +10,7 @@ from routers.projects import (
     DEV_PROJECTS_DB,
     DEV_PROJECT_MEMBERS_DB,
     _match_author_to_member,
+    _verified_github_logins,
 )
 from services import github_service
 
@@ -34,122 +35,76 @@ def cleanup_state():
 
 
 # ==============================================================================
-# 1. Author Matching Engine Unit Tests
+# 1. Author Matching Engine Unit Tests (Verified GitHub Logins)
 # ==============================================================================
 
 def test_author_matching_by_github_username():
-    members = [
-        {"user_id": "u-1", "github_username": "alice-gh", "email": "alice@corp.com", "display_name": "Alice Smith"},
-        {"user_id": "u-2", "github_username": "bob-gh", "email": "bob@corp.com", "display_name": "Bob Jones"},
-    ]
+    verified_map = {"alice-gh": "u-1", "bob-gh": "u-2"}
     matched = _match_author_to_member(
         author_login="alice-gh",
         author_email="unknown@random.org",
-        author_name="Alice S",
-        members=members,
-        fallback_user_id="fallback-uid",
+        verified_map=verified_map,
     )
     assert matched == "u-1"
 
 
 def test_author_matching_by_github_username_case_insensitive():
-    members = [
-        {"user_id": "u-1", "github_username": "Alice-GH", "email": "alice@corp.com", "display_name": "Alice Smith"},
-    ]
+    verified_map = {"alice-gh": "u-1"}
     matched = _match_author_to_member(
-        author_login="alice-gh",
+        author_login="Alice-GH",
         author_email="different@email.com",
-        author_name="Alice",
-        members=members,
-        fallback_user_id="fallback-uid",
+        verified_map=verified_map,
     )
     assert matched == "u-1"
 
 
-def test_author_matching_by_email():
-    members = [
-        {"user_id": "u-1", "github_username": "alice-gh", "email": "alice@corp.com", "display_name": "Alice Smith"},
-        {"user_id": "u-2", "github_username": "bob-gh", "email": "bob@corp.com", "display_name": "Bob Jones"},
-    ]
-    matched = _match_author_to_member(
-        author_login="some-unregistered-handle",
-        author_email="bob@corp.com",
-        author_name="Robert",
-        members=members,
-        fallback_user_id="fallback-uid",
-    )
-    assert matched == "u-2"
-
-
-def test_author_matching_by_email_case_insensitive():
-    members = [
-        {"user_id": "u-2", "github_username": "bob-gh", "email": "Bob@Corp.COM", "display_name": "Bob Jones"},
-    ]
-    matched = _match_author_to_member(
-        author_login="unmatched",
-        author_email="bob@corp.com",
-        author_name="",
-        members=members,
-        fallback_user_id="fallback-uid",
-    )
-    assert matched == "u-2"
-
-
 def test_author_matching_by_github_noreply_email():
-    members = [
-        {"user_id": "u-1", "github_username": "dev-alice", "email": "alice@corp.com", "display_name": "Alice"},
-    ]
+    verified_map = {"dev-alice": "u-1"}
     # Standard GitHub privacy email: 12345+dev-alice@users.noreply.github.com
     matched = _match_author_to_member(
         author_login=None,
         author_email="987654+dev-alice@users.noreply.github.com",
-        author_name="Alice S",
-        members=members,
-        fallback_user_id="fallback-uid",
+        verified_map=verified_map,
     )
     assert matched == "u-1"
 
 
-def test_author_matching_by_email_local_prefix():
-    members = [
-        {"user_id": "u-3", "github_username": "charlie_code", "email": "charlie@buildcrew.io", "display_name": "Charlie"},
-    ]
+def test_author_matching_by_github_noreply_email_without_numeric_id():
+    verified_map = {"dev-alice": "u-1"}
     matched = _match_author_to_member(
         author_login=None,
-        author_email="charlie@anotherdomain.com",
-        author_name="C. D.",
-        members=members,
-        fallback_user_id="fallback-uid",
-    )
-    assert matched == "u-3"
-
-
-def test_author_matching_by_name():
-    members = [
-        {"user_id": "u-1", "github_username": "alice-gh", "email": "alice@corp.com", "display_name": "Alice Smith"},
-    ]
-    matched = _match_author_to_member(
-        author_login="",
-        author_email="other@corp.com",
-        author_name="Alice Smith",
-        members=members,
-        fallback_user_id="fallback-uid",
+        author_email="dev-alice@users.noreply.github.com",
+        verified_map=verified_map,
     )
     assert matched == "u-1"
 
 
-def test_author_matching_fallback():
-    members = [
-        {"user_id": "u-1", "github_username": "alice-gh", "email": "alice@corp.com", "display_name": "Alice Smith"},
-    ]
+def test_author_matching_bots_return_none():
+    verified_map = {"dependabot[bot]": "u-bot", "alice-gh": "u-1"}
+    assert _match_author_to_member("dependabot[bot]", None, verified_map) is None
+    assert _match_author_to_member("codecov[bot]", "codecov[bot]@users.noreply.github.com", verified_map) is None
+    assert _match_author_to_member(None, "12345+dependabot[bot]@users.noreply.github.com", verified_map) is None
+
+
+def test_author_matching_legacy_rules_deleted_returns_none():
+    verified_map = {"alice-gh": "u-1", "bob-gh": "u-2"}
+    # Name matching deleted
+    assert _match_author_to_member("", "other@corp.com", verified_map) is None
+    # Regular email matching deleted
+    assert _match_author_to_member("unknown-handle", "alice@corp.com", verified_map) is None
+    # Substring / local-part matching deleted
+    assert _match_author_to_member(None, "alice@anotherdomain.com", verified_map) is None
+
+
+def test_author_matching_unmatched_returns_none_never_falls_back():
+    verified_map = {"alice-gh": "u-1"}
+    # Never credit someone else's work; return None
     matched = _match_author_to_member(
-        author_login="unknown-bot",
-        author_email="bot@service.com",
-        author_name="Automated Bot",
-        members=members,
-        fallback_user_id="lead-user-id",
+        author_login="stranger-danger",
+        author_email="stranger@example.com",
+        verified_map=verified_map,
     )
-    assert matched == "lead-user-id"
+    assert matched is None
 
 
 # ==============================================================================
@@ -239,12 +194,13 @@ def test_generate_draft_success_dev_mode():
     assert "Successfully generated" in data["message"]
     assert len(data["contributions"]) > 0
 
-    # Verify all generated records have status 'source-verified'
+    # Verify all generated records have status 'source-verified' and 'private' visibility
     for c in data["contributions"]:
         assert c["verification_status"] == "source-verified"
         assert c["project"] == "proj-100"
         assert c["evidence_link"] is not None
-        assert c["source_type"] in ("github_commit", "github_pr", "github_issue")
+        assert c["source_type"] in ("github_commit", "github_pr")
+        assert c["visibility"] == "private"
 
     # Verify deduplication on subsequent call: running generate-draft again should not create duplicate records
     second_response = client.post("/projects/proj-100/generate-draft")
@@ -290,6 +246,13 @@ def test_generate_draft_supabase_mode():
     app.dependency_overrides[get_current_user] = lambda: mock_user
 
     mock_supabase = MagicMock()
+
+    # Mock auth.admin.get_user_by_id with verified GitHub identity
+    mock_identity = MagicMock()
+    mock_identity.provider = "github"
+    mock_identity.identity_data = {"user_name": "buildcrew-dev"}
+    mock_admin_user = MagicMock(identities=[mock_identity])
+    mock_supabase.auth.admin.get_user_by_id.return_value = MagicMock(user=mock_admin_user)
 
     # Mock projects table query
     mock_proj_table = MagicMock()
@@ -338,7 +301,7 @@ def test_generate_draft_supabase_mode():
                 "evidence_link": "https://github.com/buildcrew/test/commit/abc",
                 "verification_status": "source-verified",
                 "confirmed_by": None,
-                "visibility": "public",
+                "visibility": "private",
                 "dispute_state": "none",
                 "created_at": "2026-08-16T12:00:00Z",
                 "updated_at": "2026-08-16T12:00:00Z",
@@ -384,7 +347,10 @@ def test_generate_draft_supabase_mode():
          patch("services.github_service.get_supabase_client", return_value=mock_supabase):
         response = client.post("/projects/proj-supabase-1/generate-draft")
         assert response.status_code == 200
-        assert response.json()["generated_count"] >= 1
+        res_json = response.json()
+        assert res_json["generated_count"] >= 1
+        for c in res_json["contributions"]:
+            assert c["visibility"] == "private"
 
 
 def test_list_contributions_unauthenticated():
@@ -1212,14 +1178,32 @@ def test_request_confirmation_fails_on_self_request():
 
 
 def test_request_confirmation_empty_reviewers():
-    """Reject empty reviewer list with 400."""
-    author_user = MagicMock(id="user-author-4", email="author4@buildcrew.io")
+    """Empty reviewer list with no other teammates returns 400."""
+    author_user = MagicMock(id="user-author-solo", email="author_solo@buildcrew.io")
     app.dependency_overrides[get_current_user] = lambda: author_user
 
+    DEV_PROJECTS_DB["proj-solo-1"] = {
+        "id": "proj-solo-1",
+        "name": "Solo Project",
+        "created_by": author_user.id,
+    }
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-solo-1",
+        "project": "proj-solo-1",
+        "contributor": author_user.id,
+        "title": "Solo feature",
+        "category": "code",
+        "verification_status": "self-declared",
+        "visibility": "private",
+        "dispute_state": "none",
+        "created_at": "2026-09-01T10:00:00Z",
+        "updated_at": "2026-09-01T10:00:00Z",
+    })
+
     payload = {"reviewer_ids": []}
-    response = client.post("/contributions/any-id/request-confirmation", json=payload)
+    response = client.post("/contributions/c-solo-1/request-confirmation", json=payload)
     assert response.status_code == 400
-    assert "At least one teammate reviewer must be selected" in response.json()["detail"]
+    assert "No other teammates available" in response.json()["detail"]
 
 
 # ==============================================================================
@@ -2003,7 +1987,7 @@ def test_publish_unconfirmed_contribution_fails_with_400():
     author = MagicMock(id="user-publish-unconfirmed-author", email="unconfirmed@buildcrew.io")
     app.dependency_overrides[get_current_user] = lambda: author
 
-    for status_val in ["pending", "self-declared", "draft", "source-verified"]:
+    for status_val in ["pending", "self-declared", "draft"]:
         cid = f"c-unconfirmed-{status_val}"
         DEV_CONTRIBUTIONS_DB.append({
             "id": cid,

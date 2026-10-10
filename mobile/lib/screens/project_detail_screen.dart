@@ -13,6 +13,8 @@ import 'my_contributions_screen.dart';
 import 'publish_selection_screen.dart';
 import 'repo_status_screen.dart';
 import 'team_roles_screen.dart';
+import 'team_ledger_screen.dart';
+import '../widgets/dispute_bottom_sheet.dart';
 import '../utils/error_messages.dart';
 
 
@@ -339,21 +341,61 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   bool _isProcessingAction = false;
 
   Future<void> _dismantleProject(Project project) async {
+    setState(() {
+      _isProcessingAction = true;
+    });
+
+    bool hasOtherMembers = false;
+    try {
+      final roles = await _projectService.listProjectRoles(project.id);
+      final currentUid = _currentUserId;
+      final totalMembers = roles.isNotEmpty
+          ? (roles.first['total_members'] as int? ?? roles.length)
+          : roles.length;
+      hasOtherMembers = totalMembers > 1 ||
+          roles.any((r) => r['user_id'] != null && r['user_id'] != currentUid);
+    } catch (_) {
+      try {
+        final details = await _projectService.getProjectDetails(project.id);
+        final members =
+            details['project']?['project_members'] as List<dynamic>? ?? [];
+        hasOtherMembers = members.any((m) =>
+                m['user_id'] != null && m['user_id'] != _currentUserId) ||
+            members.length > 1;
+      } catch (_) {}
+    }
+
+    if (mounted) {
+      setState(() {
+        _isProcessingAction = false;
+      });
+    }
+
+    if (!mounted) return;
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.delete_forever_rounded, color: Colors.red, size: 24),
-            SizedBox(width: 8),
-            Text('Dismantle Project?'),
+            Icon(
+              hasOtherMembers
+                  ? Icons.archive_outlined
+                  : Icons.delete_forever_rounded,
+              color: hasOtherMembers ? const Color(0xFFB45309) : Colors.red,
+              size: 24,
+            ),
+            const SizedBox(width: 8),
+            Text(hasOtherMembers ? 'Archive Project?' : 'Dismantle Project?'),
           ],
         ),
         content: Text(
-          'Are you sure you want to permanently dismantle "${project.name}"? All member roles, milestones, and project data will be deleted permanently.',
+          hasOtherMembers
+              ? 'Archive project? Teammates keep their published passports. This can\'t be undone from the app.'
+              : 'Are you sure you want to permanently dismantle "${project.name}"? All member roles, milestones, and project data will be deleted permanently.',
           style: const TextStyle(fontSize: 14, height: 1.4),
         ),
         actions: [
@@ -364,10 +406,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: hasOtherMembers
+                  ? const Color(0xFFB45309)
+                  : Colors.red.shade700,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Yes, Dismantle'),
+            child: Text(hasOtherMembers ? 'Archive Project' : 'Yes, Dismantle'),
           ),
         ],
       ),
@@ -379,13 +423,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       });
 
       try {
-        await _projectService.deleteProject(project.id);
+        final result = await _projectService.deleteProject(project.id);
+        final isArchived = result['archived'] == true;
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content:
-                  Text('Project "${project.name}" dismantled successfully.'),
-              backgroundColor: Colors.red.shade700,
+              content: Text(
+                isArchived
+                    ? 'Project "${project.name}" archived successfully.'
+                    : 'Project "${project.name}" dismantled successfully.',
+              ),
+              backgroundColor:
+                  isArchived ? const Color(0xFFB45309) : Colors.red.shade700,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -398,7 +447,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to dismantle project: ${friendlyError(e)}'),
+              content: Text(
+                  'Failed to ${hasOtherMembers ? "archive" : "dismantle"} project: ${friendlyError(e)}'),
               backgroundColor: Colors.red.shade700,
               behavior: SnackBarBehavior.floating,
             ),
@@ -844,62 +894,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   Future<void> _disputeContributionInStream(
       Contribution c, Project project) async {
-    final confirmed = await showDialog<bool>(
+    final reason = await DisputeBottomSheet.show(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.emeraldInk,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.divider),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_rounded,
-                color: Colors.amberAccent, size: 24),
-            SizedBox(width: 8),
-            Text(
-              'Dispute Deliverable?',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          'Are you sure you want to dispute "${c.title}"? Its status will become "Needs Review" and visibility will be set to Private until the dispute is resolved.',
-          style: const TextStyle(
-            color: AppColors.champagne,
-            fontSize: 13,
-            height: 1.4,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel',
-                style: TextStyle(color: AppColors.champagne)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Dispute',
-                style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+      deliverableTitle: c.title,
     );
 
-    if (confirmed != true) return;
+    if (reason == null) return;
 
     try {
-      await _projectService.disputeContribution(c.id);
+      await _projectService.disputeContribution(
+        c.id,
+        reason: reason.isEmpty ? null : reason,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1097,6 +1103,23 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             },
           ),
           IconButton(
+            key: const Key('project_appbar_team_ledger_btn'),
+            icon: const Icon(Icons.menu_book_rounded, color: AppColors.emeraldInk),
+            tooltip: 'Team Ledger',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TeamLedgerScreen(
+                    projectId: project.id,
+                    projectName: project.name,
+                    projectService: _projectService,
+                  ),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: _isGeneratingInvite
                 ? const SizedBox(
                     width: 18,
@@ -1113,6 +1136,32 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         child: ListView(
           padding: const EdgeInsets.all(24.0),
           children: [
+            if (project.isArchived)
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.archive_outlined, color: Color(0xFFB45309), size: 20),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Project archived. This project is read-only.',
+                        style: TextStyle(
+                          color: Color(0xFFB45309),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             // Project Summary Card
             Container(
               padding: const EdgeInsets.all(20),
@@ -1568,6 +1617,51 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
+                  // Team Ledger Action Button
+                  InkWell(
+                    key: const Key('project_detail_team_ledger_btn'),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => TeamLedgerScreen(
+                            projectId: project.id,
+                            projectName: project.name,
+                            projectService: _projectService,
+                          ),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.emeraldInk, width: 1.2),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.menu_book_rounded,
+                            size: 15,
+                            color: AppColors.emeraldInk,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Team Ledger',
+                            style: TextStyle(
+                              color: AppColors.emeraldInk,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   _buildFilterChip('all', 'All (${_contributions.length})'),
                   const SizedBox(width: 8),
                   _buildFilterChip(
@@ -1725,7 +1819,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             const SizedBox(height: 12),
 
             // Lifecycle Actions: Dismantle (Team Lead) or Leave (Teammate)
-            if (isOwner)
+            if (isOwner && !project.isArchived)
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -1751,6 +1845,31 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
+                ),
+              )
+            else if (project.isArchived)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.archive_outlined, color: Colors.grey.shade600, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Project Archived',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               )
             else

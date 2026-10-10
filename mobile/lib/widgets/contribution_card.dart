@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/contribution.dart';
 import '../theme/app_colors.dart';
@@ -12,6 +13,8 @@ class ContributionCard extends StatelessWidget {
   final VoidCallback? onRequestConfirmation;
   final VoidCallback? onConfirm;
   final VoidCallback? onDispute;
+  final VoidCallback? onReopen;
+  final String? projectName;
   final bool? isContributor;
   final String? currentUserId;
 
@@ -24,6 +27,8 @@ class ContributionCard extends StatelessWidget {
     this.onRequestConfirmation,
     this.onConfirm,
     this.onDispute,
+    this.onReopen,
+    this.projectName,
     this.isContributor,
     this.currentUserId,
   });
@@ -518,11 +523,11 @@ class ContributionCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 10),
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Wrap(
+                              const Wrap(
                                 alignment: WrapAlignment.spaceBetween,
                                 crossAxisAlignment: WrapCrossAlignment.center,
                                 runSpacing: 4,
@@ -556,15 +561,45 @@ class ContributionCard extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              SizedBox(height: 4),
+                              const SizedBox(height: 4),
                               Text(
-                                'A teammate disputed this deliverable. This item is hidden from your public passport and project stream until revised or resolved.',
-                                style: TextStyle(
+                                'Disputed by ${contribution.disputedByName ?? "a teammate"}: ${(contribution.disputeReason != null && contribution.disputeReason!.isNotEmpty) ? contribution.disputeReason! : "No reason provided"}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF991B1B),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Ask ${contribution.disputedByName ?? "your teammate"} to withdraw the dispute, or delete this item and log a corrected one.',
+                                style: const TextStyle(
                                   fontSize: 11,
                                   color: Color(0xFFB91C1C),
                                   height: 1.35,
                                 ),
                               ),
+                              if ((contribution.isDisputeOrphaned || contribution.canReopen) && onReopen != null) ...[
+                                const SizedBox(height: 8),
+                                OutlinedButton.icon(
+                                  key: Key('reopen_btn_${contribution.id}'),
+                                  onPressed: onReopen,
+                                  icon: const Icon(Icons.refresh_rounded, size: 14, color: AppColors.emeraldInk),
+                                  label: const Text(
+                                    'Reopen',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: AppColors.emeraldInk,
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: AppColors.emeraldInk),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -856,6 +891,65 @@ class ContributionCard extends StatelessWidget {
                         textStyle: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+                // Remind teammates button for author's self-declared items
+                if (_resolvedIsContributor &&
+                    (contribution.sourceType == 'self_declared' ||
+                        contribution.sourceType == 'manual' ||
+                        contribution.verificationStatus.toLowerCase() == 'self-declared' ||
+                        !contribution.isSourceVerified)) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      key: Key('remind_teammates_btn_${contribution.id}'),
+                      onPressed: () {
+                        final proj = (projectName != null && projectName!.isNotEmpty)
+                            ? projectName!
+                            : (contribution.project.isNotEmpty
+                                ? contribution.project
+                                : 'BuildCrew');
+                        final reminderText =
+                            'BuildCrew: please review my contribution "${contribution.title}" in $proj';
+                        Clipboard.setData(ClipboardData(text: reminderText));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text(
+                              'Copied reminder to clipboard! Share it with your team.',
+                            ),
+                            backgroundColor: AppColors.emeraldInk,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.copy_rounded,
+                          size: 14, color: AppColors.emeraldInk),
+                      label: const Text(
+                        'Remind teammates',
+                        style: TextStyle(
+                          color: AppColors.emeraldInk,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(
+                          color: AppColors.inputBorder,
+                          width: 1.2,
+                        ),
+                        backgroundColor: AppColors.champagne.withValues(alpha: 0.15),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 8, horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
                       ),
                     ),

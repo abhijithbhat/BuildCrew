@@ -23,6 +23,7 @@ class ProjectResponse(ProjectBase):
     invite_code: Optional[str] = None
     created_at: Optional[Union[datetime, str]] = None
     updated_at: Optional[Union[datetime, str]] = None
+    archived_at: Optional[Union[datetime, str]] = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -4,6 +4,7 @@ import '../services/project_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/error_messages.dart';
 import '../widgets/empty_state_view.dart';
+import '../widgets/connection_error_retry_widget.dart';
 import '../widgets/project_card.dart';
 import 'create_project_screen.dart';
 import 'invite_teammate_screen.dart';
@@ -12,14 +13,16 @@ import 'join_project_screen.dart';
 class MyProjectsScreen extends StatefulWidget {
   static const String routeName = '/projects';
 
-  const MyProjectsScreen({super.key});
+  final ProjectService? projectService;
+
+  const MyProjectsScreen({super.key, this.projectService});
 
   @override
   State<MyProjectsScreen> createState() => _MyProjectsScreenState();
 }
 
 class _MyProjectsScreenState extends State<MyProjectsScreen> {
-  final ProjectService _projectService = ProjectService();
+  late final ProjectService _projectService;
   final TextEditingController _searchController = TextEditingController();
 
   List<Project> _projects = [];
@@ -31,6 +34,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
   @override
   void initState() {
     super.initState();
+    _projectService = widget.projectService ?? ProjectService();
     _fetchProjects();
   }
 
@@ -47,7 +51,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
     });
 
     try {
-      final projects = await _projectService.listProjects();
+      final projects = await _projectService.listProjects(includeArchived: true);
       if (mounted) {
         setState(() {
           _projects = projects;
@@ -107,6 +111,13 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
   @override
   Widget build(BuildContext context) {
     final displayProjects = _filteredProjects;
+    final activeProjects =
+        displayProjects.where((p) => !p.isArchived).toList();
+    final archivedProjects =
+        displayProjects.where((p) => p.isArchived).toList();
+    final hasArchivedSection = archivedProjects.isNotEmpty;
+    final totalItemCount = activeProjects.length +
+        (hasArchivedSection ? (1 + archivedProjects.length) : 0);
 
     return Scaffold(
       backgroundColor: AppColors.champagne,
@@ -297,58 +308,10 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                       ),
                     )
                   : _errorMessage != null
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFFEF2F2),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.error_outline_rounded,
-                                    size: 40,
-                                    color: Color(0xFFDC2626),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'Failed to load projects',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.emeraldInk,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _errorMessage!,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.textMuted,
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-                                ElevatedButton.icon(
-                                  onPressed: _fetchProjects,
-                                  icon: const Icon(Icons.refresh, size: 18),
-                                  label: const Text('Retry'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.emeraldInk,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                      ? ConnectionErrorRetryWidget(
+                          title: 'Couldn\'t connect to server',
+                          message: _errorMessage,
+                          onRetry: _fetchProjects,
                         )
                       : displayProjects.isEmpty
                           ? SingleChildScrollView(
@@ -448,23 +411,91 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                               color: AppColors.emeraldInk,
                               onRefresh: _fetchProjects,
                               child: ListView.builder(
-                                itemCount: displayProjects.length,
+                                itemCount: totalItemCount,
                                 padding: const EdgeInsets.only(
                                   bottom: 80,
                                   top: 6,
                                 ),
                                 itemBuilder: (context, index) {
-                                  final project = displayProjects[index];
+                                  if (index < activeProjects.length) {
+                                    final project = activeProjects[index];
+                                    return ProjectCard(
+                                      project: project,
+                                      onTap: () async {
+                                        final res = await Navigator.pushNamed(
+                                          context,
+                                          '/project-detail',
+                                          arguments: project,
+                                        );
+                                        if (res != null || mounted) {
+                                          _fetchProjects();
+                                        }
+                                      },
+                                      onInviteTap: () => _handleInvite(project),
+                                    );
+                                  }
+
+                                  final archivedIndex =
+                                      index - activeProjects.length;
+                                  if (archivedIndex == 0) {
+                                    return Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                          16, 20, 16, 8),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.archive_outlined,
+                                            size: 18,
+                                            color: AppColors.textMuted,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const Text(
+                                            'Archived',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.textMuted,
+                                              letterSpacing: 0.2,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.shade200,
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: Text(
+                                              '${archivedProjects.length}',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.grey.shade700,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
+
+                                  final project =
+                                      archivedProjects[archivedIndex - 1];
                                   return ProjectCard(
                                     project: project,
-                                    onTap: () {
-                                      Navigator.pushNamed(
+                                    onTap: () async {
+                                      final res = await Navigator.pushNamed(
                                         context,
                                         '/project-detail',
                                         arguments: project,
                                       );
+                                      if (res != null || mounted) {
+                                        _fetchProjects();
+                                      }
                                     },
-                                    onInviteTap: () => _handleInvite(project),
+                                    onInviteTap: null,
                                   );
                                 },
                               ),

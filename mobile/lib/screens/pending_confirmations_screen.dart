@@ -6,6 +6,8 @@ import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/error_messages.dart';
 import '../widgets/empty_state_view.dart';
+import '../widgets/connection_error_retry_widget.dart';
+import '../widgets/dispute_bottom_sheet.dart';
 
 class PendingConfirmationsScreen extends StatefulWidget {
   static const String routeName = '/pending-confirmations';
@@ -119,65 +121,22 @@ class _PendingConfirmationsScreenState
     final contribId = req.contributionId;
     if (contribId.isEmpty) return;
 
-    final confirmed = await showDialog<bool>(
+    final reason = await DisputeBottomSheet.show(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.divider),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 24),
-            SizedBox(width: 8),
-            Text(
-              'Dispute Deliverable?',
-              style: TextStyle(
-                color: AppColors.emeraldInk,
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          'Are you sure you want to dispute "${req.contributionTitle ?? 'this deliverable'}"?\n\n'
-          'Its status will become "Needs Review" and visibility will be set to Private until the dispute is resolved.',
-          style: const TextStyle(
-            color: AppColors.textMuted,
-            fontSize: 13,
-            height: 1.4,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w600)),
-          ),
-          ElevatedButton(
-            key: const Key('confirm_dispute_dialog_btn'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE11D48),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Dispute', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+      deliverableTitle: req.contributionTitle ?? 'Deliverable',
     );
 
-    if (confirmed != true) return;
+    if (reason == null) return;
 
     setState(() {
       _processingIds.add(req.id);
     });
 
     try {
-      await _projectService.disputeContribution(contribId);
+      await _projectService.disputeContribution(
+        contribId,
+        reason: reason.isEmpty ? null : reason,
+      );
 
       if (!mounted) return;
       setState(() {
@@ -213,6 +172,58 @@ class _PendingConfirmationsScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to dispute: ${friendlyError(e)}'),
+          backgroundColor: const Color(0xFFE11D48),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _withdrawDispute(ConfirmationRequest req) async {
+    final contribId = req.contributionId;
+    if (contribId.isEmpty) return;
+
+    setState(() {
+      _processingIds.add(req.id);
+    });
+
+    try {
+      await _projectService.withdrawDispute(contribId);
+
+      if (!mounted) return;
+      setState(() {
+        _processingIds.remove(req.id);
+        _requests.removeWhere((r) => r.id == req.id);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded,
+                  color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Withdrew dispute for "${req.contributionTitle ?? 'deliverable'}".',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _processingIds.remove(req.id);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to withdraw dispute: ${friendlyError(e)}'),
           backgroundColor: const Color(0xFFE11D48),
           behavior: SnackBarBehavior.floating,
         ),
@@ -439,47 +450,11 @@ class _PendingConfirmationsScreenState
     }
 
     if (_errorMessage != null) {
-      return Center(
+      return ConnectionErrorRetryWidget(
         key: const Key('pending_confirmations_error'),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.cloud_off_rounded,
-                  color: Color(0xFFE11D48), size: 48),
-              const SizedBox(height: 16),
-              const Text(
-                'Failed to load requests',
-                style: TextStyle(
-                  color: AppColors.emeraldInk,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _errorMessage!,
-                style: const TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 12,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadPendingConfirmations,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.emeraldInk,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
+        title: 'Failed to load requests',
+        message: _errorMessage,
+        onRetry: _loadPendingConfirmations,
       );
     }
 
@@ -698,74 +673,151 @@ class _PendingConfirmationsScreenState
           const Divider(height: 1, color: AppColors.divider),
           const SizedBox(height: 12),
 
-          // Action Buttons: Confirm & Dispute
-          Row(
-            children: [
-              // Dispute Button
-              Expanded(
-                child: OutlinedButton.icon(
-                  key: Key('dispute_btn_${req.id}'),
-                  onPressed: isProcessing ? null : () => _disputeRequest(req),
-                  icon: const Icon(Icons.close_rounded,
-                      color: Color(0xFFE11D48), size: 16),
-                  label: const Text(
-                    'Dispute',
-                    style: TextStyle(
-                      color: Color(0xFFE11D48),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
+          if (req.isDisputed) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline_rounded,
+                      color: Color(0xFFD97706), size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'You disputed this deliverable.',
+                      style: TextStyle(
+                        color: Color(0xFFB45309),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(
-                      color: Color(0xFFFECDD3),
-                      width: 1.2,
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                key: Key('withdraw_dispute_btn_${req.id}'),
+                onPressed: isProcessing ? null : () => _withdrawDispute(req),
+                icon: isProcessing
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.emeraldInk,
+                        ),
+                      )
+                    : const Icon(Icons.undo_rounded,
+                        color: AppColors.emeraldInk, size: 16),
+                label: const Text(
+                  'Withdraw my dispute',
+                  style: TextStyle(
+                    color: AppColors.emeraldInk,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(
+                    color: AppColors.emeraldInk,
+                    width: 1.2,
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+            ),
+          ] else ...[
+            // Action Buttons: Confirm & Dispute
+            Row(
+              children: [
+                // Dispute Button
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: Key('dispute_btn_${req.id}'),
+                    onPressed: isProcessing ? null : () => _disputeRequest(req),
+                    icon: const Icon(Icons.close_rounded,
+                        color: Color(0xFFE11D48), size: 16),
+                    label: const Text(
+                      'Dispute',
+                      style: TextStyle(
+                        color: Color(0xFFE11D48),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(
+                        color: Color(0xFFFECDD3),
+                        width: 1.2,
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
 
-              // Confirm Button
-              Expanded(
-                flex: 2,
-                child: ElevatedButton.icon(
-                  key: Key('confirm_btn_${req.id}'),
-                  onPressed: isProcessing ? null : () => _confirmRequest(req),
-                  icon: isProcessing
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Icon(Icons.check_rounded, size: 18),
-                  label: Text(
-                    isProcessing ? 'Processing...' : 'Peer Confirm',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                // Confirm Button
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton.icon(
+                    key: Key('confirm_btn_${req.id}'),
+                    onPressed: isProcessing ? null : () => _confirmRequest(req),
+                    icon: isProcessing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.check_rounded, size: 18),
+                    label: Text(
+                      isProcessing ? 'Processing...' : 'Peer Confirm',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Center(
+              child: Text(
+                'Your name will appear next to this item if the author publishes it.',
+                style: TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );

@@ -18,6 +18,7 @@ except ImportError:
         pass
 from core.dependencies import get_current_user, stable_dev_user_id
 from core.logging import logger
+from core.errors import handle_route_error
 from schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
@@ -525,10 +526,10 @@ async def github_login(redirect_to: str | None = None):
             "provider": "github",
         }
     except Exception as e:
-        logger.exception("GitHub OAuth initiation failed")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to initiate GitHub authentication. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to initiate GitHub authentication. Please try again.",
+            log_message="GitHub OAuth initiation failed",
         )
 
 
@@ -762,9 +763,9 @@ async def delete_my_account(current_user=Depends(get_current_user)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Failed to delete account for user {user_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete account. Please try again.",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to delete account. Please try again.",
+            log_message=f"Failed to delete account for user {user_id}",
         )
 

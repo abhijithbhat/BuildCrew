@@ -131,6 +131,7 @@ class AuthService {
         final isConnError = e.type == DioExceptionType.connectionError ||
             e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
             (e.message != null &&
                 (e.message!.contains('Connection refused') ||
                     e.message!.contains('No route to host') ||
@@ -437,6 +438,7 @@ class AuthService {
         final isConnError = e.type == DioExceptionType.connectionError ||
             e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
             (e.message != null &&
                 (e.message!.contains('Connection refused') ||
                     e.message!.contains('No route to host') ||

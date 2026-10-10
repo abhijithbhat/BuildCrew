@@ -4,25 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title>{{ passport.display_name or 'Builder' }} — {{ passport.project_name or 'Project' }} Passport</title>
-    <meta name="description" content="Verified Proof-of-Work Contribution Passport for {{ passport.display_name or 'Builder' }} on {{ passport.project_name or 'Project' }}. Featuring {{ passport.confirmed_count }} peer-confirmed deliverable{{ 's' if passport.confirmed_count != 1 else '' }}.">
+    <title>{{ passport.display_name or 'Builder' }} — BuildCrew Contribution Passport</title>
+    <meta name="description" content="BuildCrew Contribution Passport for {{ passport.display_name or 'Builder' }} on {{ passport.project_name or 'Project' }}. Featuring {{ passport.confirmed_count }} confirmed deliverable{{ 's' if passport.confirmed_count != 1 else '' }}.">
 
     <!-- Open Graph Meta Tags (WhatsApp, LinkedIn, Facebook) -->
     <meta property="og:type" content="profile">
-    <meta property="og:title" content="{{ passport.display_name or 'Builder' }} — {{ passport.role or 'Contributor' }} on {{ passport.project_name or 'Project' }}">
-    <meta property="og:description" content="Verified Proof-of-Work Contribution Passport: {{ passport.confirmed_count }} peer-confirmed deliverable{{ 's' if passport.confirmed_count != 1 else '' }} on {{ passport.project_name or 'Project' }}. Verified via BuildCrew.">
+    <meta property="og:title" content="{{ passport.display_name or 'Builder' }} — BuildCrew Contribution Passport">
+    <meta property="og:description" content="Each item is linked to GitHub activity matched to this person's verified GitHub account, or confirmed by named teammates.">
     <meta property="og:site_name" content="BuildCrew">
-    {% if passport.avatar_url %}
-    <meta property="og:image" content="{{ passport.avatar_url }}">
-    {% endif %}
+    <meta property="og:image" content="{{ og_image_url }}">
 
     <!-- Twitter Card Meta Tags -->
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="{{ passport.display_name or 'Builder' }} — {{ passport.role or 'Contributor' }} on {{ passport.project_name or 'Project' }}">
-    <meta name="twitter:description" content="Verified Proof-of-Work Contribution Passport: {{ passport.confirmed_count }} peer-confirmed deliverable{{ 's' if passport.confirmed_count != 1 else '' }} on {{ passport.project_name or 'Project' }}.">
-    {% if passport.avatar_url %}
-    <meta name="twitter:image" content="{{ passport.avatar_url }}">
-    {% endif %}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ passport.display_name or 'Builder' }} — BuildCrew Contribution Passport">
+    <meta name="twitter:description" content="Each item is linked to GitHub activity matched to this person's verified GitHub account, or confirmed by named teammates.">
+    <meta name="twitter:image" content="{{ og_image_url }}">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -422,6 +418,20 @@
             display: inline-flex;
             align-items: center;
             gap: 5px;
+        }
+
+        .archived-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            background: #FEF2F2;
+            color: #DC2626;
+            border: 1px solid #FCA5A5;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
         }
 
         .project-highlight {
@@ -1092,6 +1102,97 @@
                 background: #F8FAFC !important;
             }
         }
+        .passport-summary-bar {
+            background: #FFFFFF;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: var(--shadow-xs);
+        }
+        .summary-line-content {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .summary-line-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--primary-emerald-light);
+            color: var(--primary-emerald);
+            border: 1px solid var(--primary-emerald-border);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .summary-line-text {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .repo-meta-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            padding-top: 6px;
+            border-top: 1px dashed var(--border-subtle);
+        }
+        .repo-meta-item a {
+            color: var(--primary-emerald);
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .repo-meta-item a:hover {
+            text-decoration: underline;
+        }
+        .repo-meta-separator {
+            color: var(--text-muted);
+        }
+        .project-desc-chip {
+            background: #F1F5F9;
+            color: var(--text-secondary);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            border: 1px solid var(--border-color);
+        }
+        .verification-bullets-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .verification-bullets-list li {
+            position: relative;
+            padding-left: 24px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .verification-bullets-list li::before {
+            content: "•";
+            position: absolute;
+            left: 6px;
+            color: var(--primary-emerald);
+            font-size: 18px;
+            line-height: 1.2;
+        }
     </style>
 </head>
 <body>
@@ -1100,11 +1201,11 @@
         <div class="topbar-content">
             <div class="topbar-brand">
                 <span class="brand-icon">B</span>
-                <span>BuildCrew Proof-of-Work Verification Protocol</span>
+                <span>BuildCrew Contribution Passport</span>
             </div>
             <div class="topbar-status">
                 <span class="status-dot-pulse"></span>
-                <span>Cryptographic Consensus: Active & Validated</span>
+                <span>Source-Verified & Peer-Confirmed</span>
             </div>
         </div>
     </div>
@@ -1121,11 +1222,10 @@
                 </div>
                 <div>
                     <div class="seal-title">
-                        <span>Verified Proof-of-Work Contribution Passport</span>
-                        <span class="seal-verified-pill">Consensus Verified</span>
+                        <span>BuildCrew Contribution Passport</span>
                     </div>
                     <p class="seal-subtitle">
-                        Deliverables evaluated and cryptographically confirmed by repository team peers.
+                        Each item is linked to GitHub activity matched to this person's verified GitHub account, or confirmed by named teammates. Open the links to check the source.
                     </p>
                 </div>
             </div>
@@ -1157,15 +1257,13 @@
                     {% else %}
                     <div class="avatar-placeholder">{{ (passport.display_name or 'U')[0] | upper }}</div>
                     {% endif %}
-                    <div class="avatar-verified-badge" title="Verified Contributor">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                    </div>
                 </div>
                 <div class="header-text">
                     <div class="name-wrapper">
                         <h1 class="builder-name">{{ passport.display_name or 'Anonymous Builder' }}</h1>
+                        {% if passport.is_archived or passport.archived_at %}
+                        <span class="archived-badge">Project archived</span>
+                        {% endif %}
                     </div>
                     <p class="builder-role">
                         <span class="role-badge">
@@ -1173,7 +1271,7 @@
                                 <circle cx="12" cy="8" r="5"></circle>
                                 <path d="M20 21a8 8 0 0 0-16 0"></path>
                             </svg>
-                            {{ passport.role or 'Contributor' }}
+                            Declared role: {{ passport.role or 'Contributor' }}
                         </span>
                         <span>on project <strong class="project-highlight">{{ passport.project_name or 'Project' }}</strong></span>
                     </p>
@@ -1186,7 +1284,13 @@
                             <span>GitHub: <a href="https://github.com/{{ passport.github_username }}" target="_blank" rel="noopener noreferrer">@{{ passport.github_username }}</a></span>
                         </div>
                         {% endif %}
-                        <span class="timestamp-badge">PID: {{ (passport.project_id or '0000')[:8] }}</span>
+                        <span class="timestamp-badge">Team of {{ passport.team_size or 1 }}</span>
+                        {% if passport.is_archived or passport.archived_at %}
+                        <span class="timestamp-badge archived-badge">Project archived</span>
+                        {% endif %}
+                        {% if passport.project_description %}
+                        <span class="project-desc-chip" title="{{ passport.project_description }}">{{ passport.project_description[:200] }}</span>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -1194,16 +1298,45 @@
             <div class="stats-summary">
                 <div class="stat-card stat-card-highlight">
                     <span class="stat-value">{{ passport.confirmed_count }}</span>
-                    <span class="stat-label">Verified Deliverables</span>
-                    <span class="stat-subtext">100% Peer Approved</span>
+                    <span class="stat-label">Confirmed Items</span>
+                    <span class="stat-subtext">Merged PRs & Peer-Approved</span>
                 </div>
                 <div class="stat-card">
                     <span class="stat-value">{{ passport.total_contributions }}</span>
-                    <span class="stat-label">Total Logged</span>
-                    <span class="stat-subtext">Published Milestones</span>
+                    <span class="stat-label">Total Evidence</span>
+                    <span class="stat-subtext">Verified Records</span>
                 </div>
             </div>
         </header>
+
+        <!-- Header Summary Line & Repository Link -->
+        <section class="passport-summary-bar">
+            <div class="summary-line-content">
+                <span class="summary-line-badge">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        <path d="M9 12l2 2 4-4"/>
+                    </svg>
+                    <span>Summary</span>
+                </span>
+                <span class="summary-line-text">{{ passport.summary_line }}</span>
+            </div>
+            {% if passport.repository and (passport.repository_url or '').startswith('http') %}
+            <div class="repo-meta-row">
+                <span class="repo-meta-item">
+                    Repository: <a href="{{ passport.repository_url }}" target="_blank" rel="noopener noreferrer">github.com/{{ passport.repository }}</a>
+                </span>
+                {% if passport.github_username %}
+                <span class="repo-meta-separator">·</span>
+                <span class="repo-meta-item">
+                    <a href="https://github.com/{{ passport.repository }}/commits?author={{ passport.github_username }}" target="_blank" rel="noopener noreferrer">
+                        All commits by @{{ passport.github_username }}
+                    </a>
+                </span>
+                {% endif %}
+            </div>
+            {% endif %}
+        </section>
 
         <!-- Main Content: Published Contributions -->
         <main class="passport-body">
@@ -1214,9 +1347,9 @@
                             <polyline points="9 11 12 14 22 4"></polyline>
                             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
                         </svg>
-                        <span>Published Contributions & Verified Deliverables</span>
+                        <span>Published Contributions & Deliverables</span>
                     </h2>
-                    <p class="section-subtitle">Peer-reviewed code, architecture, and deliverables validated by active project collaborators.</p>
+                    <p class="section-subtitle">Verified GitHub activity and peer-confirmed team deliverables.</p>
                 </div>
             </div>
             
@@ -1252,22 +1385,22 @@
                             </span>
                         </div>
                         
-                        {% if item.verification_status in ['confirmed', 'peer-confirmed'] %}
-                        <span class="verification-badge badge-peer-confirmed">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                            </svg>
-                            <span>Peer Confirmed</span>
-                        </span>
-                        {% elif item.verification_status == 'source-verified' %}
-                        <span class="verification-badge badge-source-verified">
+                        {% if item.verification_status == 'source-verified' %}
+                        <a href="{{ item.evidence_link or '#' }}" target="_blank" rel="noopener noreferrer" class="verification-badge badge-source-verified" style="text-decoration: none;">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="4"></circle>
                                 <line x1="1.05" y1="12" x2="7" y2="12"></line>
                                 <line x1="17.01" y1="12" x2="22.96" y2="12"></line>
                             </svg>
-                            <span>Source Verified</span>
+                            <span>GitHub · matched to @{{ passport.github_username or 'contributor' }}</span>
+                        </a>
+                        {% elif item.verification_status in ['confirmed', 'peer-confirmed'] %}
+                        <span class="verification-badge badge-peer-confirmed">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                            <span>{{ item.confirmation_label or 'Confirmed by teammates' }}</span>
                         </span>
                         {% else %}
                         <span class="verification-badge badge-confirmed">
@@ -1292,7 +1425,7 @@
                                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
                             </svg>
-                            <span>View Verified Deliverable Evidence</span>
+                            <span>{% if item.source_type in ['github_commit', 'github_pr'] or item.verification_status == 'source-verified' %}View on GitHub{% else %}Evidence link (provided by contributor){% endif %}</span>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;">
                                 <line x1="7" y1="17" x2="17" y2="7"></line>
                                 <polyline points="7 7 17 7 17 17"></polyline>
@@ -1302,12 +1435,6 @@
                     {% endif %}
 
                     <div class="contribution-footer">
-                        <div class="verifier-info">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                            </svg>
-                            <span>Verified by BuildCrew Team Consensus</span>
-                        </div>
                         <span class="date-text">Logged: {{ item.created_at[:10] if item.created_at else 'Recent' }}</span>
                     </div>
                 </article>
@@ -1329,7 +1456,7 @@
             </div>
             {% endif %}
 
-            <!-- Recruiter Architecture Explainer -->
+            <!-- How verification works block -->
             <section class="verification-explainer">
                 <div class="explainer-header">
                     <div class="explainer-icon">
@@ -1339,52 +1466,20 @@
                             <line x1="12" y1="8" x2="12.01" y2="8"></line>
                         </svg>
                     </div>
-                    <h3 class="explainer-title">How BuildCrew Verifies Proof-of-Work</h3>
+                    <h3 class="explainer-title">How verification works</h3>
                 </div>
-                <div class="explainer-grid">
-                    <div class="explainer-item">
-                        <div class="explainer-item-title">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
-                            <span>Peer-Confirmed Consensus</span>
-                        </div>
-                        <p class="explainer-item-desc">
-                            Contributions cannot be self-awarded. They require formal confirmation votes from active project collaborators and team leads.
-                        </p>
-                    </div>
-                    <div class="explainer-item">
-                        <div class="explainer-item-title">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#064E3B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="4"></circle>
-                                <line x1="1.05" y1="12" x2="7" y2="12"></line>
-                                <line x1="17.01" y1="12" x2="22.96" y2="12"></line>
-                            </svg>
-                            <span>Direct Source Validation</span>
-                        </div>
-                        <p class="explainer-item-desc">
-                            Code deliverables are cross-referenced with GitHub repository commit logs, pull request merges, and repository hashes.
-                        </p>
-                    </div>
-                    <div class="explainer-item">
-                        <div class="explainer-item-title">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                            </svg>
-                            <span>Dispute-Free Guarantee</span>
-                        </div>
-                        <p class="explainer-item-desc">
-                            Only published deliverables with zero active disputes or unconfirmed flags appear on this public passport record.
-                        </p>
-                    </div>
-                </div>
+                <ul class="verification-bullets-list">
+                    <li>GitHub items come from the connected repository and match the contributor's signed-in GitHub account.</li>
+                    <li>Confirmations come from named teammates.</li>
+                    <li>BuildCrew does not inspect uploaded files or typed links, and roles are self-declared.</li>
+                </ul>
             </section>
         </main>
         
         <!-- Footer -->
         <footer class="passport-footer">
-            <p>Verified via <strong class="footer-brand">BuildCrew</strong> — Peer-Confirmed Proof-of-Work Platform</p>
-            <p class="footer-security-note">PASSPORT ID: {{ (user_id or '')[:8] }}-{{ (project_id or '')[:8] }} // IMMUTABLE RECORD</p>
+            <p>Verified via <strong class="footer-brand">BuildCrew</strong></p>
+            <p class="footer-security-note">PASSPORT ID: {{ (user_id or '')[:8] }}-{{ (project_id or '')[:8] }}</p>
         </footer>
     </div>
 
