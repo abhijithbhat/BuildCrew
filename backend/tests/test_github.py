@@ -707,6 +707,7 @@ def test_production_post_install_no_installation_returns_400(prod_mode):
         )
         assert resp.status_code == 400
         assert "No active GitHub App installation found" in resp.json()["detail"]
+        assert resp.json().get("code") == "github_not_installed"
 
 
 @pytest.mark.anyio

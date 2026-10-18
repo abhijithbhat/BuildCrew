@@ -117,6 +117,31 @@ class StorageService {
     } catch (_) {
       _inMemoryFallback.clear();
     }
+    await deleteString('dashboard_snapshot_v1');
+  }
+
+  /// Generic secure key-value helpers (used by the dashboard cache).
+  Future<String?> readString(String key) async {
+    try {
+      return await _storage.read(key: key);
+    } catch (_) {
+      return _inMemoryFallback[key];
+    }
+  }
+
+  Future<void> writeString(String key, String value) async {
+    try {
+      await _storage.write(key: key, value: value);
+    } catch (_) {
+      _inMemoryFallback[key] = value;
+    }
+  }
+
+  Future<void> deleteString(String key) async {
+    _inMemoryFallback.remove(key);
+    try {
+      await _storage.delete(key: key);
+    } catch (_) {}
   }
 
   /// Completely wipe all stored keys, tokens, profile info, and in-memory caches.

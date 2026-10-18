@@ -684,3 +684,138 @@ def test_format_clean_display_name_resolves_profile_names_and_email_fallbacks():
 
     # 6. None or empty falls back to Anonymous Builder
     assert _format_clean_display_name(None) == "Anonymous Builder"
+
+
+def test_passport_header_shows_github_link_when_github_username_non_empty():
+    """Verify passport header shows GitHub link when profiles.github_username is non-empty."""
+    user_id = "user-gh-header-test"
+    project_id = "proj-gh-header-test"
+
+    DEV_USER_NAMES_DB[user_id] = "Linus Torvalds"
+    DEV_PROJECTS_DB[project_id] = {
+        "id": project_id,
+        "name": "Linux Kernel Core",
+        "github_repo": "buildcrew/kernel-core",
+        "created_by": user_id,
+    }
+    from routers.projects import DEV_GITHUB_IDENTITIES_DB
+    DEV_GITHUB_IDENTITIES_DB[user_id] = "torvalds"
+
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-gh-1",
+        "contributor": user_id,
+        "project": project_id,
+        "title": "Kernel Memory Allocator",
+        "category": "code",
+        "source_type": "github_pr",
+        "verification_status": "source-verified",
+        "visibility": "public",
+        "dispute_state": "none",
+        "evidence_link": "https://github.com/buildcrew/kernel-core/pull/1",
+        "created_at": "2026-08-01T10:00:00Z",
+    })
+
+    # JSON response includes github_username
+    resp_json = client.get(f"/passport/{user_id}/{project_id}?format=json")
+    assert resp_json.status_code == 200
+    assert resp_json.json()["github_username"] == "torvalds"
+
+    # HTML header renders GitHub handle link
+    resp_html = client.get(f"/passport/{user_id}/{project_id}", headers={"Accept": "*/*"})
+    assert resp_html.status_code == 200
+    html = resp_html.text
+    assert '<div class="github-handle">' in html
+    assert 'href="https://github.com/torvalds"' in html
+    assert "@torvalds" in html
+    assert 'All commits by @torvalds' in html
+
+
+def test_passport_header_hides_github_link_when_github_username_empty_or_none():
+    """Verify passport header hides GitHub link when profiles.github_username is empty or None."""
+    user_id = "user-no-gh-test"
+    project_id = "proj-no-gh-test"
+
+    DEV_USER_NAMES_DB[user_id] = "Anonymous Coder"
+    DEV_PROJECTS_DB[project_id] = {
+        "id": project_id,
+        "name": "Documentation Project",
+        "github_repo": "buildcrew/docs-only",
+        "created_by": user_id,
+    }
+    from routers.projects import DEV_GITHUB_IDENTITIES_DB
+    DEV_GITHUB_IDENTITIES_DB.pop(user_id, None)
+
+    DEV_CONTRIBUTIONS_DB.append({
+        "id": "c-doc-1",
+        "contributor": user_id,
+        "project": project_id,
+        "title": "Architecture Overview Guide",
+        "category": "documentation",
+        "source_type": "manual",
+        "verification_status": "confirmed",
+        "visibility": "public",
+        "dispute_state": "none",
+        "evidence_link": "https://docs.buildcrew.io/overview",
+        "created_at": "2026-08-01T10:00:00Z",
+    })
+
+    # JSON response has github_username as None
+    resp_json = client.get(f"/passport/{user_id}/{project_id}?format=json")
+    assert resp_json.status_code == 200
+    assert resp_json.json()["github_username"] is None
+
+    # HTML header must NOT render GitHub handle link
+    resp_html = client.get(f"/passport/{user_id}/{project_id}", headers={"Accept": "*/*"})
+    assert resp_html.status_code == 200
+    html = resp_html.text
+    assert '<div class="github-handle">' not in html
+    assert '<span>GitHub: <a href="https://github.com/' not in html
+    assert 'All commits by @' not in html
+
+
+def test_passport_header_template_renders_link_strictly_on_non_empty_github_username():
+    """Direct template render tests verifying GitHub link presence strictly when github_username is non-empty."""
+    from core.templates import templates
+
+    def _render_with_gh(gh_username):
+        context = {
+            "passport": {
+                "display_name": "Test Builder",
+                "project_name": "Test Project",
+                "confirmed_count": 1,
+                "total_contributions": 1,
+                "team_size": 2,
+                "repository": "buildcrew/test-repo",
+                "repository_url": "https://github.com/buildcrew/test-repo",
+                "summary_line": "Evidence: 1 items",
+                "github_username": gh_username,
+                "contributions": [],
+            },
+            "user_id": "u-1",
+            "project_id": "p-1",
+        }
+        return templates.get_template("passport.html").render(context)
+
+    # 1. Non-empty valid username -> renders link
+    html_valid = _render_with_gh("octocat")
+    assert '<div class="github-handle">' in html_valid
+    assert 'href="https://github.com/octocat"' in html_valid
+    assert "@octocat" in html_valid
+    assert "All commits by @octocat" in html_valid
+
+    # 2. None -> does not render link
+    html_none = _render_with_gh(None)
+    assert '<div class="github-handle">' not in html_none
+    assert "https://github.com/None" not in html_none
+    assert "All commits by @" not in html_none
+
+    # 3. Empty string -> does not render link
+    html_empty = _render_with_gh("")
+    assert '<div class="github-handle">' not in html_empty
+    assert "All commits by @" not in html_empty
+
+    # 4. Whitespace-only string -> does not render link
+    html_ws = _render_with_gh("   ")
+    assert '<div class="github-handle">' not in html_ws
+    assert "All commits by @" not in html_ws
+

@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/error_messages.dart';
+import '../widgets/social_auth_row.dart';
 
 class LoginScreen extends StatefulWidget {
   static const String routeName = '/login';
@@ -590,110 +591,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Continue with Google Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: _anyLoading ? null : _handleGoogleSignIn,
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: AppColors.emeraldInk,
-                          disabledForegroundColor:
-                              AppColors.emeraldInk.withValues(alpha: 0.5),
-                          side: const BorderSide(
-                            color: AppColors.inputBorder,
-                            width: 1.2,
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: _isGoogleLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.2,
-                                  color: AppColors.emeraldInk,
-                                ),
-                              )
-                            : const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'G',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w900,
-                                      color: Color(0xFF4285F4),
-                                    ),
-                                  ),
-                                  SizedBox(width: 10),
-                                  Text(
-                                    'Continue with Google',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.2,
-                                      color: AppColors.emeraldInk,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Continue with GitHub Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: _anyLoading ? null : _handleGitHubSignIn,
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: AppColors.emeraldInk,
-                          disabledForegroundColor:
-                              AppColors.emeraldInk.withValues(alpha: 0.5),
-                          side: const BorderSide(
-                            color: AppColors.inputBorder,
-                            width: 1.2,
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: _isGitHubLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.2,
-                                  color: AppColors.emeraldInk,
-                                ),
-                              )
-                            : const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.code_rounded,
-                                    size: 20,
-                                    color: Color(0xFF24292F),
-                                  ),
-                                  SizedBox(width: 10),
-                                  Text(
-                                    'Continue with GitHub',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.2,
-                                      color: AppColors.emeraldInk,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
+                    SocialAuthRow(
+                      onGoogle: _anyLoading ? null : _handleGoogleSignIn,
+                      onGitHub: _anyLoading ? null : _handleGitHubSignIn,
+                      isGoogleLoading: _isGoogleLoading,
+                      isGitHubLoading: _isGitHubLoading,
                     ),
                     const SizedBox(height: 24),
 

@@ -125,7 +125,32 @@ def _get_project_member_ids(project_id: Optional[str], supabase: Any = None) -> 
     """Return all valid current member IDs for a project (members + creator)."""
     if not project_id:
         return set()
-    member_ids = set()
+    member_ids: set[str] = set()
+
+    if not is_dev_mode():
+        if supabase is None:
+            supabase = get_supabase_client()
+        p_res = (
+            supabase.table("projects")
+            .select("created_by")
+            .eq("id", project_id)
+            .single()
+            .execute()
+        )
+        if p_res.data and p_res.data.get("created_by"):
+            member_ids.add(str(p_res.data.get("created_by")))
+        m_res = (
+            supabase.table("project_members")
+            .select("user_id")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        for m in (m_res.data or []):
+            if m.get("user_id"):
+                member_ids.add(str(m.get("user_id")))
+        return member_ids
+
+    # Local Dev Mode only:
     if supabase is not None:
         try:
             p_res = (
@@ -161,6 +186,19 @@ def _get_project_member_ids(project_id: Optional[str], supabase: Any = None) -> 
 
 def _get_contribution_votes(contribution_id: str, supabase: Any = None) -> list[dict]:
     """Retrieve all confirmation/dispute votes for a contribution from Supabase or Dev store."""
+    if not is_dev_mode():
+        if supabase is None:
+            supabase = get_supabase_client()
+        v_res = (
+            supabase.table("confirmations")
+            .select("*")
+            .eq("contribution_id", contribution_id)
+            .order("confirmed_at", desc=False)
+            .execute()
+        )
+        return v_res.data or []
+
+    # Local Dev Mode only:
     all_votes = []
     loaded_from_supabase = False
     if supabase is not None:
@@ -187,16 +225,20 @@ def _get_contribution_votes(contribution_id: str, supabase: Any = None) -> list[
 def _recompute_contribution_status(supabase: Any, contribution: dict) -> dict:
     """
     Recompute contribution verification status based on standing votes:
-    1. Keep only votes whose voter is a CURRENT member (project_members or created_by) and NOT the author.
-    2. If any valid vote is 'dispute':
+    1. Confirmations are historical facts: keep confirm votes even if the confirmer later
+       left the team (still exclude the author).
+    2. Keep dispute votes only from CURRENT project members (so a disputer who left cannot block forever).
+    3. If any valid vote is 'dispute':
        verification_status='needs-review', dispute_state='disputed', visibility='private'.
-    3. Elif >=1 valid 'confirm':
+    4. Elif >=1 valid 'confirm':
        dispute_state='none',
-       verification_status='source-verified' if source_type starts with 'github' else 'peer-confirmed',
+       verification_status='source-verified' if was_source_verified else 'peer-confirmed',
        confirmed_by=latest confirmer.
-    4. Else:
+    5. Elif stored status is already confirmed (e.g. confirmer account deletion cascaded vote away):
+       leaves stored status unchanged.
+    6. Else:
        dispute_state='none',
-       verification_status='source-verified' if source_type starts with 'github' else 'self-declared'.
+       verification_status='source-verified' if was_source_verified else 'self-declared'.
     Never turns 'source-verified' into 'peer-confirmed'.
     Persists only on change.
     """
@@ -207,14 +249,20 @@ def _recompute_contribution_status(supabase: Any, contribution: dict) -> dict:
     current_member_ids = _get_project_member_ids(target_project_id, supabase)
     all_votes = _get_contribution_votes(contrib_id, supabase)
 
-    valid_votes = [
+    # Dispute votes only from current members; author excluded
+    dispute_votes = [
         v for v in all_votes
-        if str(v.get("confirmed_by_user_id")) in current_member_ids
+        if v.get("action") == "dispute"
+        and str(v.get("confirmed_by_user_id")) in current_member_ids
         and str(v.get("confirmed_by_user_id")) != author_id
     ]
 
-    dispute_votes = [v for v in valid_votes if v.get("action") == "dispute"]
-    confirm_votes = [v for v in valid_votes if v.get("action") == "confirm"]
+    # Confirm votes count even if confirmer left the team; author excluded
+    confirm_votes = [
+        v for v in all_votes
+        if v.get("action") == "confirm"
+        and str(v.get("confirmed_by_user_id")) != author_id
+    ]
 
     source_type = str(contribution.get("source_type") or "").strip().lower()
     current_status = contribution.get("verification_status")
@@ -231,6 +279,12 @@ def _recompute_contribution_status(supabase: Any, contribution: dict) -> dict:
         new_status = "source-verified" if was_source_verified else "peer-confirmed"
         sorted_confirms = sorted(confirm_votes, key=lambda v: str(v.get("confirmed_at") or ""))
         new_confirmed_by = sorted_confirms[-1].get("confirmed_by_user_id")
+        new_visibility = contribution.get("visibility") or "private"
+    elif current_status in ("peer-confirmed", "confirmed", "source-verified"):
+        # A confirmer's account deletion (vote row cascaded away) leaves stored status unchanged
+        new_dispute_state = "none"
+        new_status = current_status
+        new_confirmed_by = contribution.get("confirmed_by")
         new_visibility = contribution.get("visibility") or "private"
     else:
         new_dispute_state = "none"
@@ -253,27 +307,38 @@ def _recompute_contribution_status(supabase: Any, contribution: dict) -> dict:
         contribution["confirmed_by"] = new_confirmed_by
         contribution["updated_at"] = now_iso
 
-        if supabase is not None:
-            try:
-                supabase.table("contributions").update({
-                    "verification_status": new_status,
-                    "dispute_state": new_dispute_state,
-                    "visibility": new_visibility,
-                    "confirmed_by": new_confirmed_by,
-                    "updated_at": now_iso,
-                }).eq("id", contrib_id).execute()
-            except Exception:
-                pass
+        if not is_dev_mode():
+            if supabase is None:
+                supabase = get_supabase_client()
+            supabase.table("contributions").update({
+                "verification_status": new_status,
+                "dispute_state": new_dispute_state,
+                "visibility": new_visibility,
+                "confirmed_by": new_confirmed_by,
+                "updated_at": now_iso,
+            }).eq("id", contrib_id).execute()
+        else:
+            if supabase is not None:
+                try:
+                    supabase.table("contributions").update({
+                        "verification_status": new_status,
+                        "dispute_state": new_dispute_state,
+                        "visibility": new_visibility,
+                        "confirmed_by": new_confirmed_by,
+                        "updated_at": now_iso,
+                    }).eq("id", contrib_id).execute()
+                except Exception:
+                    pass
 
-        for dev_c in DEV_CONTRIBUTIONS_DB:
-            if dev_c.get("id") == contrib_id:
-                dev_c["verification_status"] = new_status
-                dev_c["dispute_state"] = new_dispute_state
-                dev_c["visibility"] = new_visibility
-                dev_c["confirmed_by"] = new_confirmed_by
-                dev_c["updated_at"] = now_iso
-                break
-        _save_dev_data()
+            for dev_c in DEV_CONTRIBUTIONS_DB:
+                if dev_c.get("id") == contrib_id:
+                    dev_c["verification_status"] = new_status
+                    dev_c["dispute_state"] = new_dispute_state
+                    dev_c["visibility"] = new_visibility
+                    dev_c["confirmed_by"] = new_confirmed_by
+                    dev_c["updated_at"] = now_iso
+                    break
+            _save_dev_data()
 
     return contribution
 
@@ -292,14 +357,19 @@ def _enrich_contribution_metadata(
     current_member_ids = _get_project_member_ids(target_project_id, supabase)
     all_votes = _get_contribution_votes(contrib_id, supabase)
 
-    valid_votes = [
+    # Confirm votes count even if confirmer left the team; author excluded
+    valid_confirms = [
         v for v in all_votes
-        if str(v.get("confirmed_by_user_id")) in current_member_ids
+        if v.get("action") == "confirm"
         and str(v.get("confirmed_by_user_id")) != author_id
     ]
-
-    valid_confirms = [v for v in valid_votes if v.get("action") == "confirm"]
-    valid_disputes = [v for v in valid_votes if v.get("action") == "dispute"]
+    # Dispute votes only from current members; author excluded
+    valid_disputes = [
+        v for v in all_votes
+        if v.get("action") == "dispute"
+        and str(v.get("confirmed_by_user_id")) in current_member_ids
+        and str(v.get("confirmed_by_user_id")) != author_id
+    ]
 
     sorted_confirms = sorted(valid_confirms, key=lambda v: str(v.get("confirmed_at") or ""))
     confirmations_list = []
@@ -1190,7 +1260,7 @@ async def confirm_contribution(
 
         # 5. Upsert caller's confirm vote
         now_iso = datetime.now(timezone.utc).isoformat()
-        try:
+        if not is_dev_mode():
             supabase.table("confirmations").upsert({
                 "contribution_id": contribution_id,
                 "confirmed_by_user_id": user_id,
@@ -1198,29 +1268,38 @@ async def confirm_contribution(
                 "confirmed_at": now_iso,
                 "notes": None,
             }, on_conflict="contribution_id,confirmed_by_user_id").execute()
-        except Exception as up_err:
-            if _is_dev_fallback_error(str(up_err)):
-                raise
-            pass
+        else:
+            try:
+                supabase.table("confirmations").upsert({
+                    "contribution_id": contribution_id,
+                    "confirmed_by_user_id": user_id,
+                    "action": "confirm",
+                    "confirmed_at": now_iso,
+                    "notes": None,
+                }, on_conflict="contribution_id,confirmed_by_user_id").execute()
+            except Exception as up_err:
+                if _is_dev_fallback_error(str(up_err)):
+                    raise
+                pass
 
-        found_dev = False
-        for dv in DEV_CONFIRMATIONS_DB:
-            if dv.get("contribution_id") == contribution_id and str(dv.get("confirmed_by_user_id")) == user_id:
-                dv["action"] = "confirm"
-                dv["confirmed_at"] = now_iso
-                dv["notes"] = None
-                found_dev = True
-                break
-        if not found_dev:
-            DEV_CONFIRMATIONS_DB.append({
-                "id": str(uuid.uuid4()),
-                "contribution_id": contribution_id,
-                "confirmed_by_user_id": user_id,
-                "action": "confirm",
-                "confirmed_at": now_iso,
-                "notes": None,
-            })
-        _save_dev_data()
+            found_dev = False
+            for dv in DEV_CONFIRMATIONS_DB:
+                if dv.get("contribution_id") == contribution_id and str(dv.get("confirmed_by_user_id")) == user_id:
+                    dv["action"] = "confirm"
+                    dv["confirmed_at"] = now_iso
+                    dv["notes"] = None
+                    found_dev = True
+                    break
+            if not found_dev:
+                DEV_CONFIRMATIONS_DB.append({
+                    "id": str(uuid.uuid4()),
+                    "contribution_id": contribution_id,
+                    "confirmed_by_user_id": user_id,
+                    "action": "confirm",
+                    "confirmed_at": now_iso,
+                    "notes": None,
+                })
+            _save_dev_data()
 
         # 6. Recompute status
         updated_contrib = _recompute_contribution_status(supabase, contribution)
@@ -1233,12 +1312,13 @@ async def confirm_contribution(
             }).eq("contribution_id", contribution_id).execute()
         except Exception:
             pass
-        for r in DEV_CONFIRMATION_REQUESTS_DB:
-            if r.get("contribution_id") == contribution_id and (
-                r.get("reviewer_id") == user_id or r.get("status") == "pending"
-            ):
-                r["status"] = "confirmed"
-                r["updated_at"] = now_iso
+        if is_dev_mode():
+            for r in DEV_CONFIRMATION_REQUESTS_DB:
+                if r.get("contribution_id") == contribution_id and (
+                    r.get("reviewer_id") == user_id or r.get("status") == "pending"
+                ):
+                    r["status"] = "confirmed"
+                    r["updated_at"] = now_iso
 
         # 8. Hydrate contributor profile/name
         cid = updated_contrib.get("contributor") or updated_contrib.get("contributor_id")
@@ -1465,7 +1545,7 @@ async def dispute_contribution(
 
         # 4. Upsert caller's dispute vote
         now_iso = datetime.now(timezone.utc).isoformat()
-        try:
+        if not is_dev_mode():
             supabase.table("confirmations").upsert({
                 "contribution_id": contribution_id,
                 "confirmed_by_user_id": user_id,
@@ -1473,29 +1553,38 @@ async def dispute_contribution(
                 "confirmed_at": now_iso,
                 "notes": reason,
             }, on_conflict="contribution_id,confirmed_by_user_id").execute()
-        except Exception as up_err:
-            if _is_dev_fallback_error(str(up_err)):
-                raise
-            pass
+        else:
+            try:
+                supabase.table("confirmations").upsert({
+                    "contribution_id": contribution_id,
+                    "confirmed_by_user_id": user_id,
+                    "action": "dispute",
+                    "confirmed_at": now_iso,
+                    "notes": reason,
+                }, on_conflict="contribution_id,confirmed_by_user_id").execute()
+            except Exception as up_err:
+                if _is_dev_fallback_error(str(up_err)):
+                    raise
+                pass
 
-        found_dev = False
-        for dv in DEV_CONFIRMATIONS_DB:
-            if dv.get("contribution_id") == contribution_id and str(dv.get("confirmed_by_user_id")) == user_id:
-                dv["action"] = "dispute"
-                dv["confirmed_at"] = now_iso
-                dv["notes"] = reason
-                found_dev = True
-                break
-        if not found_dev:
-            DEV_CONFIRMATIONS_DB.append({
-                "id": str(uuid.uuid4()),
-                "contribution_id": contribution_id,
-                "confirmed_by_user_id": user_id,
-                "action": "dispute",
-                "confirmed_at": now_iso,
-                "notes": reason,
-            })
-        _save_dev_data()
+            found_dev = False
+            for dv in DEV_CONFIRMATIONS_DB:
+                if dv.get("contribution_id") == contribution_id and str(dv.get("confirmed_by_user_id")) == user_id:
+                    dv["action"] = "dispute"
+                    dv["confirmed_at"] = now_iso
+                    dv["notes"] = reason
+                    found_dev = True
+                    break
+            if not found_dev:
+                DEV_CONFIRMATIONS_DB.append({
+                    "id": str(uuid.uuid4()),
+                    "contribution_id": contribution_id,
+                    "confirmed_by_user_id": user_id,
+                    "action": "dispute",
+                    "confirmed_at": now_iso,
+                    "notes": reason,
+                })
+            _save_dev_data()
 
         # 5. Recompute status: sets needs-review, disputed, private immediately
         updated_contrib = _recompute_contribution_status(supabase, contribution)
@@ -1508,12 +1597,13 @@ async def dispute_contribution(
             }).eq("contribution_id", contribution_id).execute()
         except Exception:
             pass
-        for r in DEV_CONFIRMATION_REQUESTS_DB:
-            if r.get("contribution_id") == contribution_id and (
-                r.get("reviewer_id") == user_id or r.get("status") == "pending"
-            ):
-                r["status"] = "disputed"
-                r["updated_at"] = now_iso
+        if is_dev_mode():
+            for r in DEV_CONFIRMATION_REQUESTS_DB:
+                if r.get("contribution_id") == contribution_id and (
+                    r.get("reviewer_id") == user_id or r.get("status") == "pending"
+                ):
+                    r["status"] = "disputed"
+                    r["updated_at"] = now_iso
 
         # 7. Hydrate contributor profile/name
         cid = updated_contrib.get("contributor") or updated_contrib.get("contributor_id")
@@ -1667,26 +1757,33 @@ async def withdraw_dispute(
             )
 
         # 3. Delete that vote
-        try:
+        if not is_dev_mode():
             supabase.table("confirmations").delete().eq("contribution_id", contribution_id).eq("confirmed_by_user_id", user_id).execute()
-        except Exception as del_err:
-            if _is_dev_fallback_error(str(del_err)):
-                raise
-            pass
+            try:
+                supabase.table("confirmation_requests").update({"status": "pending"}).eq("contribution_id", contribution_id).eq("reviewer_id", user_id).execute()
+            except Exception:
+                pass
+        else:
+            try:
+                supabase.table("confirmations").delete().eq("contribution_id", contribution_id).eq("confirmed_by_user_id", user_id).execute()
+            except Exception as del_err:
+                if _is_dev_fallback_error(str(del_err)):
+                    raise
+                pass
 
-        DEV_CONFIRMATIONS_DB[:] = [
-            v for v in DEV_CONFIRMATIONS_DB
-            if not (v.get("contribution_id") == contribution_id and str(v.get("confirmed_by_user_id")) == user_id)
-        ]
-        for r in DEV_CONFIRMATION_REQUESTS_DB:
-            if r.get("contribution_id") == contribution_id and str(r.get("reviewer_id")) == user_id:
-                r["status"] = "pending"
-                r["updated_at"] = datetime.now(timezone.utc).isoformat()
-        try:
-            supabase.table("confirmation_requests").update({"status": "pending"}).eq("contribution_id", contribution_id).eq("reviewer_id", user_id).execute()
-        except Exception:
-            pass
-        _save_dev_data()
+            DEV_CONFIRMATIONS_DB[:] = [
+                v for v in DEV_CONFIRMATIONS_DB
+                if not (v.get("contribution_id") == contribution_id and str(v.get("confirmed_by_user_id")) == user_id)
+            ]
+            for r in DEV_CONFIRMATION_REQUESTS_DB:
+                if r.get("contribution_id") == contribution_id and str(r.get("reviewer_id")) == user_id:
+                    r["status"] = "pending"
+                    r["updated_at"] = datetime.now(timezone.utc).isoformat()
+            try:
+                supabase.table("confirmation_requests").update({"status": "pending"}).eq("contribution_id", contribution_id).eq("reviewer_id", user_id).execute()
+            except Exception:
+                pass
+            _save_dev_data()
 
         # 4. Recompute status
         updated_contrib = _recompute_contribution_status(supabase, contribution)
@@ -1969,7 +2066,20 @@ async def publish_contribution(
             )
 
         # 3. Strict Defense-in-Depth Verification Guard:
-        # Only confirmed or source-verified contributions can ever be made public.
+        # Before publishing a non-source-verified item call _recompute_contribution_status strictly;
+        # if it finds an active dispute return 409.
+        source_type = str(contribution.get("source_type") or "").strip().lower()
+        v_status = contribution.get("verification_status")
+        is_source_verified = (v_status == "source-verified") or source_type.startswith("github")
+
+        if not is_source_verified:
+            contribution = _recompute_contribution_status(supabase, contribution)
+            if contribution.get("dispute_state") == "disputed" or contribution.get("verification_status") == "needs-review":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Cannot publish: contribution is currently disputed.",
+                )
+
         v_status = contribution.get("verification_status")
         d_state = contribution.get("dispute_state")
         if v_status not in ("peer-confirmed", "confirmed", "source-verified") or d_state == "disputed" or v_status == "needs-review":
@@ -2048,6 +2158,18 @@ async def publish_contribution(
                 )
 
             # Strict Guard: Only confirmed or source-verified deliverables can be made public
+            source_type = str(contribution.get("source_type") or "").strip().lower()
+            v_status = contribution.get("verification_status")
+            is_source_verified = (v_status == "source-verified") or source_type.startswith("github")
+
+            if not is_source_verified:
+                contribution = _recompute_contribution_status(None, contribution)
+                if contribution.get("dispute_state") == "disputed" or contribution.get("verification_status") == "needs-review":
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Cannot publish: contribution is currently disputed.",
+                    )
+
             v_status = contribution.get("verification_status")
             d_state = contribution.get("dispute_state")
             if v_status not in ("peer-confirmed", "confirmed", "source-verified") or d_state == "disputed" or v_status == "needs-review":
@@ -2486,11 +2608,17 @@ async def get_user_passport(
 
         confirmed_count = sum(1 for c in valid_items if c.get("verification_status") in ("confirmed", "peer-confirmed", "source-verified"))
 
+        raw_gh = profile.get("github_username") if profile else None
+        if not raw_gh and is_dev_mode():
+            from routers.projects import DEV_GITHUB_IDENTITIES_DB
+            raw_gh = DEV_GITHUB_IDENTITIES_DB.get(user_id)
+        github_username = str(raw_gh).strip() if raw_gh and str(raw_gh).strip() else None
+
         return UserPassportResponse(
             user_id=user_id,
             display_name=profile.get("display_name"),
             avatar_url=profile.get("avatar_url"),
-            github_username=profile.get("github_username"),
+            github_username=github_username,
             total_contributions=len(valid_items),
             confirmed_count=confirmed_count,
             contributions=valid_items,
@@ -2523,11 +2651,15 @@ async def get_user_passport(
 
             confirmed_count = sum(1 for c in valid_items if c.get("verification_status") in ("confirmed", "peer-confirmed", "source-verified"))
 
+            from routers.projects import DEV_GITHUB_IDENTITIES_DB
+            raw_gh = DEV_GITHUB_IDENTITIES_DB.get(user_id)
+            github_username = str(raw_gh).strip() if raw_gh and str(raw_gh).strip() else None
+
             return UserPassportResponse(
                 user_id=user_id,
                 display_name=display_name,
                 avatar_url=None,
-                github_username=None,
+                github_username=github_username,
                 total_contributions=len(valid_items),
                 confirmed_count=confirmed_count,
                 contributions=valid_items,
@@ -2628,15 +2760,12 @@ async def get_project_passport(
             repository = None
             repository_url = None
 
-        # 5. Fetch verified GitHub username
-        from routers.projects import _verified_github_logins
-        verified_map = _verified_github_logins([{"user_id": user_id}], supabase)
-        gh_user = None
-        for k, v in verified_map.items():
-            if v == user_id:
-                gh_user = k
-                break
-        github_username = gh_user or profile.get("github_username")
+        # 5. Fetch verified GitHub username (SQL 13 guarantees profiles.github_username is verified)
+        raw_gh = profile.get("github_username") if profile else None
+        if not raw_gh and is_dev_mode():
+            from routers.projects import DEV_GITHUB_IDENTITIES_DB
+            raw_gh = DEV_GITHUB_IDENTITIES_DB.get(user_id)
+        github_username = str(raw_gh).strip() if raw_gh and str(raw_gh).strip() else None
 
         # 6. Fetch role agreement for this user in this project
         role_name = None
@@ -2904,7 +3033,8 @@ async def get_project_passport(
             # Profile and GitHub login
             from routers.projects import DEV_GITHUB_IDENTITIES_DB
             display_name = _format_clean_display_name(DEV_USER_NAMES_DB.get(user_id, f"User {user_id[:8]}"))
-            github_username = DEV_GITHUB_IDENTITIES_DB.get(user_id)
+            raw_gh = DEV_GITHUB_IDENTITIES_DB.get(user_id)
+            github_username = str(raw_gh).strip() if raw_gh and str(raw_gh).strip() else None
 
             valid_items = [
                 c for c in DEV_CONTRIBUTIONS_DB
@@ -3060,10 +3190,10 @@ async def get_project_passport(
                 contributions=display_items,
             )
 
-        logger.exception("Failed to fetch project passport")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Temporarily unavailable, try again shortly",
+        raise handle_route_error(
+            e,
+            generic_message="Failed to fetch project passport. Please try again.",
+            log_message="Failed to fetch project passport",
         )
 
 

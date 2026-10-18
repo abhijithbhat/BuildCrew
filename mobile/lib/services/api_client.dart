@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dashboard_repository.dart';
 import 'storage_service.dart';
 
 /// Central API Client providing a shared Dio instance with automatic silent
@@ -365,6 +366,7 @@ class ApiClient {
 
   /// Clears stored tokens, broadcasts global logout event, and routes to /login.
   Future<void> handleForceLogout() async {
+    DashboardRepository.instance.clearMemory();
     try {
       await _storageService.clearTokens();
     } catch (_) {}

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'api_client.dart';
+import 'dashboard_repository.dart';
 import 'storage_service.dart';
 
 class AuthService {
@@ -487,6 +488,7 @@ class AuthService {
     }
 
     // On success: calls StorageService.clearAll(), signs out from Supabase client, and broadcasts logout.
+    DashboardRepository.instance.clearMemory();
     await _storageService.clearAll();
     try {
       await supabase.auth.signOut();
@@ -497,6 +499,7 @@ class AuthService {
   /// Clear tokens securely from storage on logout.
   Future<void> logout() async {
     _navigatedToHome = false;
+    DashboardRepository.instance.clearMemory();
     try {
       await supabase.auth.signOut();
     } catch (_) {}

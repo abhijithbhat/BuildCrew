@@ -438,29 +438,57 @@ async def get_project_details(
 
 def is_project_archived(project_id: str, supabase: Any = None) -> bool:
     """Check if a project is archived (has archived_at timestamp)."""
-    # 1. Check DEV_PROJECTS_DB first
+    # 1. Check DEV_PROJECTS_DB
     if project_id in DEV_PROJECTS_DB:
         val = DEV_PROJECTS_DB[project_id].get("archived_at")
-        if val and not hasattr(val, "_mock_return_value"):
+        if val:
             return bool(val)
+        if is_dev_mode():
+            return False
 
     # 2. Check Supabase
     try:
         if supabase is None:
             supabase = get_supabase_client()
-        res = (
-            supabase.table("projects")
-            .select("archived_at")
-            .eq("id", project_id)
-            .single()
-            .execute()
+        query = supabase.table("projects").select("archived_at").eq("id", project_id)
+        res = None
+        if hasattr(query, "single") and callable(getattr(query, "single")):
+            try:
+                res = query.single().execute()
+            except (AttributeError, TypeError):
+                res = None
+        if res is None or not (hasattr(res, "data") and isinstance(res.data, (dict, list))):
+            res = query.execute()
+
+        if res and hasattr(res, "data"):
+            data = res.data
+            if isinstance(data, dict):
+                return bool(data.get("archived_at"))
+            if isinstance(data, list):
+                if len(data) == 0:
+                    return False
+                first = data[0]
+                if isinstance(first, dict):
+                    return bool(first.get("archived_at"))
+    except Exception as exc:
+        code = getattr(exc, "code", None)
+        if code is None and hasattr(exc, "args") and exc.args and isinstance(exc.args[0], dict):
+            code = exc.args[0].get("code")
+        code_str = str(code or "").strip().upper()
+        if code_str == "PGRST116" or "PGRST116" in str(exc):
+            return False
+
+        if is_dev_mode():
+            if project_id in DEV_PROJECTS_DB:
+                return bool(DEV_PROJECTS_DB[project_id].get("archived_at"))
+            return False
+
+        logger.exception(f"Error checking project archive status for {project_id}: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable. Please try again.",
+            headers={"Retry-After": "5"},
         )
-        if res and hasattr(res, "data") and isinstance(res.data, dict):
-            archived_val = res.data.get("archived_at")
-            if archived_val and not hasattr(archived_val, "_mock_return_value"):
-                return bool(archived_val)
-    except Exception:
-        pass
 
     return False
 
@@ -602,14 +630,27 @@ async def delete_project(
 
         raise handle_route_error(
             e,
-            generic_message="Failed to delete project. Please try again.",
-            log_message="Failed to delete project",
+            generic_message="Failed to remove project. Please try again.",
+            log_message="Failed to remove project",
         )
 
 
 def _recompute_project_contributions(project_id: str, supabase: Any = None) -> None:
     """Recompute verification statuses for all contributions in a project following membership changes."""
     from routers.contributions import _recompute_contribution_status
+    if not is_dev_mode():
+        if supabase is None:
+            supabase = get_supabase_client()
+        c_res = (
+            supabase.table("contributions")
+            .select("*")
+            .eq("project", project_id)
+            .execute()
+        )
+        for c in (c_res.data or []):
+            _recompute_contribution_status(supabase, c)
+        return
+
     if supabase is not None:
         try:
             c_res = (
@@ -677,15 +718,16 @@ async def leave_project(
         supabase.table("project_members").delete().eq("project_id", project_id).eq("user_id", user_id).execute()
         supabase.table("role_agreements").delete().eq("project_id", project_id).eq("user_id", user_id).execute()
 
-        # Clean local cache/memory
-        DEV_PROJECT_MEMBERS_DB[:] = [
-            m for m in DEV_PROJECT_MEMBERS_DB
-            if not (m.get("project_id") == project_id and m.get("user_id") == user_id)
-        ]
-        DEV_ROLE_AGREEMENTS_DB[:] = [
-            r for r in DEV_ROLE_AGREEMENTS_DB
-            if not (r.get("project_id") == project_id and r.get("user_id") == user_id)
-        ]
+        # Clean local cache/memory in dev mode only
+        if is_dev_mode():
+            DEV_PROJECT_MEMBERS_DB[:] = [
+                m for m in DEV_PROJECT_MEMBERS_DB
+                if not (m.get("project_id") == project_id and m.get("user_id") == user_id)
+            ]
+            DEV_ROLE_AGREEMENTS_DB[:] = [
+                r for r in DEV_ROLE_AGREEMENTS_DB
+                if not (r.get("project_id") == project_id and r.get("user_id") == user_id)
+            ]
         _recompute_project_contributions(project_id, supabase)
 
         return {
@@ -784,15 +826,16 @@ async def remove_project_member(
         supabase.table("project_members").delete().eq("project_id", project_id).eq("user_id", member_user_id).execute()
         supabase.table("role_agreements").delete().eq("project_id", project_id).eq("user_id", member_user_id).execute()
 
-        # Clean local cache/memory
-        DEV_PROJECT_MEMBERS_DB[:] = [
-            m for m in DEV_PROJECT_MEMBERS_DB
-            if not (m.get("project_id") == project_id and m.get("user_id") == member_user_id)
-        ]
-        DEV_ROLE_AGREEMENTS_DB[:] = [
-            r for r in DEV_ROLE_AGREEMENTS_DB
-            if not (r.get("project_id") == project_id and r.get("user_id") == member_user_id)
-        ]
+        # Clean local cache/memory in dev mode only
+        if is_dev_mode():
+            DEV_PROJECT_MEMBERS_DB[:] = [
+                m for m in DEV_PROJECT_MEMBERS_DB
+                if not (m.get("project_id") == project_id and m.get("user_id") == member_user_id)
+            ]
+            DEV_ROLE_AGREEMENTS_DB[:] = [
+                r for r in DEV_ROLE_AGREEMENTS_DB
+                if not (r.get("project_id") == project_id and r.get("user_id") == member_user_id)
+            ]
         _recompute_project_contributions(project_id, supabase)
 
         return {
@@ -2751,9 +2794,10 @@ async def get_project_ledger(
             is_disputed = (status_val == "needs-review" or dispute_state == "disputed")
 
             votes = _get_contribution_votes(cid, supabase)
-            valid_votes = [
+            # Confirm votes count even if confirmer left the team; author excluded
+            confirm_votes = [
                 v for v in votes
-                if str(v.get("confirmed_by_user_id")) in current_members
+                if v.get("action") == "confirm"
                 and str(v.get("confirmed_by_user_id")) != author_id
             ]
 
@@ -2774,7 +2818,7 @@ async def get_project_ledger(
             waiting_on_me = (not is_author) and (not has_caller_voted) and (not is_disputed)
 
             confirmations_list = []
-            for cv in sorted([v for v in valid_votes if v.get("action") == "confirm"], key=lambda x: str(x.get("confirmed_at") or "")):
+            for cv in sorted(confirm_votes, key=lambda x: str(x.get("confirmed_at") or "")):
                 voter_id = str(cv.get("confirmed_by_user_id"))
                 confirmations_list.append(
                     ConfirmationVoteInfo(
@@ -2846,9 +2890,10 @@ async def get_project_ledger(
                 is_disputed = (status_val == "needs-review" or dispute_state == "disputed")
 
                 votes = _get_contribution_votes(cid, None)
-                valid_votes = [
+                # Confirm votes count even if confirmer left the team; author excluded
+                confirm_votes = [
                     v for v in votes
-                    if str(v.get("confirmed_by_user_id")) in current_members
+                    if v.get("action") == "confirm"
                     and str(v.get("confirmed_by_user_id")) != author_id
                 ]
 
@@ -2868,7 +2913,7 @@ async def get_project_ledger(
                 waiting_on_me = (not is_author) and (not has_caller_voted) and (not is_disputed)
 
                 confirmations_list = []
-                for cv in sorted([v for v in valid_votes if v.get("action") == "confirm"], key=lambda x: str(x.get("confirmed_at") or "")):
+                for cv in sorted(confirm_votes, key=lambda x: str(x.get("confirmed_at") or "")):
                     voter_id = str(cv.get("confirmed_by_user_id"))
                     confirmations_list.append(
                         ConfirmationVoteInfo(

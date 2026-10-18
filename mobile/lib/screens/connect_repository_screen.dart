@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../services/github_service.dart';
 import '../theme/app_colors.dart';
@@ -264,14 +265,14 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
           return;
         }
       } catch (linkError) {
-        final errStr = linkError.toString().toLowerCase();
-        final isNoInstallation = errStr.contains('no active github app installation') ||
-            errStr.contains('no installation') ||
-            errStr.contains('install the github app first') ||
-            errStr.contains('install the app first') ||
-            errStr.contains('no active installation') ||
-            errStr.contains('400') ||
-            errStr.contains('bad request');
+        String? errorCode;
+        if (linkError is ApiException) {
+          errorCode = linkError.code;
+        } else if (linkError is DioException && linkError.response?.data is Map) {
+          errorCode = linkError.response!.data['code']?.toString();
+        }
+
+        final isNoInstallation = errorCode == 'github_not_installed';
 
         if (!isNoInstallation) {
           // If it was another error (not 'no installation'), display it
@@ -855,18 +856,7 @@ class _ConnectRepositoryScreenState extends State<ConnectRepositoryScreen>
                 ),
               ),
 
-              const SizedBox(height: 16),
 
-              // Disclaimer
-              const Text(
-                'Make sure your backend and ngrok tunnel are running during installation.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.hint,
-                  fontSize: 12,
-                  height: 1.4,
-                ),
-              ),
 
               const SizedBox(height: 24),
             ],

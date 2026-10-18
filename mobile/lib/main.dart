@@ -24,9 +24,12 @@ import 'screens/publish_selection_screen.dart';
 import 'screens/repo_status_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/signup_screen.dart';
+import 'screens/splash_screen.dart';
 import 'screens/team_roles_screen.dart';
 import 'services/api_client.dart';
 import 'services/auth_service.dart';
+import 'services/dashboard_repository.dart';
+import 'services/session_router.dart';
 import 'services/storage_service.dart';
 import 'theme/app_colors.dart';
 
@@ -71,31 +74,27 @@ Future<void> main() async {
     debugPrint('Supabase initialize error: $e');
   }
 
-  String initialRoute = '/login';
-  try {
-    final storageService = StorageService();
-    final token = await storageService.getAccessToken();
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session != null || (token != null && token.isNotEmpty)) {
-      initialRoute = '/home';
-    }
-  } catch (e) {
-    debugPrint('Auth check error in main(): $e');
+  final String initialRoute = await resolveStartRoute();
+
+  if (initialRoute == '/home') {
+    unawaited(DashboardRepository.instance.prefetch());
   }
 
-  runApp(MyApp(initialRoute: initialRoute));
+  runApp(MyApp(initialRoute: initialRoute, showSplash: true));
 }
 
 class MyApp extends StatefulWidget {
   final StorageService? storageService;
   final AppLinks? appLinks;
   final String initialRoute;
+  final bool showSplash;
 
   const MyApp({
     super.key,
     this.storageService,
     this.appLinks,
     this.initialRoute = '/login',
+    this.showSplash = false,
   });
 
   @override
@@ -300,7 +299,8 @@ class _MyAppState extends State<MyApp> {
           color: AppColors.emeraldInk,
         ),
       ),
-      initialRoute: widget.initialRoute,
+      initialRoute:
+          widget.showSplash ? SplashScreen.routeName : widget.initialRoute,
       builder: (context, child) => ColoredBox(
         color: AppColors.champagne,
         child: Center(
@@ -311,6 +311,14 @@ class _MyAppState extends State<MyApp> {
         ),
       ),
       routes: {
+        SplashScreen.routeName: (context) => SplashScreen(
+              resolveRoute: resolveStartRoute,
+              beforeNavigate: (String route) async {
+                if (route == '/home') {
+                  await DashboardRepository.instance.waitForFirstSnapshot();
+                }
+              },
+            ),
         LoginScreen.routeName: (context) => const LoginScreen(),
         SignupScreen.routeName: (context) => const SignupScreen(),
         '/otp': (context) => const OtpScreen(),

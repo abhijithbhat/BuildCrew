@@ -4,6 +4,21 @@ import 'package:url_launcher/url_launcher.dart';
 import 'api_client.dart';
 import 'storage_service.dart';
 
+class ApiException implements Exception {
+  final String message;
+  final String? code;
+  final int? statusCode;
+
+  const ApiException({
+    required this.message,
+    this.code,
+    this.statusCode,
+  });
+
+  @override
+  String toString() => message;
+}
+
 class GitHubService {
   final Dio _dio;
   final StorageService _storageService;
@@ -17,13 +32,7 @@ class GitHubService {
   Future<Options> _getAuthOptions() async {
     final token = await _storageService.getAccessToken();
     if (token == null || token.isEmpty) {
-      // In dev mode, provide mock token
-      return Options(
-        headers: {
-          'Authorization': 'Bearer mock-dev-access-token-lead@example.com',
-          'Content-Type': 'application/json',
-        },
-      );
+      throw 'User is not authenticated. Please log in first.';
     }
     return Options(
       headers: {
@@ -33,29 +42,54 @@ class GitHubService {
     );
   }
 
-  String _parseDioError(dynamic error) {
+  ApiException _parseDioError(dynamic error) {
+    if (error is ApiException) {
+      return error;
+    }
     if (error is DioException) {
+      final statusCode = error.response?.statusCode;
+      String? code;
       if (error.response != null && error.response!.data != null) {
         final data = error.response!.data;
         if (data is Map) {
+          code = data['code']?.toString();
           final detail = data['detail'] ?? data['message'] ?? data['error'];
           if (detail != null) {
+            String msg;
             if (detail is List && detail.isNotEmpty) {
-              return detail
+              msg = detail
                   .map((e) => e is Map ? (e['msg'] ?? e.toString()) : e.toString())
                   .join('\n');
+            } else {
+              msg = detail.toString();
             }
-            return detail.toString();
+            return ApiException(
+              message: msg,
+              code: code,
+              statusCode: statusCode,
+            );
           }
         } else if (data is String && data.trim().isNotEmpty && !data.startsWith('<')) {
-          return data.trim();
+          return ApiException(
+            message: data.trim(),
+            statusCode: statusCode,
+          );
         }
-        return 'Server error: ${error.response!.statusCode}';
+        return ApiException(
+          message: 'Server error: ${error.response!.statusCode}',
+          code: code,
+          statusCode: statusCode,
+        );
       }
-      return 'Network connection failed. Please check your backend connection.';
+      return ApiException(
+        message: 'Network connection failed. Please check your backend connection.',
+        statusCode: statusCode,
+      );
     }
-    return error.toString();
+    return ApiException(message: error.toString());
   }
+
+  ApiException parseDioError(dynamic error) => _parseDioError(error);
 
   /// Helper for executing requests with automatic multi-endpoint fallback.
   Future<T> _executeWithFallback<T>(
@@ -79,11 +113,10 @@ class GitHubService {
         }
       } on DioException catch (e) {
         lastError = e;
-        // Only fallback on connection/network failures, never on 4xx/5xx HTTP responses
+        // Only fallback on connection/network failures (connectionError and connectionTimeout),
+        // never on 4xx/5xx HTTP responses or sendTimeout/receiveTimeout.
         final isConnError = e.type == DioExceptionType.connectionError ||
             e.type == DioExceptionType.connectionTimeout ||
-            e.type == DioExceptionType.receiveTimeout ||
-            e.type == DioExceptionType.sendTimeout ||
             (e.message != null &&
                 (e.message!.contains('Connection refused') ||
                     e.message!.contains('No route to host') ||
@@ -92,8 +125,8 @@ class GitHubService {
           debugPrint('GitHubService fallback failed on $baseUrl due to connection error. Retrying next...');
           continue;
         }
-        // If the server answered with an HTTP status code (4xx, 5xx),
-        // we reached the server! Do not fallback to another URL.
+        // If the server answered with an HTTP status code (4xx, 5xx) or timeout during data transfer,
+        // do not fallback to another URL.
         ApiClient.activeBaseUrl = baseUrl;
         throw _parseDioError(e);
       } catch (e) {

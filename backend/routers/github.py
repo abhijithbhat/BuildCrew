@@ -541,9 +541,16 @@ async def get_github_install_url(
     current_user: Any = Depends(get_current_user),
 ):
     """Retrieve the GitHub App install URL with project state parameter."""
-    _check_user_project_access(project_id, current_user.id)
+    proj = _check_user_project_access(project_id, current_user.id)
+    if proj.get("archived_at"):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project is archived.")
     from routers.projects import is_project_archived
-    if is_project_archived(project_id):
+    supabase = None
+    try:
+        supabase = get_supabase_client()
+    except Exception:
+        pass
+    if is_project_archived(project_id, supabase):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project is archived.")
     slug = settings.GITHUB_APP_SLUG or "buildcrew-app"
 
@@ -578,9 +585,16 @@ async def link_github_installation(
     current_user: Any = Depends(get_current_user),
 ):
     """Explicitly link a GitHub installation ID and repo to a project."""
-    _check_user_project_access(project_id, current_user.id, lead_only=True)
+    proj = _check_user_project_access(project_id, current_user.id, lead_only=True)
+    if proj.get("archived_at"):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project is archived.")
     from routers.projects import is_project_archived
-    if is_project_archived(project_id):
+    supabase = None
+    try:
+        supabase = get_supabase_client()
+    except Exception:
+        pass
+    if is_project_archived(project_id, supabase):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project is archived.")
 
     # 1. Resolve installation_id
@@ -602,9 +616,12 @@ async def link_github_installation(
                 installation_id = str(lead_inst_id)
 
     if not installation_id:
-        raise HTTPException(
+        return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active GitHub App installation found for this project or lead. Please install the GitHub App first.",
+            content={
+                "detail": "No active GitHub App installation found for this project or lead. Please install the GitHub App first.",
+                "code": "github_not_installed",
+            },
         )
 
     # 2. Retrieve allowed repos and validate repo_full_name
@@ -664,9 +681,16 @@ async def unlink_project_github_installation(
     current_user: Any = Depends(get_current_user),
 ):
     """Disconnect/unlink GitHub repository from project (Team Lead only)."""
-    _check_user_project_access(project_id, current_user.id, lead_only=True)
+    proj = _check_user_project_access(project_id, current_user.id, lead_only=True)
+    if proj.get("archived_at"):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project is archived.")
     from routers.projects import is_project_archived
-    if is_project_archived(project_id):
+    supabase = None
+    try:
+        supabase = get_supabase_client()
+    except Exception:
+        pass
+    if is_project_archived(project_id, supabase):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project is archived.")
     success = github_service.remove_project_installation(project_id)
     return {
@@ -709,9 +733,16 @@ async def select_project_github_repository(
     current_user: Any = Depends(get_current_user),
 ):
     """Switch or link the project to a specific repository under the active installation."""
-    _check_user_project_access(project_id, current_user.id, lead_only=True)
+    proj = _check_user_project_access(project_id, current_user.id, lead_only=True)
+    if proj.get("archived_at"):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project is archived.")
     from routers.projects import is_project_archived
-    if is_project_archived(project_id):
+    supabase = None
+    try:
+        supabase = get_supabase_client()
+    except Exception:
+        pass
+    if is_project_archived(project_id, supabase):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project is archived.")
     installation = github_service.get_project_installation(project_id)
     installation_id = installation.get("installation_id") if installation else None
@@ -722,9 +753,12 @@ async def select_project_github_repository(
             installation_id = github_service.get_installation_id_for_lead(str(current_user.id))
 
     if not installation_id:
-        raise HTTPException(
+        return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active GitHub App installation found. Please install the GitHub App first.",
+            content={
+                "detail": "No active GitHub App installation found. Please install the GitHub App first.",
+                "code": "github_not_installed",
+            },
         )
 
     repo_full_name = payload.get("repo_full_name")

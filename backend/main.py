@@ -145,6 +145,7 @@ from typing import Optional
 from routers.contributions import get_project_passport, get_user_passport
 from schemas.contribution import ProjectPassportResponse, UserPassportResponse
 
+from core.errors import handle_route_error
 from core.templates import should_render_html, render_branded_error_page, templates
 
 @app.get(
@@ -177,10 +178,18 @@ async def get_project_passport_endpoint(
         try:
             passport_data = await get_project_passport(user_id, project_id)
         except HTTPException as exc:
+            if exc.status_code == 404:
+                return render_branded_error_page(status.HTTP_404_NOT_FOUND, "Passport not found")
             return render_branded_error_page(exc.status_code, exc.detail)
         except Exception as exc:
-            logger.exception(f"Unhandled error fetching passport: {exc}")
-            return render_branded_error_page(status.HTTP_503_SERVICE_UNAVAILABLE, "Temporarily unavailable, try again shortly")
+            mapped = handle_route_error(
+                exc,
+                generic_message="Failed to fetch passport. Please try again.",
+                log_message="Unhandled error fetching passport",
+            )
+            if mapped.status_code == 404:
+                return render_branded_error_page(status.HTTP_404_NOT_FOUND, "Passport not found")
+            return render_branded_error_page(mapped.status_code, mapped.detail)
 
         base_url = str(request.base_url).rstrip("/")
         og_image_url = passport_data.avatar_url or f"{base_url}/static/og-default.png"

@@ -1,14 +1,25 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/screens/connect_repository_screen.dart';
 import 'package:mobile/screens/repo_status_screen.dart';
 import 'package:mobile/services/github_service.dart';
+import 'package:mobile/services/storage_service.dart';
+
+class FakeStorageService extends StorageService {
+  final String? token;
+  FakeStorageService({this.token = 'test-token'});
+
+  @override
+  Future<String?> getAccessToken() async => token;
+}
 
 class MockGitHubService extends GitHubService {
   final bool shouldSucceed;
   final bool isConnected;
   final bool leadHasInstallation;
   final Map<String, dynamic>? customInstallation;
+  final Object? customLinkError;
   bool launchCalled = false;
   bool unlinkCalled = false;
   bool linkInstallationCalled = false;
@@ -19,6 +30,7 @@ class MockGitHubService extends GitHubService {
     this.isConnected = true,
     this.leadHasInstallation = false,
     this.customInstallation,
+    this.customLinkError,
   });
 
   @override
@@ -28,8 +40,15 @@ class MockGitHubService extends GitHubService {
     String? repoFullName,
   }) async {
     linkInstallationCalled = true;
+    if (customLinkError != null) {
+      throw customLinkError!;
+    }
     if (!leadHasInstallation) {
-      throw 'No active GitHub App installation found. Please install the app first.';
+      throw const ApiException(
+        message: 'No active GitHub App installation found. Please install the app first.',
+        code: 'github_not_installed',
+        statusCode: 400,
+      );
     }
     if (!shouldSucceed) {
       throw 'Failed to connect to GitHub installation endpoint.';
@@ -112,6 +131,12 @@ void main() {
   group('ConnectRepositoryScreen Tests', () {
     testWidgets('renders all header elements, feature highlights, and connect button',
         (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
       final mockService = MockGitHubService(shouldSucceed: true);
 
       await tester.pumpWidget(
@@ -163,6 +188,12 @@ void main() {
 
     testWidgets('displays error banner when launchInstallFlow throws error',
         (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
       final mockService = MockGitHubService(shouldSucceed: false);
 
       await tester.pumpWidget(
@@ -191,6 +222,12 @@ void main() {
     testWidgets(
         'when lead already has installation, tapping Connect links directly and shows repo picker without launching browser',
         (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
       final mockService = MockGitHubService(
         shouldSucceed: true,
         isConnected: false,
@@ -253,6 +290,85 @@ void main() {
       expect(find.text('Connected Repository'), findsOneWidget);
       expect(find.text('BuildCrew-Org/buildcrew-core'), findsWidgets);
       expect(find.text('Change repository'), findsOneWidget);
+    });
+
+    testWidgets('a 400 with code github_not_installed launches the install flow',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final mockService = MockGitHubService(
+        customLinkError: const ApiException(
+          message: 'No active GitHub App installation found.',
+          code: 'github_not_installed',
+          statusCode: 400,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConnectRepositoryScreen(
+            projectId: 'proj-123',
+            projectName: 'BuildCrew Core',
+            gitHubService: mockService,
+          ),
+        ),
+      );
+
+      await tester.ensureVisible(find.text('Open GitHub in Browser'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open GitHub in Browser'));
+      await tester.pumpAndSettle();
+
+      expect(mockService.linkInstallationCalled, isTrue);
+      expect(mockService.launchCalled, isTrue);
+      expect(
+        find.text(
+          'Opening GitHub in browser... Click "Save" or "Install" on GitHub and return here.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a 400 with another message does not launch the install flow',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final mockService = MockGitHubService(
+        customLinkError: const ApiException(
+          message: 'Organization repository limit exceeded.',
+          code: 'repo_limit_exceeded',
+          statusCode: 400,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConnectRepositoryScreen(
+            projectId: 'proj-123',
+            projectName: 'BuildCrew Core',
+            gitHubService: mockService,
+          ),
+        ),
+      );
+
+      await tester.ensureVisible(find.text('Open GitHub in Browser'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open GitHub in Browser'));
+      await tester.pumpAndSettle();
+
+      expect(mockService.linkInstallationCalled, isTrue);
+      expect(mockService.launchCalled, isFalse);
+      expect(find.text('Organization repository limit exceeded.'), findsOneWidget);
     });
   });
 
@@ -405,6 +521,74 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Integration Details'), findsOneWidget);
+    });
+  });
+
+  group('GitHubService Fallback & Timeout Tests', () {
+    test('a receiveTimeout is not retried across alternate fallbackBaseUrls', () async {
+      int requestCount = 0;
+      final dio = Dio();
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requestCount++;
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                type: DioExceptionType.receiveTimeout,
+                message: 'Receive timeout after 15000ms',
+              ),
+            );
+          },
+        ),
+      );
+
+      final service = GitHubService(
+        dio: dio,
+        storageService: FakeStorageService(token: 'valid-token'),
+      );
+
+      try {
+        await service.getInstallation('proj-123');
+        fail('Expected ApiException on receiveTimeout');
+      } catch (e) {
+        expect(e, isA<ApiException>());
+        expect(requestCount, equals(1),
+            reason: 'receiveTimeout should fail fast and NOT cycle through fallback base URLs');
+      }
+    });
+
+    test('connectionError retries across alternate fallbackBaseUrls', () async {
+      int requestCount = 0;
+      final dio = Dio();
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requestCount++;
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                type: DioExceptionType.connectionError,
+                message: 'Connection refused',
+              ),
+            );
+          },
+        ),
+      );
+
+      final service = GitHubService(
+        dio: dio,
+        storageService: FakeStorageService(token: 'valid-token'),
+      );
+
+      try {
+        await service.getInstallation('proj-123');
+        fail('Expected ApiException on connection failure');
+      } catch (e) {
+        expect(e, isA<ApiException>());
+        expect(requestCount, greaterThan(1),
+            reason: 'connectionError should cycle through fallback base URLs');
+      }
     });
   });
 }

@@ -229,9 +229,9 @@ def test_archived_project_read_only_protection_409():
     with patch("routers.projects.get_supabase_client") as mock_supa, \
          patch("routers.contributions.get_supabase_client") as mock_cont_supa, \
          patch("routers.github.get_supabase_client") as mock_gh_supa:
-        mock_supa.side_effect = Exception("PGRST301")
-        mock_cont_supa.side_effect = Exception("PGRST301")
-        mock_gh_supa.side_effect = Exception("PGRST301")
+        mock_supa.side_effect = Exception("local dev fallback: simulated failure")
+        mock_cont_supa.side_effect = Exception("local dev fallback: simulated failure")
+        mock_gh_supa.side_effect = Exception("local dev fallback: simulated failure")
 
         # 1. Manual contribution -> 409
         r1 = client.post(
@@ -316,8 +316,8 @@ def test_passport_keeps_rendering_with_project_archived_header():
 
     with patch("routers.contributions.get_supabase_client") as mock_supa, \
          patch("routers.projects.get_supabase_client") as mock_proj_supa:
-        mock_supa.side_effect = Exception("PGRST301")
-        mock_proj_supa.side_effect = Exception("PGRST301")
+        mock_supa.side_effect = Exception("local dev fallback: simulated failure")
+        mock_proj_supa.side_effect = Exception("local dev fallback: simulated failure")
 
         # 1. Test JSON passport data via public passport endpoint
         r_json = client.get(f"/passport/{lead_id}/{proj_id}?format=json")

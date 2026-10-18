@@ -6,7 +6,11 @@ import 'package:mobile/screens/login_screen.dart';
 import 'package:mobile/screens/otp_screen.dart';
 import 'package:mobile/screens/settings_screen.dart';
 import 'package:mobile/screens/signup_screen.dart';
+import 'package:mobile/services/dashboard_repository.dart';
 import 'package:mobile/services/storage_service.dart';
+
+import 'helpers/fake_home_project_service.dart';
+import 'helpers/mem_storage.dart';
 
 class FakeStorageService extends StorageService {
   String? userId;
@@ -177,32 +181,38 @@ void main() {
   });
 
   group('HomeScreen Tests', () {
-    testWidgets('renders greeting, health check button, and navigation actions', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: HomeScreen(userName: 'Alice Developer'),
-        ),
-      );
-
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Welcome, Alice Developer'), findsOneWidget);
-      expect(find.text('My Projects'), findsOneWidget);
-      expect(find.text('Join Project with Code'), findsOneWidget);
-      expect(find.text('Create New Project'), findsOneWidget);
-      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
-    });
-
-    testWidgets('renders greeting loaded from StorageService with registered name', (WidgetTester tester) async {
-      final fakeStorage = FakeStorageService(userName: 'Abhijith Hubli');
+    testWidgets('renders greeting and quick actions', (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: HomeScreen(storageService: fakeStorage),
+          home: HomeScreen(
+            userName: 'Alice Developer',
+            repository: DashboardRepository.forTest(),
+            storageService: MemStorage(),
+            projectService: FakeHomeProjectService(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Welcome, Abhijith Hubli'), findsOneWidget);
+      expect(find.text('Hello, Alice'), findsOneWidget);
+      expect(find.text('Join Team'), findsOneWidget);
+      expect(find.text('Create Project'), findsOneWidget);
+      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+    });
+
+    testWidgets('renders greeting loaded from StorageService with registered name', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HomeScreen(
+            repository: DashboardRepository.forTest(),
+            storageService: MemStorage(userName: 'Abhijith Hubli'),
+            projectService: FakeHomeProjectService(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hello, Abhijith'), findsOneWidget);
     });
   });
 

@@ -1,3 +1,4 @@
+import re
 from fastapi import HTTPException, status
 from supabase import create_client, Client
 from core.config import settings
@@ -34,45 +35,49 @@ def is_dev_mode() -> bool:
 def _is_dev_fallback_error(err_msg: str, service_name: str = "Database") -> bool:
     """
     Check if an upstream error matches dev fallback conditions.
-    Outside development, an upstream failure raises HTTP 503 and never falls back.
+    Outside development, only transport-level problems count as upstream failures,
+    raising HTTP 503 with Retry-After.
     """
     err_lower = str(err_msg).lower()
-    matched = any(
+
+    # Transport-level problems: DNS/name resolution, connection refused/reset, timeouts,
+    # whole HTTP status codes 502/503/504, 'service unavailable', 'bad gateway'
+    is_transport = any(
         s in err_lower
         for s in (
             "nodename nor servname provided",
             "gai_error",
             "name or service not known",
+            "failed to connect",
+            "cannot connect",
+            "connection refused",
+            "connection reset",
+            "connection failed",
+            "connection closed",
+            "connection error",
+            "client disconnected",
+            "timed out",
+            "timeout",
+            "service unavailable",
+            "bad gateway",
+        )
+    ) or bool(re.search(r"(?<![0-9a-zA-Z_-])(502|503|504)(?![0-9a-zA-Z_-])", err_lower))
+
+    # Dev-only fallback indicators
+    is_dev_trigger = is_dev_mode() and any(
+        s in err_lower
+        for s in (
             "supabase_url",
             "environment variables",
-            "failed to connect",
-            "client disconnected",
-            "connection refused",
-            "connection",
-            "connect",
-            "connecterror",
-            "timeout",
-            "network",
             "invalid api key",
             "unauthorized",
-            "pgrst",
-            "postgrest",
-            "mock",
-            "invalid input syntax for type uuid",
-            "22p02",
-            "violates foreign key constraint",
-            "foreign key",
-            "23503",
-            "is not present in table",
             "dev_fallback",
             "local dev fallback",
-            "service unavailable",
-            "cannot connect",
-            "bucket",
-            "storage",
+            "mock",
         )
     )
-    if not matched:
+
+    if not (is_transport or is_dev_trigger):
         return False
 
     if not is_dev_mode():
@@ -82,6 +87,7 @@ def _is_dev_fallback_error(err_msg: str, service_name: str = "Database") -> bool
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"{service_name} service unavailable",
+            headers={"Retry-After": "5"},
         )
 
     logger.warning(
