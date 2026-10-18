@@ -40,13 +40,26 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  Future<String>? _routeFuture;
   bool _started = false;
   bool _reduceMotion = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: widget.duration);
+    _controller = AnimationController(
+      vsync: this,
+      duration: widget.duration,
+      animationBehavior: AnimationBehavior.preserve,
+    );
+  }
+
+  Future<String> _resolveRouteSafely() async {
+    try {
+      return await widget.resolveRoute();
+    } catch (_) {
+      return '/login';
+    }
   }
 
   @override
@@ -54,6 +67,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.didChangeDependencies();
     if (_started) return;
     _started = true;
+    _routeFuture = _resolveRouteSafely();
     _reduceMotion = MediaQuery.disableAnimationsOf(context);
     _controller.duration =
         _reduceMotion ? widget.reducedMotionDuration : widget.duration;
@@ -63,9 +77,7 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _finish() async {
     String route;
     try {
-      // Resolve at the END so a session created during the animation
-      // (for example an OAuth deep link) is honoured.
-      route = await widget.resolveRoute();
+      route = await (_routeFuture ?? widget.resolveRoute());
     } catch (_) {
       route = '/login';
     }
@@ -97,7 +109,7 @@ class _SplashScreenState extends State<SplashScreen>
             return CustomPaint(
               size: Size.infinite,
               painter: _SplashPainter(
-                progress: _reduceMotion ? 1.0 : _controller.value,
+                progress: _controller.value,
               ),
             );
           },
@@ -136,7 +148,7 @@ class _SplashPainter extends CustomPainter {
     final Offset center = Offset(cx, cy);
 
     // Soft emerald glow behind the mark.
-    final double glow = _out(_seg(t, 0.15, 0.7)) * 0.55;
+    final double glow = _out(_seg(t, 0.0, 0.7)) * 0.55;
     if (glow > 0) {
       final Rect rect = Rect.fromCircle(center: center, radius: math.max(w, h) * 0.6);
       final Shader shader = RadialGradient(
@@ -149,10 +161,10 @@ class _SplashPainter extends CustomPainter {
     }
 
     // Four crew nodes spiral into the centre, each leaving a fading trail.
+    final double fadeIn = 0.35 + 0.65 * _seg(t, 0.0, 0.10);
     for (int i = 0; i < _nodes; i++) {
-      final double p = _inOut(_seg(t, 0.03 + 0.03 * i, 0.50 + 0.01 * i));
-      if (p <= 0) continue;
-      final double fade = 1 - _seg(p, 0.90, 1.0);
+      final double p = _inOut(_seg(t, 0.00 + 0.015 * i, 0.44 + 0.01 * i));
+      final double fade = (1 - _seg(p, 0.90, 1.0)) * fadeIn;
       if (fade <= 0) continue;
 
       Offset at(double q) {
@@ -161,20 +173,22 @@ class _SplashPainter extends CustomPainter {
         return Offset(cx + rad * math.cos(th), cy + rad * math.sin(th));
       }
 
-      Offset prev = at(p);
-      for (int k = 1; k <= _trailSteps; k++) {
-        final double pk = math.max(0.0, p - k * 0.02);
-        final Offset cur = at(pk);
-        final double a = (1 - k / _trailSteps) * 0.55 * fade;
-        canvas.drawLine(
-          prev,
-          cur,
-          Paint()
-            ..color = _mint.withValues(alpha: a)
-            ..strokeWidth = 4.2 - 3.0 * k / _trailSteps
-            ..strokeCap = StrokeCap.round,
-        );
-        prev = cur;
+      if (p > 0) {
+        Offset prev = at(p);
+        for (int k = 1; k <= _trailSteps; k++) {
+          final double pk = math.max(0.0, p - k * 0.02);
+          final Offset cur = at(pk);
+          final double a = (1 - k / _trailSteps) * 0.55 * fade;
+          canvas.drawLine(
+            prev,
+            cur,
+            Paint()
+              ..color = _mint.withValues(alpha: a)
+              ..strokeWidth = 4.2 - 3.0 * k / _trailSteps
+              ..strokeCap = StrokeCap.round,
+          );
+          prev = cur;
+        }
       }
 
       final Offset head = at(p);

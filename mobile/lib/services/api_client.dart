@@ -36,6 +36,28 @@ class ApiClient {
     }
   }
 
+  static const String _envSupabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  static const String _envSupabaseKey =
+      String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+
+  static const String _debugSupabaseUrl =
+      'https://bidfjrgytnqexwsdnwlt.supabase.co';
+  static const String _debugSupabaseKey =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZGZqcmd5dG5xZXh3c2Rud2x0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0NzUzMDUsImV4cCI6MjEwMTA1MTMwNX0.uc2X-32-KNLx6iv-Ib0ACwZz0uMvR-EEok4qDKww1zE';
+
+  static String get supabaseUrl {
+    if (_envSupabaseUrl.isNotEmpty) return _envSupabaseUrl;
+    if (!kReleaseMode) return _debugSupabaseUrl;
+    throw StateError('SUPABASE_URL dart-define must be provided in release mode');
+  }
+
+  static String get supabaseAnonKey {
+    if (_envSupabaseKey.isNotEmpty) return _envSupabaseKey;
+    if (!kReleaseMode) return _debugSupabaseKey;
+    throw StateError(
+        'SUPABASE_PUBLISHABLE_KEY dart-define must be provided in release mode');
+  }
+
   static ApiClient? _instance;
   static ApiClient get instance => _instance ??= ApiClient();
 

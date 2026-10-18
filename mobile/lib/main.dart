@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -33,54 +32,53 @@ import 'services/session_router.dart';
 import 'services/storage_service.dart';
 import 'theme/app_colors.dart';
 
-const String _envSupabaseUrl = String.fromEnvironment('SUPABASE_URL');
-const String _envSupabaseKey =
-    String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+String get effectiveSupabaseUrl => ApiClient.supabaseUrl;
+String get effectiveSupabaseKey => ApiClient.supabaseAnonKey;
 
-const String _debugSupabaseUrl = 'https://bidfjrgytnqexwsdnwlt.supabase.co';
-const String _debugSupabaseKey =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZGZqcmd5dG5xZXh3c2Rud2x0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0NzUzMDUsImV4cCI6MjEwMTA1MTMwNX0.uc2X-32-KNLx6iv-Ib0ACwZz0uMvR-EEok4qDKww1zE';
+Future<String> _bootstrapSession(Future<void> supabaseReady) async {
+  try {
+    await supabaseReady;
+  } catch (e) {
+    debugPrint('Supabase initialize error: $e');
+  }
 
-String get effectiveSupabaseUrl {
-  if (_envSupabaseUrl.isNotEmpty) return _envSupabaseUrl;
-  if (!kReleaseMode) return _debugSupabaseUrl;
-  throw StateError('SUPABASE_URL dart-define must be provided in release mode');
+  final String route = await resolveStartRoute();
+
+  if (route == '/home') {
+    unawaited(DashboardRepository.instance.prefetch());
+  }
+
+  return route;
 }
 
-String get effectiveSupabaseKey {
-  if (_envSupabaseKey.isNotEmpty) return _envSupabaseKey;
-  if (!kReleaseMode) return _debugSupabaseKey;
-  throw StateError(
-      'SUPABASE_PUBLISHABLE_KEY dart-define must be provided in release mode');
-}
-
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Validate API base URL in release mode at startup
   ApiClient.validateStartupConfig();
 
-  await SystemChrome.setPreferredOrientations([
+  unawaited(SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
-  ]);
+  ]));
 
-  try {
-    await Supabase.initialize(
-      url: effectiveSupabaseUrl,
-      publishableKey: effectiveSupabaseKey,
-    );
-  } catch (e) {
-    debugPrint('Supabase initialize error: $e');
-  }
+  final Future<void> supabaseReady = Supabase.initialize(
+    url: ApiClient.supabaseUrl,
+    // ignore: deprecated_member_use
+    anonKey: ApiClient.supabaseAnonKey,
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
+  );
 
-  final String initialRoute = await resolveStartRoute();
+  final Future<String> routeFuture = _bootstrapSession(supabaseReady);
 
-  if (initialRoute == '/home') {
-    unawaited(DashboardRepository.instance.prefetch());
-  }
-
-  runApp(MyApp(initialRoute: initialRoute, showSplash: true));
+  runApp(MyApp(
+    initialRoute: '/login',
+    showSplash: true,
+    supabaseReady: supabaseReady,
+    resolveSplashRoute: () => routeFuture,
+  ));
 }
 
 class MyApp extends StatefulWidget {
@@ -88,6 +86,8 @@ class MyApp extends StatefulWidget {
   final AppLinks? appLinks;
   final String initialRoute;
   final bool showSplash;
+  final Future<void>? supabaseReady;
+  final SplashRouteResolver? resolveSplashRoute;
 
   const MyApp({
     super.key,
@@ -95,6 +95,8 @@ class MyApp extends StatefulWidget {
     this.appLinks,
     this.initialRoute = '/login',
     this.showSplash = false,
+    this.supabaseReady,
+    this.resolveSplashRoute,
   });
 
   @override
@@ -111,6 +113,17 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _appLinks = widget.appLinks ?? AppLinks();
     _initDeepLinks();
+    if (widget.supabaseReady != null) {
+      widget.supabaseReady!.whenComplete(() {
+        if (mounted) _setupAuthListener();
+      });
+    } else {
+      _setupAuthListener();
+    }
+  }
+
+  void _setupAuthListener() {
+    // Auth state listener setup hook
   }
 
   Future<void> _initDeepLinks() async {
@@ -144,6 +157,11 @@ class _MyAppState extends State<MyApp> {
   Future<void> _handleIncomingUri(Uri uri) async {
     debugPrint('Received deep link: $uri');
     try {
+      if (widget.supabaseReady != null) {
+        try {
+          await widget.supabaseReady;
+        } catch (_) {}
+      }
       // Custom scheme: com.abhijithbhat.buildcrew, host: login-callback
       if (uri.scheme == 'com.abhijithbhat.buildcrew' &&
           (uri.host == 'login-callback' || uri.path.contains('login-callback'))) {
@@ -312,12 +330,7 @@ class _MyAppState extends State<MyApp> {
       ),
       routes: {
         SplashScreen.routeName: (context) => SplashScreen(
-              resolveRoute: resolveStartRoute,
-              beforeNavigate: (String route) async {
-                if (route == '/home') {
-                  await DashboardRepository.instance.waitForFirstSnapshot();
-                }
-              },
+              resolveRoute: widget.resolveSplashRoute ?? resolveStartRoute,
             ),
         LoginScreen.routeName: (context) => const LoginScreen(),
         SignupScreen.routeName: (context) => const SignupScreen(),
