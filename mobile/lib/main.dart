@@ -27,7 +27,6 @@ import 'screens/splash_screen.dart';
 import 'screens/team_roles_screen.dart';
 import 'services/api_client.dart';
 import 'services/auth_service.dart';
-import 'services/dashboard_repository.dart';
 import 'services/session_router.dart';
 import 'services/storage_service.dart';
 import 'theme/app_colors.dart';
@@ -59,9 +58,6 @@ Future<String> resolveAndPrefetch() {
   return routeResolutionFuture ??= () async {
     await ensureSupabase();
     final String route = await resolveStartRoute();
-    if (route == '/home') {
-      unawaited(DashboardRepository.instance.prefetch());
-    }
     return route;
   }();
 }

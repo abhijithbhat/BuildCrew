@@ -1,20 +1,14 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 
 import '../theme/app_colors.dart';
 
 /// Decides where to go when the animation finishes ('/home' or '/login').
 typedef SplashRouteResolver = Future<String> Function();
 
-/// Animated launch screen, built with the Flutter SDK only
-/// (AnimationController + CustomPainter, no packages).
-///
-/// Story (about 1.8 s): four glowing nodes (your crew's contributions) spiral
-/// in from the edges and converge, a ring pulses out, the scalloped
-/// certification seal locks in, a gold tick draws itself and the wordmark
-/// fades in. Frame 0 is pure emerald, identical to the native launch screen.
+/// Animated launch screen built with pure Flutter SDK (AnimationController + CustomPainter).
 class SplashScreen extends StatefulWidget {
   static const String routeName = '/splash';
 
@@ -22,14 +16,11 @@ class SplashScreen extends StatefulWidget {
     super.key,
     required this.resolveRoute,
     this.beforeNavigate,
-    this.duration = const Duration(milliseconds: 1800),
+    this.duration = const Duration(milliseconds: 1650),
     this.reducedMotionDuration = const Duration(milliseconds: 400),
   });
 
   final SplashRouteResolver resolveRoute;
-
-  /// Optional hook that runs after the animation, before navigating. Use it to
-  /// give prefetched data a moment to arrive (it must return quickly).
   final Future<void> Function(String route)? beforeNavigate;
   final Duration duration;
   final Duration reducedMotionDuration;
@@ -39,14 +30,11 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late final Ticker _ticker;
-  Duration? _lastElapsed;
   Future<String>? _routeFuture;
   bool _started = false;
   bool _finished = false;
-  bool _reduceMotion = false;
 
   @override
   void initState() {
@@ -55,8 +43,7 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
       duration: widget.duration,
       animationBehavior: AnimationBehavior.preserve,
-    );
-    _ticker = createTicker(_onTick);
+    )..addListener(_onProgressChanged);
   }
 
   @override
@@ -64,73 +51,74 @@ class _SplashScreenState extends State<SplashScreen>
     super.didChangeDependencies();
     if (_started) return;
     _started = true;
-    _reduceMotion = MediaQuery.disableAnimationsOf(context);
-    _controller.duration =
-        _reduceMotion ? widget.reducedMotionDuration : widget.duration;
-    if (!_ticker.isTicking) {
-      _ticker.start();
-    }
-  }
 
-  void _onTick(Duration elapsed) {
-    if (_lastElapsed == null) {
-      _lastElapsed = elapsed;
-      return;
-    }
-
-    final Duration rawDelta = elapsed - _lastElapsed!;
-    _lastElapsed = elapsed;
-
+    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
     final bool isTest =
         WidgetsBinding.instance.runtimeType.toString().contains('Test');
 
-    if (isTest || _controller.value >= 0.08) {
-      _routeFuture ??= _resolveRouteSafely();
-    }
+    _controller.duration =
+        reduceMotion ? widget.reducedMotionDuration : widget.duration;
 
-    final Duration effectiveDelta =
-        (!isTest && rawDelta > const Duration(milliseconds: 33))
-            ? const Duration(milliseconds: 33)
-            : rawDelta;
-
-    final Duration totalDuration =
-        _reduceMotion ? widget.reducedMotionDuration : widget.duration;
-
-    if (totalDuration.inMicroseconds > 0) {
-      _controller.value = (_controller.value +
-              effectiveDelta.inMicroseconds / totalDuration.inMicroseconds)
-          .clamp(0.0, 1.0);
+    if (isTest) {
+      _controller.forward().whenComplete(_finish);
     } else {
-      _controller.value = 1.0;
-    }
-
-    if (isTest || _controller.value >= 0.08) {
-      _routeFuture ??= _resolveRouteSafely();
-    }
-
-    if (_controller.value >= 1.0) {
-      if (_ticker.isTicking) {
-        _ticker.stop();
-      }
-      if (!_finished) {
-        _finished = true;
-        _finish();
-      }
+      // Paint Frame 0 (4 outer nodes at rest) first, then start hardware VSYNC
+      // animation on the very next frame so cold-start mount never skips frames.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _controller.forward().whenComplete(_finish);
+      });
     }
   }
 
-  Future<String> _resolveRouteSafely() async {
-    try {
-      return await widget.resolveRoute();
-    } catch (_) {
-      return '/login';
+  void _onProgressChanged() {
+    // Only trigger Supabase + SecureStorage resolution at 78% progress,
+    // AFTER the spiral convergence and scalloped seal pop have completed,
+    // so zero I/O or platform-channel work interrupts the spiral animation.
+    if (_routeFuture == null && _controller.value >= 0.78) {
+      _ensureRouteResolutionStarted();
     }
+  }
+
+  void _ensureRouteResolutionStarted() {
+    _routeFuture ??= () {
+      final Completer<String> completer = Completer<String>();
+      try {
+        (widget.resolveRoute() as Future<dynamic>).then<void>(
+          (dynamic value) {
+            if (!completer.isCompleted) {
+              completer.complete(value?.toString() ?? '/login');
+            }
+          },
+          onError: (Object _) {
+            if (!completer.isCompleted) {
+              completer.complete('/login');
+            }
+          },
+        ).timeout(
+          const Duration(seconds: 4),
+          onTimeout: () {
+            if (!completer.isCompleted) {
+              completer.complete('/login');
+            }
+          },
+        );
+      } catch (_) {
+        if (!completer.isCompleted) {
+          completer.complete('/login');
+        }
+      }
+      return completer.future;
+    }();
   }
 
   Future<void> _finish() async {
+    if (_finished || !mounted) return;
+    _finished = true;
+    _ensureRouteResolutionStarted();
+
     String route;
     try {
-      _routeFuture ??= _resolveRouteSafely();
       route = await _routeFuture!;
     } catch (_) {
       route = '/login';
@@ -139,15 +127,14 @@ class _SplashScreenState extends State<SplashScreen>
       await widget.beforeNavigate?.call(route);
     } catch (_) {}
     if (!mounted) return;
-    final modalRoute = ModalRoute.of(context);
-    // If something else already navigated away (deep link), do nothing.
+    final ModalRoute<dynamic>? modalRoute = ModalRoute.of(context);
     if (modalRoute != null && !modalRoute.isCurrent) return;
     Navigator.of(context).pushReplacementNamed(route);
   }
 
   @override
   void dispose() {
-    _ticker.dispose();
+    _controller.removeListener(_onProgressChanged);
     _controller.dispose();
     super.dispose();
   }
@@ -158,16 +145,16 @@ class _SplashScreenState extends State<SplashScreen>
       backgroundColor: AppColors.emeraldInk,
       body: Semantics(
         label: 'BuildCrew',
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) {
-            return CustomPaint(
-              size: Size.infinite,
-              painter: _SplashPainter(
-                progress: _controller.value,
-              ),
-            );
-          },
+        child: RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (BuildContext context, _) {
+              return CustomPaint(
+                size: Size.infinite,
+                painter: _SplashPainter(progress: _controller.value),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -175,20 +162,20 @@ class _SplashScreenState extends State<SplashScreen>
 }
 
 class _SplashPainter extends CustomPainter {
-  _SplashPainter({required this.progress});
+  const _SplashPainter({required this.progress});
 
   final double progress;
 
   static const Color _mint = Color(0xFF6EE7B7);
   static const Color _gold = Color(0xFFE8C25A);
   static const Color _glowCore = Color(0xFF0E7A5C);
-  static const int _nodes = 4;
-  static const int _trailSteps = 16;
 
   static double _clamp01(double v) => v < 0 ? 0 : (v > 1 ? 1 : v);
-  static double _seg(double t, double a, double b) => _clamp01((t - a) / (b - a));
+  static double _seg(double t, double a, double b) =>
+      _clamp01((t - a) / (b - a));
   static double _out(double x) => Curves.easeOutCubic.transform(_clamp01(x));
-  static double _inOut(double x) => Curves.easeInOutCubic.transform(_clamp01(x));
+  static double _inOut(double x) =>
+      Curves.easeInOutCubic.transform(_clamp01(x));
   static double _back(double x) => Curves.easeOutBack.transform(_clamp01(x));
 
   @override
@@ -198,93 +185,111 @@ class _SplashPainter extends CustomPainter {
     final double h = size.height;
     final double cx = w / 2;
     final double cy = h * 0.44;
-    final double r = math.min(w, h) * 0.17; // seal radius
-    final double r0 = math.min(w, h) * 0.46; // where the nodes start
+    final double r = math.min(w, h) * 0.175;
     final Offset center = Offset(cx, cy);
 
-    // Soft emerald glow behind the mark.
-    final double glow = _out(_seg(t, 0.0, 0.7)) * 0.55;
+    // 1. Soft ambient glow behind the center (layered circles = zero shader/blur lag).
+    final double glow = (0.15 + 0.85 * _out(_seg(t, 0.0, 0.75))) * 0.38;
     if (glow > 0) {
-      final Rect rect = Rect.fromCircle(center: center, radius: math.max(w, h) * 0.6);
-      final Shader shader = RadialGradient(
-        colors: [
-          _glowCore.withValues(alpha: glow),
-          AppColors.emeraldInk.withValues(alpha: 0),
-        ],
-      ).createShader(rect);
-      canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
-    }
-
-    // Four crew nodes spiral into the centre, each leaving a fading trail.
-    final double fadeIn = 0.35 + 0.65 * _seg(t, 0.0, 0.10);
-    for (int i = 0; i < _nodes; i++) {
-      final double p = _inOut(_seg(t, 0.00 + 0.015 * i, 0.44 + 0.01 * i));
-      final double fade = (1 - _seg(p, 0.90, 1.0)) * fadeIn;
-      if (fade <= 0) continue;
-
-      Offset at(double q) {
-        final double th = -math.pi / 2 + i * math.pi / 2 + 0.35 + 1.15 * math.pi * q;
-        final double rad = r0 * math.pow(1 - q, 1.15).toDouble();
-        return Offset(cx + rad * math.cos(th), cy + rad * math.sin(th));
-      }
-
-      if (p > 0) {
-        Offset prev = at(p);
-        for (int k = 1; k <= _trailSteps; k++) {
-          final double pk = math.max(0.0, p - k * 0.02);
-          final Offset cur = at(pk);
-          final double a = (1 - k / _trailSteps) * 0.55 * fade;
-          canvas.drawLine(
-            prev,
-            cur,
-            Paint()
-              ..color = _mint.withValues(alpha: a)
-              ..strokeWidth = 4.2 - 3.0 * k / _trailSteps
-              ..strokeCap = StrokeCap.round,
-          );
-          prev = cur;
-        }
-      }
-
-      final Offset head = at(p);
-      canvas.drawCircle(
-        head,
-        16,
-        Paint()
-          ..color = _mint.withValues(alpha: 0.25 * fade)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-      );
-      canvas.drawCircle(
-        head,
-        5.0 * (1 - 0.5 * p),
-        Paint()..color = AppColors.champagne.withValues(alpha: fade),
-      );
-    }
-
-    // Ring pulse when the nodes meet.
-    final double u = _seg(t, 0.50, 0.80);
-    if (u > 0 && u < 1) {
       canvas.drawCircle(
         center,
-        r * (0.4 + 1.5 * _out(u)),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3
-          ..color = _mint.withValues(alpha: (1 - u) * 0.5),
+        r * 2.6,
+        Paint()..color = _glowCore.withValues(alpha: glow * 0.35),
+      );
+      canvas.drawCircle(
+        center,
+        r * 1.65,
+        Paint()..color = _glowCore.withValues(alpha: glow * 0.65),
       );
     }
 
-    // Scalloped certification seal.
-    final double sealScale = _back(_seg(t, 0.50, 0.80));
-    final double sealAlpha = _seg(t, 0.50, 0.62);
+    // 2. Four glowing nodes spiral in from the edges and converge at center.
+    final double spiralFade = 1 - _out(_seg(t, 0.40, 0.56));
+    if (spiralFade > 0) {
+      final double p = _inOut(_seg(t, 0.0, 0.44));
+      final double fadeIn = 0.50 + 0.50 * _seg(t, 0.0, 0.08);
+      final double maxDist = r * 2.5;
+      const double sweep = math.pi * 1.15;
+
+      final Paint trailPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+      final Paint haloOuter = Paint()
+        ..color = _mint.withValues(alpha: 0.14 * spiralFade * fadeIn);
+      final Paint haloInner = Paint()
+        ..color = _mint.withValues(alpha: 0.32 * spiralFade * fadeIn);
+      final Paint dotCore = Paint()
+        ..color = AppColors.champagne.withValues(alpha: spiralFade * fadeIn);
+
+      for (int i = 0; i < 4; i++) {
+        final double baseAngle = i * (math.pi / 2) + math.pi / 4;
+        const int tailSteps = 12;
+        final double tailSpan = math.min(p, 0.24);
+        Offset? prev;
+        for (int s = 0; s <= tailSteps; s++) {
+          final double frac = s / tailSteps;
+          final double ps = p - tailSpan * (1 - frac);
+          final double dist = maxDist * (1 - ps);
+          final double ang = baseAngle + sweep * ps;
+          final Offset pt = Offset(
+            cx + dist * math.cos(ang),
+            cy + dist * math.sin(ang),
+          );
+          if (prev != null && tailSpan > 0.002) {
+            final double a = frac * frac * 0.78 * spiralFade * fadeIn;
+            trailPaint
+              ..strokeWidth = 1.4 + 2.4 * frac
+              ..color = _mint.withValues(alpha: a);
+            canvas.drawLine(prev, pt, trailPaint);
+          }
+          prev = pt;
+        }
+
+        final double headDist = maxDist * (1 - p);
+        final double headAng = baseAngle + sweep * p;
+        final Offset head = Offset(
+          cx + headDist * math.cos(headAng),
+          cy + headDist * math.sin(headAng),
+        );
+        final double dotR = 4.5 + 2.0 * p;
+
+        canvas.drawCircle(head, dotR * 2.8, haloOuter);
+        canvas.drawCircle(head, dotR * 1.7, haloInner);
+        canvas.drawCircle(head, dotR, dotCore);
+      }
+    }
+
+    // 3. Convergence pulse: a mint ring ripples outward as the nodes fuse.
+    final double mergeP = _out(_seg(t, 0.38, 0.64));
+    final double mergeFade = 1 - _seg(t, 0.48, 0.66);
+    if (mergeP > 0 && mergeFade > 0) {
+      canvas.drawCircle(
+        center,
+        r * (0.20 + 1.15 * mergeP),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.5 * (1 - mergeP * 0.7)
+          ..color = _mint.withValues(alpha: 0.75 * mergeFade),
+      );
+      canvas.drawCircle(
+        center,
+        r * 0.55 * (1 - mergeP * 0.5),
+        Paint()..color = _mint.withValues(alpha: 0.28 * mergeFade),
+      );
+    }
+
+    // 4. Scalloped certification seal pops out of the fused core.
+    final double sealScale = _back(_seg(t, 0.46, 0.76));
+    final double sealAlpha = _seg(t, 0.46, 0.58);
     if (sealScale > 0.01 && sealAlpha > 0) {
       final double rr = r * sealScale;
       final Path scallop = Path();
-      const int steps = 360;
+      const int steps = 180;
       for (int i = 0; i <= steps; i++) {
         final double th = 2 * math.pi * i / steps;
         final double rad = rr * (0.955 + 0.045 * math.cos(18 * th));
-        final Offset pt = Offset(cx + rad * math.cos(th), cy + rad * math.sin(th));
+        final Offset pt =
+            Offset(cx + rad * math.cos(th), cy + rad * math.sin(th));
         if (i == 0) {
           scallop.moveTo(pt.dx, pt.dy);
         } else {
@@ -311,8 +316,8 @@ class _SplashPainter extends CustomPainter {
         Paint()..color = AppColors.emeraldInk.withValues(alpha: sealAlpha),
       );
 
-      // Gold verification tick draws itself.
-      final double k = _out(_seg(t, 0.74, 0.92));
+      // 5. Gold verification tick draws itself.
+      final double k = _out(_seg(t, 0.70, 0.90));
       if (k > 0) {
         final Path tick = Path()
           ..moveTo(cx - r * 0.30, cy + r * 0.02)
@@ -331,14 +336,14 @@ class _SplashPainter extends CustomPainter {
       }
     }
 
-    // Wordmark.
-    final double wordAlpha = _seg(t, 0.82, 1.0);
-    if (wordAlpha > 0) {
+    // 6. Wordmark rises and fades in.
+    final double wordP = _out(_seg(t, 0.76, 0.96));
+    if (wordP > 0) {
       final TextPainter tp = TextPainter(
         text: TextSpan(
           text: 'BuildCrew',
           style: TextStyle(
-            color: AppColors.champagne.withValues(alpha: wordAlpha),
+            color: AppColors.champagne.withValues(alpha: wordP),
             fontSize: 28,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.6,
@@ -346,7 +351,8 @@ class _SplashPainter extends CustomPainter {
         ),
         textDirection: TextDirection.ltr,
       )..layout();
-      tp.paint(canvas, Offset(cx - tp.width / 2, cy + r * 1.75));
+      final double ySlide = (1 - wordP) * 10;
+      tp.paint(canvas, Offset(cx - tp.width / 2, cy + r * 1.55 + ySlide));
     }
   }
 
