@@ -2,13 +2,14 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../theme/app_colors.dart';
 
 /// Decides where to go when the animation finishes ('/home' or '/login').
 typedef SplashRouteResolver = Future<String> Function();
 
-/// Animated launch screen built with pure Flutter SDK (AnimationController + CustomPainter).
+/// Animated launch screen built with pure Flutter SDK (Ticker + CustomPainter).
 class SplashScreen extends StatefulWidget {
   static const String routeName = '/splash';
 
@@ -30,9 +31,11 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _controller;
-  Future<String>? _routeFuture;
+  Ticker? _ticker;
+  Duration? _lastElapsed;
+  int _warmupFrames = 0;
   bool _started = false;
   bool _finished = false;
 
@@ -43,7 +46,7 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
       duration: widget.duration,
       animationBehavior: AnimationBehavior.preserve,
-    )..addListener(_onProgressChanged);
+    );
   }
 
   @override
@@ -62,70 +65,95 @@ class _SplashScreenState extends State<SplashScreen>
     if (isTest) {
       _controller.forward().whenComplete(_finish);
     } else {
-      // Paint Frame 0 (4 outer nodes at rest) first, then start hardware VSYNC
-      // animation on the very next frame so cold-start mount never skips frames.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _controller.forward().whenComplete(_finish);
-      });
+      // Drive progress with a VSYNC Ticker that waits for 3 real rendered frames
+      // on screen before advancing past 0.0, and clamps only cold-start stalls
+      // (>45ms) while passing normal VSYNC deltas through untouched.
+      _ticker = createTicker(_onTick)..start();
     }
   }
 
-  void _onProgressChanged() {
-    // Only trigger Supabase + SecureStorage resolution at 78% progress,
-    // AFTER the spiral convergence and scalloped seal pop have completed,
-    // so zero I/O or platform-channel work interrupts the spiral animation.
-    if (_routeFuture == null && _controller.value >= 0.78) {
-      _ensureRouteResolutionStarted();
-    }
-  }
+  void _onTick(Duration elapsed) {
+    if (!mounted || _finished) return;
 
-  void _ensureRouteResolutionStarted() {
-    _routeFuture ??= () {
-      final Completer<String> completer = Completer<String>();
-      try {
-        (widget.resolveRoute() as Future<dynamic>).then<void>(
-          (dynamic value) {
-            if (!completer.isCompleted) {
-              completer.complete(value?.toString() ?? '/login');
-            }
-          },
-          onError: (Object _) {
-            if (!completer.isCompleted) {
-              completer.complete('/login');
-            }
-          },
-        ).timeout(
-          const Duration(seconds: 4),
-          onTimeout: () {
-            if (!completer.isCompleted) {
-              completer.complete('/login');
-            }
-          },
-        );
-      } catch (_) {
-        if (!completer.isCompleted) {
-          completer.complete('/login');
-        }
-      }
-      return completer.future;
-    }();
+    if (_lastElapsed == null) {
+      _lastElapsed = elapsed;
+      return;
+    }
+
+    final Duration rawDelta = elapsed - _lastElapsed!;
+    _lastElapsed = elapsed;
+
+    // Wait for 3 real frames to rasterize on screen so cold-start surface
+    // attachment and shader compilation are completely done before the spiral moves.
+    if (_warmupFrames < 3) {
+      _warmupFrames++;
+      return;
+    }
+
+    // If a single frame stalled (>45ms due to OS/VM cold-start jitter),
+    // advance by a single 60fps frame (16.6ms) so the animation NEVER skips.
+    // Otherwise use the exact hardware VSYNC delta for zero-friction motion.
+    final int deltaMicros = rawDelta.inMicroseconds > 45000
+        ? 16667
+        : rawDelta.inMicroseconds;
+
+    final int totalMicros =
+        (_controller.duration ?? widget.duration).inMicroseconds;
+    final double nextValue =
+        (_controller.value + (deltaMicros / totalMicros)).clamp(0.0, 1.0);
+
+    _controller.value = nextValue;
+
+    if (nextValue >= 1.0) {
+      _ticker?.stop();
+      _finish();
+    }
   }
 
   Future<void> _finish() async {
     if (_finished || !mounted) return;
     _finished = true;
-    _ensureRouteResolutionStarted();
 
-    String route;
+    // Run Supabase init + token check AFTER the animation reaches 1.0,
+    // so zero background work ever interrupts the spiral or wordmark animation.
+    String route = '/login';
+    final Completer<String> completer = Completer<String>();
     try {
-      route = await _routeFuture!;
+      (widget.resolveRoute() as Future<dynamic>).then<void>(
+        (dynamic value) {
+          if (!completer.isCompleted) {
+            completer.complete(value?.toString() ?? '/login');
+          }
+        },
+        onError: (Object _) {
+          if (!completer.isCompleted) {
+            completer.complete('/login');
+          }
+        },
+      ).timeout(
+        const Duration(seconds: 4),
+        onTimeout: () {
+          if (!completer.isCompleted) {
+            completer.complete('/login');
+          }
+        },
+      );
+    } catch (_) {
+      if (!completer.isCompleted) {
+        completer.complete('/login');
+      }
+    }
+
+    try {
+      route = await completer.future;
     } catch (_) {
       route = '/login';
     }
+
     try {
       await widget.beforeNavigate?.call(route);
     } catch (_) {}
+
     if (!mounted) return;
     final ModalRoute<dynamic>? modalRoute = ModalRoute.of(context);
     if (modalRoute != null && !modalRoute.isCurrent) return;
@@ -134,7 +162,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
-    _controller.removeListener(_onProgressChanged);
+    _ticker?.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -170,6 +198,41 @@ class _SplashPainter extends CustomPainter {
   static const Color _gold = Color(0xFFE8C25A);
   static const Color _glowCore = Color(0xFF0E7A5C);
 
+  // Pre-computed unit scalloped seal path (avoids 360 sin/cos calls per frame).
+  static final Path _unitScallop = _buildUnitScallop();
+
+  static Path _buildUnitScallop() {
+    final Path p = Path();
+    const int steps = 180;
+    for (int i = 0; i <= steps; i++) {
+      final double th = 2 * math.pi * i / steps;
+      final double rad = 0.955 + 0.045 * math.cos(18 * th);
+      final double x = rad * math.cos(th);
+      final double y = rad * math.sin(th);
+      if (i == 0) {
+        p.moveTo(x, y);
+      } else {
+        p.lineTo(x, y);
+      }
+    }
+    p.close();
+    return p;
+  }
+
+  // Pre-laid-out TextPainter (avoids expensive font layout during paint).
+  static final TextPainter _wordmarkPainter = TextPainter(
+    text: const TextSpan(
+      text: 'BuildCrew',
+      style: TextStyle(
+        color: AppColors.champagne,
+        fontSize: 28,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.6,
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+
   static double _clamp01(double v) => v < 0 ? 0 : (v > 1 ? 1 : v);
   static double _seg(double t, double a, double b) =>
       _clamp01((t - a) / (b - a));
@@ -188,7 +251,7 @@ class _SplashPainter extends CustomPainter {
     final double r = math.min(w, h) * 0.175;
     final Offset center = Offset(cx, cy);
 
-    // 1. Soft ambient glow behind the center (layered circles = zero shader/blur lag).
+    // 1. Soft ambient glow behind the center.
     final double glow = (0.15 + 0.85 * _out(_seg(t, 0.0, 0.75))) * 0.38;
     if (glow > 0) {
       canvas.drawCircle(
@@ -283,25 +346,15 @@ class _SplashPainter extends CustomPainter {
     final double sealAlpha = _seg(t, 0.46, 0.58);
     if (sealScale > 0.01 && sealAlpha > 0) {
       final double rr = r * sealScale;
-      final Path scallop = Path();
-      const int steps = 180;
-      for (int i = 0; i <= steps; i++) {
-        final double th = 2 * math.pi * i / steps;
-        final double rad = rr * (0.955 + 0.045 * math.cos(18 * th));
-        final Offset pt =
-            Offset(cx + rad * math.cos(th), cy + rad * math.sin(th));
-        if (i == 0) {
-          scallop.moveTo(pt.dx, pt.dy);
-        } else {
-          scallop.lineTo(pt.dx, pt.dy);
-        }
-      }
-      scallop.close();
-
+      canvas.save();
+      canvas.translate(cx, cy);
+      canvas.scale(rr, rr);
       canvas.drawPath(
-        scallop,
+        _unitScallop,
         Paint()..color = AppColors.champagne.withValues(alpha: sealAlpha),
       );
+      canvas.restore();
+
       canvas.drawCircle(
         center,
         rr * 0.80,
@@ -336,23 +389,26 @@ class _SplashPainter extends CustomPainter {
       }
     }
 
-    // 6. Wordmark rises and fades in.
+    // 6. Wordmark rises and fades in (uses pre-laid-out static TextPainter).
     final double wordP = _out(_seg(t, 0.76, 0.96));
     if (wordP > 0) {
-      final TextPainter tp = TextPainter(
-        text: TextSpan(
-          text: 'BuildCrew',
-          style: TextStyle(
-            color: AppColors.champagne.withValues(alpha: wordP),
-            fontSize: 28,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.6,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
       final double ySlide = (1 - wordP) * 10;
-      tp.paint(canvas, Offset(cx - tp.width / 2, cy + r * 1.55 + ySlide));
+      final Offset offset = Offset(
+        cx - _wordmarkPainter.width / 2,
+        cy + r * 1.55 + ySlide,
+      );
+      if (wordP >= 0.99) {
+        _wordmarkPainter.paint(canvas, offset);
+      } else {
+        final Rect bounds = offset &
+            Size(_wordmarkPainter.width + 4, _wordmarkPainter.height + 4);
+        canvas.saveLayer(
+          bounds,
+          Paint()..color = Color.fromRGBO(255, 255, 255, wordP),
+        );
+        _wordmarkPainter.paint(canvas, offset);
+        canvas.restore();
+      }
     }
   }
 

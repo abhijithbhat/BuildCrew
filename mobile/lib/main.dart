@@ -36,6 +36,7 @@ String get effectiveSupabaseKey => ApiClient.supabaseAnonKey;
 
 Future<void>? supabaseInitFuture;
 final ValueNotifier<bool> supabaseReadyNotifier = ValueNotifier<bool>(false);
+final Completer<void> supabaseReadyCompleter = Completer<void>();
 
 Future<void> ensureSupabase() {
   return supabaseInitFuture ??= Supabase.initialize(
@@ -47,9 +48,15 @@ Future<void> ensureSupabase() {
     ),
   ).then((_) {
     supabaseReadyNotifier.value = true;
+    if (!supabaseReadyCompleter.isCompleted) {
+      supabaseReadyCompleter.complete();
+    }
   }).catchError((Object e) {
     debugPrint('Supabase init error: $e');
     supabaseReadyNotifier.value = true;
+    if (!supabaseReadyCompleter.isCompleted) {
+      supabaseReadyCompleter.complete();
+    }
   });
 }
 
@@ -68,9 +75,10 @@ void main() {
   // Validate API base URL in release mode at startup
   ApiClient.validateStartupConfig();
 
-  runApp(const MyApp(
+  runApp(MyApp(
     initialRoute: '/login',
     showSplash: true,
+    supabaseReady: supabaseReadyCompleter.future,
     resolveSplashRoute: resolveAndPrefetch,
   ));
 
