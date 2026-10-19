@@ -20,6 +20,7 @@ backend/*/__pycache__/
 .vscode/
 .idea/
 .agents/
+.bin/
 
 # Node / Frontend / Flutter
 node_modules/

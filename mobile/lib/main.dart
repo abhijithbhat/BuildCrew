@@ -35,20 +35,35 @@ import 'theme/app_colors.dart';
 String get effectiveSupabaseUrl => ApiClient.supabaseUrl;
 String get effectiveSupabaseKey => ApiClient.supabaseAnonKey;
 
-Future<String> _bootstrapSession(Future<void> supabaseReady) async {
-  try {
-    await supabaseReady;
-  } catch (e) {
-    debugPrint('Supabase initialize error: $e');
-  }
+Future<void>? supabaseInitFuture;
+final ValueNotifier<bool> supabaseReadyNotifier = ValueNotifier<bool>(false);
 
-  final String route = await resolveStartRoute();
+Future<void> ensureSupabase() {
+  return supabaseInitFuture ??= Supabase.initialize(
+    url: ApiClient.supabaseUrl,
+    // ignore: deprecated_member_use
+    anonKey: ApiClient.supabaseAnonKey,
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
+  ).then((_) {
+    supabaseReadyNotifier.value = true;
+  }).catchError((Object e) {
+    debugPrint('Supabase init error: $e');
+    supabaseReadyNotifier.value = true;
+  });
+}
 
-  if (route == '/home') {
-    unawaited(DashboardRepository.instance.prefetch());
-  }
-
-  return route;
+Future<String>? routeResolutionFuture;
+Future<String> resolveAndPrefetch() {
+  return routeResolutionFuture ??= () async {
+    await ensureSupabase();
+    final String route = await resolveStartRoute();
+    if (route == '/home') {
+      unawaited(DashboardRepository.instance.prefetch());
+    }
+    return route;
+  }();
 }
 
 void main() {
@@ -57,28 +72,18 @@ void main() {
   // Validate API base URL in release mode at startup
   ApiClient.validateStartupConfig();
 
-  unawaited(SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]));
-
-  final Future<void> supabaseReady = Supabase.initialize(
-    url: ApiClient.supabaseUrl,
-    // ignore: deprecated_member_use
-    anonKey: ApiClient.supabaseAnonKey,
-    authOptions: const FlutterAuthClientOptions(
-      authFlowType: AuthFlowType.pkce,
-    ),
-  );
-
-  final Future<String> routeFuture = _bootstrapSession(supabaseReady);
-
-  runApp(MyApp(
+  runApp(const MyApp(
     initialRoute: '/login',
     showSplash: true,
-    supabaseReady: supabaseReady,
-    resolveSplashRoute: () => routeFuture,
+    resolveSplashRoute: resolveAndPrefetch,
   ));
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]));
+  });
 }
 
 class MyApp extends StatefulWidget {
@@ -117,8 +122,20 @@ class _MyAppState extends State<MyApp> {
       widget.supabaseReady!.whenComplete(() {
         if (mounted) _setupAuthListener();
       });
-    } else {
+    } else if (supabaseInitFuture != null) {
+      supabaseInitFuture!.whenComplete(() {
+        if (mounted) _setupAuthListener();
+      });
+    } else if (supabaseReadyNotifier.value) {
       _setupAuthListener();
+    } else {
+      void onReady() {
+        if (supabaseReadyNotifier.value) {
+          supabaseReadyNotifier.removeListener(onReady);
+          if (mounted) _setupAuthListener();
+        }
+      }
+      supabaseReadyNotifier.addListener(onReady);
     }
   }
 
@@ -160,6 +177,10 @@ class _MyAppState extends State<MyApp> {
       if (widget.supabaseReady != null) {
         try {
           await widget.supabaseReady;
+        } catch (_) {}
+      } else if (supabaseInitFuture != null) {
+        try {
+          await supabaseInitFuture;
         } catch (_) {}
       }
       // Custom scheme: com.abhijithbhat.buildcrew, host: login-callback
