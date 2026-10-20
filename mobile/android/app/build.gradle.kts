@@ -50,6 +50,9 @@ android {
                 "proguard-rules.pro"
             )
         }
+        matching { it.name == "profile" }.configureEach {
+            signingConfig = signingConfigs.getByName("debug")
+        }
     }
 }
 
